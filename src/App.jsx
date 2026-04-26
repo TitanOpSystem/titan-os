@@ -1009,9 +1009,6 @@ export default function App(){
 
   const logout = () => { sessionStorage.removeItem("pcm_auth"); setAuthed(false); };
 
-  if (!authed) return <LoginScreen onLogin={()=>setAuthed(true)}/>;
-
-
   const showToast=useCallback((msg,type="success")=>{setToastState({msg,type});setTimeout(()=>setToastState(null),3000);},[]);
 
   const fetchTable=useCallback(async table=>{
@@ -1025,10 +1022,17 @@ export default function App(){
     else await Promise.all(TABLES.map(fetchTable));
   },[fetchTable]);
 
-  useEffect(()=>{(async()=>{setLoading(true);await reload();setLoading(false);})();},[]);
+  useEffect(()=>{
+    if(!authed) return;
+    (async()=>{setLoading(true);await reload();setLoading(false);})();
+  },[authed]);
 
   const stats={families:data.families.length,contacts:data.contacts.length,properties:data.properties.length,deals:data.deals.filter(d=>d.stage!=="Closed Lost").length,notes:data.notes.length,tasks:data.tasks.filter(t=>!t.done).length};
   const overdue=data.tasks.filter(t=>!t.done&&t.dueDate&&new Date(t.dueDate)<new Date()).length;
+
+  // Auth gate — must be AFTER all hooks
+  if (!authed) return <LoginScreen onLogin={()=>setAuthed(true)}/>;
+
 
   return <div style={{display:"flex",height:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:B.text,overflow:"hidden"}}>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
