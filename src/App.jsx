@@ -5,6 +5,10 @@ const SUPABASE_URL = "https://unkirihxtruhdjeldfpm.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVua2lyaWh4dHJ1aGRqZWxkZnBtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNTA3MjUsImV4cCI6MjA5MTcyNjcyNX0._Ve9Pr3ooja-YdHYFIupebaZRhDjmJDnz2b-vzrhY04";
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ── PASSWORD ──────────────────────────────────────────────────────────────────
+// Change this to whatever password you want your team to use
+const APP_PASSWORD = "PCMFamily2025!";
+
 // ── BRAND ─────────────────────────────────────────────────────────────────────
 const B = {
   navy:"#092b49", navyMid:"#293d5c", gold:"#ceb684", goldLight:"#dfc99a",
@@ -97,8 +101,19 @@ function SectionCard({title,children,action}){
 }
 
 // ── PCM LOGO ──────────────────────────────────────────────────────────────────
-function PCMLogo(){
-  return <img src="/pcm-logo.png" alt="PCM Family Office" style={{height:44,width:"auto",filter:"brightness(0) invert(1)",display:"block"}}/>;
+function PCMLogo({white=false}){
+  // white=true: used on navy background — show white version via CSS filter
+  // white=false: used on light background — show full color
+  return <img
+    src="/pcm-logo.jpg"
+    alt="PCM Family Office"
+    style={{
+      height: white ? 48 : 64,
+      width: "auto",
+      display: "block",
+      filter: white ? "brightness(0) invert(1)" : "none",
+    }}
+  />;
 }
 
 // ── FAMILY REPORT (Printable) ─────────────────────────────────────────────────
@@ -146,7 +161,7 @@ function FamilyReport({family,data,onClose}){
     </style></head><body>
     <div class="header">
       <div class="logo">
-        <img src="${window.location.origin}/pcm-logo.png" alt="PCM Family Office" style="height:60px;width:auto;"/>
+        <img src="${window.location.origin}/pcm-logo.jpg" alt="PCM Family Office" style="height:60px;width:auto;"/>
         <div class="sub">DISCOVER · SIMPLIFY · EXECUTE</div>
       </div>
       <div style="text-align:right;">
@@ -867,7 +882,112 @@ function IRow({label,value}){return <div style={{display:"flex",gap:10,fontSize:
 function SectionLabel({children}){return <div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:7,marginTop:16}}>{children}</div>;}
 function Empty({text}){return <div style={{fontSize:13,color:B.textMute,padding:"5px 0"}}>{text}</div>;}
 
-// ── APP SHELL ─────────────────────────────────────────────────────────────────
+// ── LOGIN SCREEN ──────────────────────────────────────────────────────────────
+function LoginScreen({onLogin}){
+  const [pw, setPw] = useState("");
+  const [error, setError] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  const attempt = () => {
+    if (pw === APP_PASSWORD) {
+      sessionStorage.setItem("pcm_auth", "1");
+      onLogin();
+    } else {
+      setError(true);
+      setShake(true);
+      setPw("");
+      setTimeout(() => setShake(false), 600);
+    }
+  };
+
+  return (
+    <div style={{minHeight:"100vh",background:`linear-gradient(135deg, ${B.navy} 0%, ${B.navyMid} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
+      <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+      <style>{`@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}`}</style>
+
+      {/* Background subtle pattern */}
+      <div style={{position:"fixed",inset:0,backgroundImage:`radial-gradient(circle at 20% 80%, rgba(206,182,132,0.06) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(206,182,132,0.04) 0%, transparent 50%)`,pointerEvents:"none"}}/>
+
+      <div style={{
+        background:"rgba(255,255,255,0.97)",
+        borderRadius:20,
+        padding:"48px 44px",
+        width:"100%",
+        maxWidth:420,
+        boxShadow:"0 32px 80px rgba(0,0,0,0.35)",
+        border:`1px solid rgba(206,182,132,0.3)`,
+        animation: shake ? "shake 0.6s ease" : "none",
+        position:"relative",
+        zIndex:1,
+      }}>
+        {/* Logo */}
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <img src="/pcm-logo.jpg" alt="PCM Family Office" style={{height:72,width:"auto",marginBottom:20}}/>
+          <div style={{height:1,background:`linear-gradient(90deg,transparent,${B.gold},transparent)`,marginBottom:20}}/>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,letterSpacing:"0.02em"}}>Client Portal</div>
+          <div style={{fontSize:11,color:B.textMute,letterSpacing:"0.1em",marginTop:4}}>SECURE ACCESS</div>
+        </div>
+
+        {/* Password Field */}
+        <div style={{marginBottom:16}}>
+          <label style={{display:"block",fontSize:11,color:B.textSoft,marginBottom:8,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>Password</label>
+          <input
+            type="password"
+            value={pw}
+            onChange={e=>{setPw(e.target.value);setError(false);}}
+            onKeyDown={e=>e.key==="Enter"&&attempt()}
+            placeholder="Enter your password"
+            autoFocus
+            style={{
+              width:"100%",
+              background: error ? "#fde8e8" : B.bg,
+              border:`1.5px solid ${error?"#f5c6c6":B.border}`,
+              borderRadius:10,
+              padding:"13px 16px",
+              color:B.text,
+              fontSize:15,
+              outline:"none",
+              boxSizing:"border-box",
+              fontFamily:"inherit",
+              transition:"border-color .2s, background .2s",
+              letterSpacing:"0.08em",
+            }}
+          />
+          {error && <div style={{fontSize:12,color:"#d43030",marginTop:6,fontWeight:600}}>Incorrect password. Please try again.</div>}
+        </div>
+
+        <button
+          onClick={attempt}
+          style={{
+            width:"100%",
+            background:`linear-gradient(135deg, ${B.navy}, ${B.navyMid})`,
+            color:B.white,
+            border:"none",
+            borderRadius:10,
+            padding:"13px",
+            fontSize:14,
+            fontWeight:700,
+            cursor:"pointer",
+            fontFamily:"inherit",
+            letterSpacing:"0.06em",
+            marginBottom:24,
+            boxShadow:`0 4px 16px rgba(9,43,73,0.25)`,
+          }}
+          onMouseEnter={e=>e.currentTarget.style.opacity=".88"}
+          onMouseLeave={e=>e.currentTarget.style.opacity="1"}
+        >
+          SIGN IN
+        </button>
+
+        <div style={{textAlign:"center",fontSize:11,color:B.textMute,letterSpacing:"0.05em"}}>
+          PCM Family Office &nbsp;·&nbsp; DISCOVER · SIMPLIFY · EXECUTE
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 const NAV=[
   {id:"dashboard",  label:"Dashboard",   icon:"⬡"},
   {id:"families",   label:"Families",    icon:"⌂"},
@@ -885,6 +1005,12 @@ export default function App(){
   const[data,setData]=useState({families:[],contacts:[],properties:[],deals:[],notes:[],tasks:[]});
   const[loading,setLoading]=useState(true);
   const[toastState,setToastState]=useState(null);
+  const[authed,setAuthed]=useState(()=>sessionStorage.getItem("pcm_auth")==="1");
+
+  const logout = () => { sessionStorage.removeItem("pcm_auth"); setAuthed(false); };
+
+  if (!authed) return <LoginScreen onLogin={()=>setAuthed(true)}/>;
+
 
   const showToast=useCallback((msg,type="success")=>{setToastState({msg,type});setTimeout(()=>setToastState(null),3000);},[]);
 
@@ -910,7 +1036,7 @@ export default function App(){
     {/* Sidebar */}
     <div style={{width:228,background:B.navy,display:"flex",flexDirection:"column",flexShrink:0}}>
       <div style={{padding:"18px 20px 16px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
-        <PCMLogo/>
+        <PCMLogo white={true}/>
         <div style={{fontSize:8,color:"rgba(206,182,132,0.5)",letterSpacing:"0.18em",marginTop:10}}>DISCOVER · SIMPLIFY · EXECUTE</div>
       </div>
       <nav style={{flex:1,padding:"10px 8px",overflowY:"auto"}}>
@@ -922,7 +1048,10 @@ export default function App(){
       </nav>
       <div style={{padding:"12px 18px",borderTop:"1px solid rgba(255,255,255,0.07)"}}>
         <div style={{fontSize:9,color:"rgba(255,255,255,0.2)",marginBottom:4}}>{data.families.length} families · {data.properties.length} properties</div>
-        <button onClick={()=>reload()} style={{background:"none",border:"none",color:"rgba(206,182,132,0.4)",fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit"}}>↺ Refresh data</button>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <button onClick={()=>reload()} style={{background:"none",border:"none",color:"rgba(206,182,132,0.4)",fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit"}}>↺ Refresh</button>
+          <button onClick={logout} style={{background:"none",border:"none",color:"rgba(255,255,255,0.25)",fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit",letterSpacing:"0.05em"}}>Sign Out</button>
+        </div>
       </div>
     </div>
 
