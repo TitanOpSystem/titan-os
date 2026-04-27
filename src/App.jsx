@@ -8,9 +8,8 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 // ── LOGO (embedded — no external file needed) ─────────────────────────────────
 const PCM_LOGO = "data:image/jpeg;base64,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";
 
-// ── PASSWORD ──────────────────────────────────────────────────────────────────
-// Change this to whatever password you want your team to use
-const APP_PASSWORD = "PCMFamily2025!";
+// ── AUTH ─────────────────────────────────────────────────────────────────────
+// Supabase Auth handles login — managed via Supabase dashboard
 
 // ── BRAND ─────────────────────────────────────────────────────────────────────
 const B = {
@@ -45,7 +44,7 @@ const fmtPct = n => n != null && n !== "" ? `${Number(n).toFixed(2)}%` : "—";
 // DB field mapping
 const toClient = obj => {
   if (!obj) return obj;
-  const m = {family_id:"familyId",contact_id:"contactId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium"};
+  const m = {family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 const toDb = obj => {
@@ -270,7 +269,8 @@ function FamilyForm({initial,onSave,onClose}){
 
 // ── FAMILIES VIEW ─────────────────────────────────────────────────────────────
 function FamiliesView({data,reload,toast}){
-  const {families,contacts,properties,deals,tasks}=data;
+  const {families,contacts,properties,deals,tasks,valuables=[]}=data;
+  const [familyTab,setFamilyTab]=useState("overview"); // overview | properties | valuables
   const [modal,setModal]=useState(null);
   const [selected,setSelected]=useState(null);
   const [reportFamily,setReportFamily]=useState(null);
@@ -287,6 +287,12 @@ function FamiliesView({data,reload,toast}){
   const fDeals=sel=>deals.filter(d=>d.familyId===sel.id&&d.stage!=="Closed Lost"&&d.stage!=="Closed Won");
   const fTasks=sel=>tasks.filter(t=>t.familyId===sel.id&&!t.done);
   const portfolioValue=sel=>fProperties(sel).reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
+  const fValuables=sel=>valuables.filter(v=>v.familyId===sel.id);
+  const valuablesTotal=sel=>fValuables(sel).reduce((s,v)=>s+(Number(v.estimatedValue)||0),0);
+
+  const addValuable=async(f,famId)=>{const row={family_id:famId,category:f.category,description:f.description,make_model:f.makeModel||null,year:f.year||null,estimated_value:f.estimatedValue||null,insured:!!f.insured,insurance_company:f.insuranceCompany||null,notes:f.notes||null};const{error}=await sb.from("valuables").insert(row);if(error)toast(error.message,"error");else{toast("Valuable added");reload("valuables");}};
+  const delValuable=async id=>{const{error}=await sb.from("valuables").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("valuables");}};
+  const [valuableModal,setValuableModal]=useState(null);
 
   return <div style={{display:"flex",height:"100%",minHeight:0}}>
     <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:`1px solid ${B.borderLight}`}}>
@@ -329,11 +335,17 @@ function FamiliesView({data,reload,toast}){
           </div>
         </div>
         <div style={{padding:"16px 24px"}}>
+          {/* Family sub-tabs */}
+          <div style={{display:"flex",gap:4,marginBottom:16,borderBottom:`1px solid ${B.borderLight}`,paddingBottom:8}}>
+            {["Overview","Properties","Valuables"].map(t=><button key={t} onClick={()=>setFamilyTab(t.toLowerCase())} style={{background:familyTab===t.toLowerCase()?B.navy:"transparent",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,color:familyTab===t.toLowerCase()?B.white:B.textSoft,cursor:"pointer",fontFamily:"inherit"}}>{t}</button>)}
+          </div>
+
+          {familyTab==="overview"&&<>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
             {[
               {l:"Members",v:fContacts(selected).length},
               {l:"Properties",v:fProperties(selected).length},
-              {l:"Portfolio Value",v:fmtMoney(portfolioValue(selected))},
+              {l:"Valuables",v:fValuables(selected).length},
               {l:"Open Tasks",v:fTasks(selected).length},
             ].map(s=><div key={s.l} style={{background:B.white,borderRadius:8,padding:"10px 14px",border:`1px solid ${B.borderLight}`,borderTop:`2px solid ${B.gold}`}}>
               <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>{s.l}</div>
@@ -347,17 +359,54 @@ function FamiliesView({data,reload,toast}){
             <Badge scheme={c.type==="Business"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{c.type}</Badge>
           </div>)}
 
-          <SectionLabel>Properties</SectionLabel>
-          {fProperties(selected).length===0?<Empty text="No properties."/>:fProperties(selected).map(p=><div key={p.id} style={{padding:"7px 0",borderBottom:`1px solid ${B.borderLight}`}}>
-            <div style={{fontSize:13,color:B.navy,fontWeight:600}}>{p.address}</div>
-            <div style={{fontSize:12,color:B.textSoft}}>{p.ownerName?`${p.ownerName} · `:""}{fmtMoney(p.currentValue||p.purchasePrice)}</div>
-          </div>)}
-
           <SectionLabel>Open Deals</SectionLabel>
           {fDeals(selected).length===0?<Empty text="No open deals."/>:fDeals(selected).map(d=><div key={d.id} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${B.borderLight}`}}>
             <span style={{fontSize:13,color:B.text}}>{d.title}</span>
             <Badge scheme={STAGE_COLORS[d.stage]}>{d.stage}</Badge>
           </div>)}
+          </>}
+
+          {familyTab==="properties"&&<>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <span style={{fontSize:12,color:B.textSoft}}>{fProperties(selected).length} properties · {fmtMoney(portfolioValue(selected))} total</span>
+          </div>
+          {fProperties(selected).length===0?<Empty text="No properties. Add from the Properties page."/>:fProperties(selected).map(p=><div key={p.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`3px solid ${B.gold}`,borderRadius:8,padding:"12px 14px",marginBottom:8}}>
+            <div style={{fontWeight:700,color:B.navy,marginBottom:4}}>{p.address}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
+              {p.ownerName&&<div style={{fontSize:11,color:B.textSoft}}>Owner: {p.ownerName}</div>}
+              <div style={{fontSize:11,color:B.textSoft}}>Value: {fmtMoney(p.currentValue||p.purchasePrice)}</div>
+              {p.loanBalance&&<div style={{fontSize:11,color:B.textSoft}}>Balance: {fmtMoney(p.loanBalance)}</div>}
+              {p.interestRate&&<div style={{fontSize:11,color:B.textSoft}}>Rate: {fmtPct(p.interestRate)}</div>}
+              {p.rentalIncome&&<div style={{fontSize:11,color:B.textSoft}}>Rental: {fmtMoney(p.rentalIncome)}/mo</div>}
+              {p.loanMaturityDate&&<div style={{fontSize:11,color:B.textSoft}}>Matures: {fmt(p.loanMaturityDate)}</div>}
+            </div>
+          </div>)}
+          </>}
+
+          {familyTab==="valuables"&&<>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <span style={{fontSize:12,color:B.textSoft}}>{fValuables(selected).length} items · {fmtMoney(valuablesTotal(selected))} est. value</span>
+            <Btn small onClick={()=>setValuableModal({familyId:selected.id})}>+ Add</Btn>
+          </div>
+          {fValuables(selected).length===0?<Empty text="No valuables recorded."/>:VALUABLE_CATS.map(cat=>{
+            const items=fValuables(selected).filter(v=>v.category===cat);
+            if(!items.length)return null;
+            return <div key={cat} style={{marginBottom:12}}>
+              <div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>{cat}</div>
+              {items.map(v=><div key={v.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`3px solid ${B.navyMid}`,borderRadius:8,padding:"10px 14px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{v.description}</div>
+                  {v.makeModel&&<div style={{fontSize:11,color:B.textSoft}}>{v.makeModel}{v.year?` · ${v.year}`:""}</div>}
+                  {v.insured&&<div style={{fontSize:11,color:"#18a850",fontWeight:600}}>✓ Insured{v.insuranceCompany?` — ${v.insuranceCompany}`:""}</div>}
+                </div>
+                <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+                  <div style={{fontSize:13,fontWeight:700,color:B.navy}}>{fmtMoney(v.estimatedValue)}</div>
+                  <button onClick={()=>delValuable(v.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
+                </div>
+              </div>)}
+            </div>;
+          })}
+          </>}
 
           <SectionLabel>Pending Tasks</SectionLabel>
           {fTasks(selected).length===0?<Empty text="No pending tasks."/>:fTasks(selected).map(t=>{
@@ -368,7 +417,7 @@ function FamiliesView({data,reload,toast}){
             </div>;
           })}
 
-          {selected.notes&&<><SectionLabel>Notes</SectionLabel><div style={{fontSize:13,color:B.textMid,lineHeight:1.6}}>{selected.notes}</div></>}
+          {familyTab==="overview"&&selected.notes&&<><SectionLabel>Notes</SectionLabel><div style={{fontSize:13,color:B.textMid,lineHeight:1.6}}>{selected.notes}</div></>}
         </div>
       </div>
     ):<div style={{width:400,display:"flex",alignItems:"center",justifyContent:"center",color:B.textMute,fontSize:13,background:B.bg}}>Select a family</div>}
@@ -376,6 +425,7 @@ function FamiliesView({data,reload,toast}){
     {modal==="add"&&<Modal title="New Family" onClose={()=>setModal(null)}><FamilyForm onSave={add} onClose={()=>setModal(null)}/></Modal>}
     {modal&&modal!=="add"&&<Modal title="Edit Family" onClose={()=>setModal(null)}><FamilyForm initial={modal} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
     {reportFamily&&<FamilyReport family={reportFamily} data={data} onClose={()=>setReportFamily(null)}/>}
+    {valuableModal&&<Modal title="Add Valuable" onClose={()=>setValuableModal(null)}><ValuableForm onSave={f=>addValuable(f,valuableModal.familyId)} onClose={()=>setValuableModal(null)}/></Modal>}
   </div>;
 }
 
@@ -695,31 +745,79 @@ function DealsView({data,reload,toast}){
 
 function NotesView({data,reload,toast}){
   const{contacts,families,notes}=data;
-  const[body,setBody]=useState("");const[cid,setCid]=useState("");const[fid,setFid]=useState("");const[search,setSearch]=useState("");const[saving,setSaving]=useState(false);
-  const gc=id=>contacts.find(c=>c.id===id);const gf=id=>families.find(f=>f.id===id);
+  const[body,setBody]=useState("");
+  const[cid,setCid]=useState("");
+  const[fid,setFid]=useState("");
+  const[search,setSearch]=useState("");
+  const[saving,setSaving]=useState(false);
+  const gc=id=>contacts.find(c=>c.id===id);
+  const gf=id=>families.find(f=>f.id===id);
+
   const add=async()=>{if(!body.trim())return;setSaving(true);const{error}=await sb.from("notes").insert({body,contact_id:cid||null,family_id:fid||null});setSaving(false);if(error)toast(error.message,"error");else{toast("Note added");setBody("");reload("notes");}};
   const del=async id=>{const{error}=await sb.from("notes").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("notes");}};
   const filtered=notes.filter(n=>n.body.toLowerCase().includes(search.toLowerCase())||(gc(n.contactId)?.name||"").toLowerCase().includes(search.toLowerCase())||(gf(n.familyId)?.name||"").toLowerCase().includes(search.toLowerCase()));
-  return <div style={{maxWidth:740,margin:"0 auto",padding:"20px",height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
-    <div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:18,marginBottom:16,boxShadow:B.shadow}}>
-      <Tex placeholder="Write a note or activity log entry…" value={body} onChange={e=>setBody(e.target.value)} style={{marginBottom:10}}/>
-      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-        <Sel value={fid} onChange={e=>setFid(e.target.value)} style={{flex:1,minWidth:130}}><option value="">— Family (opt) —</option>{families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</Sel>
-        <Sel value={cid} onChange={e=>setCid(e.target.value)} style={{flex:1,minWidth:130}}><option value="">— Contact (opt) —</option>{contacts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Sel>
-        <Btn onClick={add} disabled={saving}>{saving?"Saving…":"Log Note"}</Btn>
+
+  return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
+    {/* Compose area */}
+    <div style={{padding:"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
+      <div style={{maxWidth:800,margin:"0 auto"}}>
+        <div style={{marginBottom:8,fontSize:12,color:B.textSoft,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase"}}>New Activity Note</div>
+        <div style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:12,overflow:"hidden",boxShadow:B.shadow}}>
+          <textarea
+            value={body}
+            onChange={e=>setBody(e.target.value)}
+            placeholder="Write a note, meeting summary, or activity log entry…"
+            style={{width:"100%",minHeight:90,background:"transparent",border:"none",padding:"14px 16px",color:B.text,fontSize:14,outline:"none",resize:"none",fontFamily:"inherit",lineHeight:1.65,boxSizing:"border-box"}}
+          />
+          <div style={{display:"flex",gap:8,alignItems:"center",padding:"10px 14px",borderTop:`1px solid ${B.borderLight}`,background:B.white,flexWrap:"wrap"}}>
+            <select value={fid} onChange={e=>setFid(e.target.value)} style={{...{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"6px 10px",color:B.text,fontSize:13,outline:"none",fontFamily:"inherit"},flex:1,minWidth:130}}>
+              <option value="">🏠 Family (optional)</option>
+              {families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+            <select value={cid} onChange={e=>setCid(e.target.value)} style={{...{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"6px 10px",color:B.text,fontSize:13,outline:"none",fontFamily:"inherit"},flex:1,minWidth:130}}>
+              <option value="">👤 Contact (optional)</option>
+              {contacts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <Btn onClick={add} disabled={saving||!body.trim()} style={{flexShrink:0}}>{saving?"Saving…":"Log Note"}</Btn>
+          </div>
+        </div>
       </div>
     </div>
-    <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search notes…" style={{marginBottom:14}}/>
-    <div style={{overflowY:"auto",flex:1,paddingBottom:24}}>
-      {filtered.length===0&&<div style={{padding:"40px 0",color:B.textMute,textAlign:"center",fontSize:14}}>No notes yet.</div>}
-      {filtered.map(n=>{const contact=gc(n.contactId);const fam=gf(n.familyId);return <div key={n.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`3px solid ${B.gold}`,borderRadius:10,padding:"13px 15px",marginBottom:8,boxShadow:B.shadow}}>
-        <div style={{display:"flex",justifyContent:"space-between",gap:8}}><p style={{margin:0,color:B.textMid,fontSize:14,lineHeight:1.6,flex:1}}>{n.body}</p><button onClick={()=>del(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:15,flexShrink:0}}>✕</button></div>
-        <div style={{marginTop:8,display:"flex",gap:10,flexWrap:"wrap"}}>
-          <span style={{fontSize:11,color:B.textMute}}>{fmt(n.createdAt)}</span>
-          {fam&&<span style={{fontSize:11,color:B.navy,fontWeight:700}}>{fam.name}</span>}
-          {contact&&<span style={{fontSize:11,color:B.gold,fontWeight:700}}>{contact.name}</span>}
+
+    {/* Search + feed */}
+    <div style={{flex:1,overflowY:"auto",padding:"20px 28px"}}>
+      <div style={{maxWidth:800,margin:"0 auto"}}>
+        <div style={{marginBottom:16,position:"relative"}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search notes…"
+            style={{width:"100%",background:B.white,border:`1px solid ${B.border}`,borderRadius:8,padding:"9px 14px 9px 36px",color:B.text,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit",boxShadow:B.shadow}}/>
+          <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:B.textMute,fontSize:14}}>🔍</span>
         </div>
-      </div>;})}
+
+        {filtered.length===0&&<div style={{padding:"60px 0",color:B.textMute,textAlign:"center",fontSize:14}}>
+          <div style={{fontSize:32,marginBottom:12}}>📝</div>
+          No notes yet. Start logging activity above.
+        </div>}
+
+        {filtered.map(n=>{
+          const contact=gc(n.contactId);
+          const fam=gf(n.familyId);
+          return <div key={n.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,marginBottom:12,boxShadow:B.shadow,overflow:"hidden"}}>
+            {/* Color bar top */}
+            <div style={{height:3,background:`linear-gradient(90deg,${B.gold},${B.goldLight})`}}/>
+            <div style={{padding:"16px 20px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:10}}>
+                <p style={{margin:0,color:B.text,fontSize:14,lineHeight:1.7,flex:1,fontFamily:"'Georgia',serif"}}>{n.body}</p>
+                <button onClick={()=>del(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14,flexShrink:0,padding:"2px 4px",borderRadius:4}} title="Delete">✕</button>
+              </div>
+              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                <span style={{fontSize:11,color:B.textMute,display:"flex",alignItems:"center",gap:4}}>🕐 {fmt(n.createdAt)}</span>
+                {fam&&<span style={{background:"#e8f0f8",color:B.navyMid,borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:700}}>🏠 {fam.name}</span>}
+                {contact&&<span style={{background:"#fef3e2",color:"#8a5c00",borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:700}}>👤 {contact.name}</span>}
+              </div>
+            </div>
+          </div>;
+        })}
+      </div>
     </div>
   </div>;
 }
@@ -883,113 +981,411 @@ function IRow({label,value}){return <div style={{display:"flex",gap:10,fontSize:
 function SectionLabel({children}){return <div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:7,marginTop:16}}>{children}</div>;}
 function Empty({text}){return <div style={{fontSize:13,color:B.textMute,padding:"5px 0"}}>{text}</div>;}
 
-// ── LOGIN SCREEN ──────────────────────────────────────────────────────────────
+// ── LOGIN SCREEN (Supabase Auth) ─────────────────────────────────────────────
 function LoginScreen({onLogin}){
-  const [pw, setPw] = useState("");
-  const [error, setError] = useState(false);
-  const [shake, setShake] = useState(false);
+  const[mode,setMode]=useState("login"); // login | reset
+  const[email,setEmail]=useState("");
+  const[password,setPassword]=useState("");
+  const[error,setError]=useState("");
+  const[loading,setLoading]=useState(false);
+  const[resetSent,setResetSent]=useState(false);
 
-  const attempt = () => {
-    if (pw === APP_PASSWORD) {
-      sessionStorage.setItem("pcm_auth", "1");
-      onLogin();
-    } else {
-      setError(true);
-      setShake(true);
-      setPw("");
-      setTimeout(() => setShake(false), 600);
-    }
+  const handleLogin=async()=>{
+    if(!email||!password)return setError("Please enter your email and password.");
+    setLoading(true);setError("");
+    const{error:e}=await sb.auth.signInWithPassword({email,password});
+    setLoading(false);
+    if(e)setError(e.message);
+    else onLogin();
   };
 
-  return (
-    <div style={{minHeight:"100vh",background:`linear-gradient(135deg, ${B.navy} 0%, ${B.navyMid} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
+  const handleReset=async()=>{
+    if(!email)return setError("Please enter your email address.");
+    setLoading(true);setError("");
+    const{error:e}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin});
+    setLoading(false);
+    if(e)setError(e.message);
+    else setResetSent(true);
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:`linear-gradient(135deg,${B.navy} 0%,${B.navyMid} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
       <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
       <style>{`@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}`}</style>
-
-      {/* Background subtle pattern */}
-      <div style={{position:"fixed",inset:0,backgroundImage:`radial-gradient(circle at 20% 80%, rgba(206,182,132,0.06) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(206,182,132,0.04) 0%, transparent 50%)`,pointerEvents:"none"}}/>
-
-      <div style={{
-        background:"rgba(255,255,255,0.97)",
-        borderRadius:20,
-        padding:"48px 44px",
-        width:"100%",
-        maxWidth:420,
-        boxShadow:"0 32px 80px rgba(0,0,0,0.35)",
-        border:`1px solid rgba(206,182,132,0.3)`,
-        animation: shake ? "shake 0.6s ease" : "none",
-        position:"relative",
-        zIndex:1,
-      }}>
-        {/* Logo */}
+      <div style={{position:"fixed",inset:0,backgroundImage:`radial-gradient(circle at 20% 80%,rgba(206,182,132,0.06) 0%,transparent 50%),radial-gradient(circle at 80% 20%,rgba(206,182,132,0.04) 0%,transparent 50%)`,pointerEvents:"none"}}/>
+      <div style={{background:"rgba(255,255,255,0.97)",borderRadius:20,padding:"48px 44px",width:"100%",maxWidth:420,boxShadow:"0 32px 80px rgba(0,0,0,0.35)",border:`1px solid rgba(206,182,132,0.3)`,position:"relative",zIndex:1}}>
         <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{display:"flex",justifyContent:"center",marginBottom:20}}>
-            <PCMLogo/>
-          </div>
+          <div style={{display:"flex",justifyContent:"center",marginBottom:20}}><PCMLogo/></div>
           <div style={{height:1,background:`linear-gradient(90deg,transparent,${B.gold},transparent)`,marginBottom:20}}/>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,letterSpacing:"0.02em"}}>Client Portal</div>
-          <div style={{fontSize:11,color:B.textMute,letterSpacing:"0.1em",marginTop:4}}>SECURE ACCESS</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>{mode==="reset"?"Reset Password":"Client Portal"}</div>
+          <div style={{fontSize:11,color:B.textMute,letterSpacing:"0.1em",marginTop:4}}>{mode==="reset"?"ENTER YOUR EMAIL":"SECURE ACCESS"}</div>
         </div>
 
-        {/* Password Field */}
-        <div style={{marginBottom:16}}>
-          <label style={{display:"block",fontSize:11,color:B.textSoft,marginBottom:8,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>Password</label>
-          <input
-            type="password"
-            value={pw}
-            onChange={e=>{setPw(e.target.value);setError(false);}}
-            onKeyDown={e=>e.key==="Enter"&&attempt()}
-            placeholder="Enter your password"
-            autoFocus
-            style={{
-              width:"100%",
-              background: error ? "#fde8e8" : B.bg,
-              border:`1.5px solid ${error?"#f5c6c6":B.border}`,
-              borderRadius:10,
-              padding:"13px 16px",
-              color:B.text,
-              fontSize:15,
-              outline:"none",
-              boxSizing:"border-box",
-              fontFamily:"inherit",
-              transition:"border-color .2s, background .2s",
-              letterSpacing:"0.08em",
-            }}
-          />
-          {error && <div style={{fontSize:12,color:"#d43030",marginTop:6,fontWeight:600}}>Incorrect password. Please try again.</div>}
-        </div>
-
-        <button
-          onClick={attempt}
-          style={{
-            width:"100%",
-            background:`linear-gradient(135deg, ${B.navy}, ${B.navyMid})`,
-            color:B.white,
-            border:"none",
-            borderRadius:10,
-            padding:"13px",
-            fontSize:14,
-            fontWeight:700,
-            cursor:"pointer",
-            fontFamily:"inherit",
-            letterSpacing:"0.06em",
-            marginBottom:24,
-            boxShadow:`0 4px 16px rgba(9,43,73,0.25)`,
-          }}
-          onMouseEnter={e=>e.currentTarget.style.opacity=".88"}
-          onMouseLeave={e=>e.currentTarget.style.opacity="1"}
-        >
-          SIGN IN
-        </button>
-
-        <div style={{textAlign:"center",fontSize:11,color:B.textMute,letterSpacing:"0.05em"}}>
-          PCM Family Office &nbsp;·&nbsp; DISCOVER · SIMPLIFY · EXECUTE
-        </div>
+        {resetSent?(
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:40,marginBottom:16}}>📧</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,marginBottom:8}}>Check your email</div>
+            <div style={{fontSize:13,color:B.textSoft,marginBottom:24}}>We've sent a password reset link to <strong>{email}</strong></div>
+            <Btn onClick={()=>{setMode("login");setResetSent(false);}}>Back to Sign In</Btn>
+          </div>
+        ):(
+          <>
+            <div style={{marginBottom:16}}>
+              <label style={{display:"block",fontSize:11,color:B.textSoft,marginBottom:6,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>Email</label>
+              <input type="email" value={email} onChange={e=>{setEmail(e.target.value);setError("");}}
+                onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():handleReset())}
+                placeholder="you@pcmfamilyoffice.com" autoFocus
+                style={{width:"100%",background:B.bg,border:`1.5px solid ${error?B.border:B.border}`,borderRadius:10,padding:"13px 16px",color:B.text,fontSize:15,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+            </div>
+            {mode==="login"&&(
+              <div style={{marginBottom:16}}>
+                <label style={{display:"block",fontSize:11,color:B.textSoft,marginBottom:6,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>Password</label>
+                <input type="password" value={password} onChange={e=>{setPassword(e.target.value);setError("");}}
+                  onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+                  placeholder="••••••••"
+                  style={{width:"100%",background:B.bg,border:`1.5px solid ${B.border}`,borderRadius:10,padding:"13px 16px",color:B.text,fontSize:15,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+              </div>
+            )}
+            {error&&<div style={{fontSize:12,color:"#d43030",marginBottom:12,fontWeight:600,padding:"8px 12px",background:"#fde8e8",borderRadius:8}}>{error}</div>}
+            <button onClick={mode==="login"?handleLogin:handleReset} disabled={loading}
+              style={{width:"100%",background:`linear-gradient(135deg,${B.navy},${B.navyMid})`,color:B.white,border:"none",borderRadius:10,padding:"13px",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",letterSpacing:"0.06em",marginBottom:16,opacity:loading?.7:1}}>
+              {loading?"Please wait…":mode==="login"?"SIGN IN":"SEND RESET LINK"}
+            </button>
+            <div style={{textAlign:"center"}}>
+              {mode==="login"?(
+                <button onClick={()=>{setMode("reset");setError("");}} style={{background:"none",border:"none",color:B.textSoft,fontSize:12,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>Forgot your password?</button>
+              ):(
+                <button onClick={()=>{setMode("login");setError("");}} style={{background:"none",border:"none",color:B.textSoft,fontSize:12,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>Back to sign in</button>
+              )}
+            </div>
+          </>
+        )}
+        <div style={{textAlign:"center",marginTop:24,fontSize:11,color:B.textMute,letterSpacing:"0.05em"}}>PCM Family Office · DISCOVER · SIMPLIFY · EXECUTE</div>
       </div>
     </div>
   );
 }
 
+// ── PORTFOLIO VIEW ────────────────────────────────────────────────────────────
+function PortfolioView({data,reload,toast}){
+  const{families,portfolio_accounts=[]}=data;
+  const[modal,setModal]=useState(null);
+  const[filterFamily,setFilterFamily]=useState("all");
+  const[selected,setSelected]=useState(null);
+  const gf=id=>families.find(f=>f.id===id);
+
+  const accounts=portfolio_accounts.filter(a=>filterFamily==="all"||a.familyId===filterFamily);
+  const totalValue=accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalStart=accounts.reduce((s,a)=>s+(Number(a.startingBalance)||0),0);
+  const totalGain=totalValue-totalStart;
+  const totalPct=totalStart>0?((totalGain/totalStart)*100).toFixed(2):null;
+
+  const pctChange=(a)=>{
+    const s=Number(a.startingBalance)||0;
+    const c=Number(a.currentBalance)||0;
+    if(!s) return null;
+    return (((c-s)/s)*100).toFixed(2);
+  };
+
+  const AcctForm=({initial,onSave,onClose})=>{
+    const[f,setF]=useState(initial||{familyId:"",institution:"",bankerName:"",accountType:"Investment",startingBalance:"",currentBalance:"",notes:""});
+    const[saving,setSaving]=useState(false);
+    const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+    const save=async()=>{if(!f.institution.trim())return;setSaving(true);await onSave(f);onClose();};
+    const pct=pctChange({startingBalance:f.startingBalance,currentBalance:f.currentBalance});
+    return <div>
+      <Field label="Family"><Sel value={f.familyId||""} onChange={set("familyId")}><option value="">— No family —</option>{families.map(fm=><option key={fm.id} value={fm.id}>{fm.name}</option>)}</Sel></Field>
+      <Grid2>
+        <Field label="Institution"><Inp placeholder="Merrill Lynch" value={f.institution} onChange={set("institution")}/></Field>
+        <Field label="Banker / Advisor Name"><Inp placeholder="John Smith" value={f.bankerName||""} onChange={set("bankerName")}/></Field>
+      </Grid2>
+      <Field label="Account Type"><Sel value={f.accountType} onChange={set("accountType")}><option>Investment</option><option>Brokerage</option><option>Retirement (IRA)</option><option>401(k)</option><option>Trust</option><option>Savings</option><option>Other</option></Sel></Field>
+      <Grid2>
+        <Field label="Starting Balance"><Inp type="number" placeholder="500000" value={f.startingBalance||""} onChange={set("startingBalance")}/></Field>
+        <Field label="Current Balance"><Inp type="number" placeholder="620000" value={f.currentBalance||""} onChange={set("currentBalance")}/></Field>
+      </Grid2>
+      {pct!==null&&<div style={{background:Number(pct)>=0?"#e0f5e9":"#fde8e8",border:`1px solid ${Number(pct)>=0?"#18a850":"#d43030"}`,borderRadius:8,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:20}}>{Number(pct)>=0?"📈":"📉"}</span>
+        <div>
+          <div style={{fontSize:11,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>Performance</div>
+          <div style={{fontSize:18,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:Number(pct)>=0?"#0d5c2b":"#8b1a1a"}}>{Number(pct)>=0?"+":""}{pct}%</div>
+        </div>
+        <div style={{marginLeft:"auto",textAlign:"right"}}>
+          <div style={{fontSize:11,color:B.textMute}}>Gain / Loss</div>
+          <div style={{fontSize:14,fontWeight:700,color:Number(pct)>=0?"#18a850":"#d43030"}}>{fmtMoney(Math.abs(Number(f.currentBalance||0)-Number(f.startingBalance||0)))}</div>
+        </div>
+      </div>}
+      <Field label="Notes"><Tex placeholder="Additional notes…" value={f.notes||""} onChange={set("notes")}/></Field>
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Account"}</Btn>
+      </div>
+    </div>;
+  };
+
+  const add=async f=>{const row={family_id:f.familyId||null,institution:f.institution,banker_name:f.bankerName||null,account_type:f.accountType,starting_balance:f.startingBalance||null,current_balance:f.currentBalance||null,notes:f.notes||null};const{error}=await sb.from("portfolio_accounts").insert(row);if(error)toast(error.message,"error");else{toast("Account added");reload("portfolio_accounts");}};
+  const edit=async f=>{const row={family_id:f.familyId||null,institution:f.institution,banker_name:f.bankerName||null,account_type:f.accountType,starting_balance:f.startingBalance||null,current_balance:f.currentBalance||null,notes:f.notes||null};const{error}=await sb.from("portfolio_accounts").update(row).eq("id",modal.id);if(error)toast(error.message,"error");else{toast("Updated");reload("portfolio_accounts");setSelected({...selected,...f});}};
+  const del=async id=>{const{error}=await sb.from("portfolio_accounts").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("portfolio_accounts");if(selected?.id===id)setSelected(null);}};
+
+  const ACCT_TYPES=["Investment","Brokerage","Retirement (IRA)","401(k)","Trust","Savings","Other"];
+
+  return <div style={{display:"flex",height:"100%",minHeight:0}}>
+    <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:`1px solid ${B.borderLight}`}}>
+      <div style={{padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <Sel value={filterFamily} onChange={e=>setFilterFamily(e.target.value)} style={{width:180}}><option value="all">All Families</option>{families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</Sel>
+        <div style={{flex:1,display:"flex",gap:16}}>
+          <div style={{fontSize:12,color:B.textSoft}}>Total Value: <strong style={{color:B.navy}}>{fmtMoney(totalValue)}</strong></div>
+          {totalPct!==null&&<div style={{fontSize:12,color:Number(totalPct)>=0?"#18a850":"#d43030",fontWeight:700}}>{Number(totalPct)>=0?"+":""}{totalPct}% overall</div>}
+        </div>
+        <Btn onClick={()=>setModal("add")}>+ New Account</Btn>
+      </div>
+      <div style={{overflowY:"auto",flex:1}}>
+        {accounts.length===0&&<div style={{padding:"60px 24px",color:B.textMute,textAlign:"center",fontSize:14}}>No portfolio accounts yet.</div>}
+        {ACCT_TYPES.map(type=>{
+          const list=accounts.filter(a=>a.accountType===type);
+          if(!list.length)return null;
+          const typeTotal=list.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+          return <div key={type}>
+            <div style={{padding:"10px 20px 4px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:11,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase"}}>{type}</span>
+              <span style={{fontSize:11,color:B.textSoft,fontWeight:700}}>{fmtMoney(typeTotal)}</span>
+            </div>
+            {list.map(a=>{
+              const pct=pctChange(a);
+              const fam=gf(a.familyId);
+              return <div key={a.id} onClick={()=>setSelected(a)} style={{padding:"13px 20px",cursor:"pointer",borderBottom:`1px solid ${B.borderLight}`,background:selected?.id===a.id?B.bg:B.white,borderLeft:`3px solid ${B.gold}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div>
+                    <div style={{fontWeight:700,color:B.navy,marginBottom:2}}>{a.institution}</div>
+                    <div style={{fontSize:12,color:B.textSoft}}>{a.bankerName?`${a.bankerName} · `:""}{fam?fam.name:""}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:14,fontWeight:700,color:B.navy}}>{fmtMoney(a.currentBalance)}</div>
+                    {pct!==null&&<div style={{fontSize:11,fontWeight:700,color:Number(pct)>=0?"#18a850":"#d43030"}}>{Number(pct)>=0?"+":""}{pct}%</div>}
+                  </div>
+                </div>
+              </div>;
+            })}
+          </div>;
+        })}
+      </div>
+    </div>
+
+    {selected?(
+      <div style={{width:380,overflowY:"auto",flexShrink:0,background:B.bg}}>
+        <div style={{padding:"16px 22px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600}}>{selected.institution}</div>
+            <div style={{fontSize:12,color:B.textSoft,marginTop:2}}>{selected.accountType}</div>
+          </div>
+          <div style={{display:"flex",gap:6}}><Btn small variant="ghost" onClick={()=>setModal(selected)}>Edit</Btn><Btn small variant="danger" onClick={()=>del(selected.id)}>Delete</Btn></div>
+        </div>
+        <div style={{padding:"16px 22px"}}>
+          {(()=>{const pct=pctChange(selected);const gain=(Number(selected.currentBalance)||0)-(Number(selected.startingBalance)||0);return pct!==null&&<div style={{background:Number(pct)>=0?"#e0f5e9":"#fde8e8",border:`1px solid ${Number(pct)>=0?"#2e9e57":"#d43030"}`,borderRadius:10,padding:"14px 18px",marginBottom:18,display:"flex",gap:16,alignItems:"center"}}>
+            <div style={{fontSize:28}}>{Number(pct)>=0?"📈":"📉"}</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}}>Performance</div>
+              <div style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:Number(pct)>=0?"#0d5c2b":"#8b1a1a"}}>{Number(pct)>=0?"+":""}{pct}%</div>
+              <div style={{fontSize:12,color:Number(pct)>=0?"#18a850":"#d43030",fontWeight:700,marginTop:2}}>{Number(gain)>=0?"+":""}{fmtMoney(Math.abs(gain))} total</div>
+            </div>
+          </div>;})()}
+          {[
+            {section:"Account",rows:[["Family",gf(selected.familyId)?.name||"—"],["Banker",selected.bankerName||"—"],["Type",selected.accountType]]},
+            {section:"Balances",rows:[["Starting",fmtMoney(selected.startingBalance)],["Current",fmtMoney(selected.currentBalance)]]},
+          ].map(({section,rows})=><div key={section} style={{marginBottom:16}}>
+            <div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8,paddingBottom:4,borderBottom:`1px solid ${B.borderLight}`}}>{section}</div>
+            {rows.map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${B.borderLight}`}}>
+              <span style={{fontSize:12,color:B.textSoft}}>{l}</span>
+              <span style={{fontSize:12,color:B.text,fontWeight:600}}>{v}</span>
+            </div>)}
+          </div>)}
+          {selected.notes&&<><div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>Notes</div><div style={{fontSize:13,color:B.textMid,lineHeight:1.6}}>{selected.notes}</div></>}
+        </div>
+      </div>
+    ):<div style={{width:380,display:"flex",alignItems:"center",justifyContent:"center",color:B.textMute,fontSize:13,background:B.bg}}>Select an account</div>}
+
+    {modal==="add"&&<Modal title="New Portfolio Account" onClose={()=>setModal(null)}><AcctForm onSave={add} onClose={()=>setModal(null)}/></Modal>}
+    {modal&&modal!=="add"&&<Modal title="Edit Account" onClose={()=>setModal(null)}><AcctForm initial={modal} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
+  </div>;
+}
+
+// ── VALUABLES FORM/VIEW (embedded in Family) ──────────────────────────────────
+const VALUABLE_CATS=["Car / Vehicle","Jewelry","Art","Watch","Boat / Watercraft","Other"];
+
+function ValuableForm({initial,onSave,onClose}){
+  const[f,setF]=useState(initial||{category:"Car / Vehicle",description:"",makeModel:"",year:"",estimatedValue:"",insured:false,insuranceCompany:"",notes:""});
+  const[saving,setSaving]=useState(false);
+  const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  const setChk=k=>e=>setF(p=>({...p,[k]:e.target.checked}));
+  const save=async()=>{if(!f.description.trim())return;setSaving(true);await onSave(f);onClose();};
+  return <div>
+    <Grid2>
+      <Field label="Category"><Sel value={f.category} onChange={set("category")}>{VALUABLE_CATS.map(c=><option key={c}>{c}</option>)}</Sel></Field>
+      <Field label="Year"><Inp type="number" placeholder="2023" value={f.year||""} onChange={set("year")}/></Field>
+    </Grid2>
+    <Field label="Description"><Inp placeholder="2023 Ferrari Roma" value={f.description} onChange={set("description")}/></Field>
+    <Grid2>
+      <Field label="Make / Model"><Inp placeholder="Ferrari Roma" value={f.makeModel||""} onChange={set("makeModel")}/></Field>
+      <Field label="Estimated Value"><Inp type="number" placeholder="250000" value={f.estimatedValue||""} onChange={set("estimatedValue")}/></Field>
+    </Grid2>
+    <div style={{marginBottom:14}}>
+      <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.insured?"#e8f0f8":B.bg,borderRadius:8,border:`1px solid ${f.insured?B.navyMid:B.border}`}}>
+        <input type="checkbox" checked={!!f.insured} onChange={setChk("insured")} style={{width:16,height:16,accentColor:B.navy}}/>
+        <span style={{fontSize:13,color:B.navy,fontWeight:600}}>Insured</span>
+      </label>
+    </div>
+    {f.insured&&<Field label="Insurance Company"><Inp placeholder="Chubb, AIG…" value={f.insuranceCompany||""} onChange={set("insuranceCompany")}/></Field>}
+    <Field label="Notes"><Tex placeholder="Additional notes…" value={f.notes||""} onChange={set("notes")}/></Field>
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
+      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save"}</Btn>
+    </div>
+  </div>;
+}
+
+
+// ── USER MANAGEMENT (Admin only) ─────────────────────────────────────────────
+function UserManagementView({userProfile,toast}){
+  const[users,setUsers]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[modal,setModal]=useState(null);
+  const[invEmail,setInvEmail]=useState("");
+  const[invName,setInvName]=useState("");
+  const[invRole,setInvRole]=useState("advisor");
+  const[inviting,setInviting]=useState(false);
+
+  const loadUsers=async()=>{
+    const{data}=await sb.from("user_profiles").select("*").order("created_at",{ascending:false});
+    if(data)setUsers(data);
+    setLoading(false);
+  };
+
+  useEffect(()=>{loadUsers();},[]);
+
+  const invite=async()=>{
+    if(!invEmail.trim())return;
+    setInviting(true);
+    // Create user via Supabase Admin API — uses service role key on backend
+    // For now, we use signUp which sends confirmation email
+    const{error}=await sb.auth.admin?.inviteUserByEmail
+      ? sb.auth.admin.inviteUserByEmail(invEmail,{data:{full_name:invName,role:invRole}})
+      : sb.auth.signUp({email:invEmail,password:Math.random().toString(36).slice(2,12)+"Aa1!",options:{data:{full_name:invName,role:invRole}}});
+    
+    if(error){
+      // Fallback: just insert profile and let admin set up user in Supabase dashboard
+      toast(`Note: User invite requires Supabase admin setup. Add ${invEmail} in your Supabase dashboard → Authentication → Users, then set role to '${invRole}' in user_profiles table.`,"error");
+    } else {
+      toast(`Invite sent to ${invEmail}. They'll receive an email to set their password.`);
+      setModal(null);
+      setInvEmail("");setInvName("");setInvRole("advisor");
+      setTimeout(loadUsers,1000);
+    }
+    setInviting(false);
+  };
+
+  const toggleActive=async(user)=>{
+    const{error}=await sb.from("user_profiles").update({active:!user.active}).eq("id",user.id);
+    if(error)toast(error.message,"error");
+    else{toast(user.active?"Account deactivated":"Account activated");loadUsers();}
+  };
+
+  const changeRole=async(user,role)=>{
+    const{error}=await sb.from("user_profiles").update({role}).eq("id",user.id);
+    if(error)toast(error.message,"error");
+    else{toast("Role updated");loadUsers();}
+  };
+
+  if(userProfile?.role!=="admin") return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",flexDirection:"column",gap:12,color:B.textMute}}>
+      <div style={{fontSize:40}}>🔒</div>
+      <div style={{fontSize:16,color:B.navy,fontWeight:600}}>Admin Access Only</div>
+      <div style={{fontSize:13}}>You need admin privileges to manage users.</div>
+    </div>
+  );
+
+  return(
+    <div style={{height:"100%",overflow:"auto",padding:"28px 32px"}}>
+      <div style={{maxWidth:860,margin:"0 auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+          <div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,color:B.navy,fontWeight:600,marginBottom:4}}>User Management</div>
+            <div style={{fontSize:13,color:B.textSoft}}>{users.length} employee accounts</div>
+          </div>
+          <Btn onClick={()=>setModal("invite")}>+ Invite Employee</Btn>
+        </div>
+
+        {loading?<Spinner/>:(
+          <div style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,overflow:"hidden"}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 140px 120px 100px",padding:"10px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.bg}}>
+              {["Name","Email","Role","Status",""].map(h=><div key={h} style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase"}}>{h}</div>)}
+            </div>
+            {users.map(u=>(
+              <div key={u.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 140px 120px 100px",padding:"14px 20px",borderBottom:`1px solid ${B.borderLight}`,alignItems:"center",opacity:u.active?1:0.6}}>
+                <div>
+                  <div style={{fontWeight:700,color:B.navy,fontSize:13}}>{u.full_name||"—"}</div>
+                  {u.id===userProfile?.id&&<div style={{fontSize:10,color:B.gold,fontWeight:700}}>You</div>}
+                </div>
+                <div style={{fontSize:13,color:B.textMid,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email}</div>
+                <div>
+                  {u.id===userProfile?.id?(
+                    <Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{u.role}</Badge>
+                  ):(
+                    <select value={u.role} onChange={e=>changeRole(u,e.target.value)}
+                      style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 8px",fontSize:12,color:B.text,outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
+                      <option value="advisor">Advisor</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  )}
+                </div>
+                <div>
+                  <span style={{background:u.active?"#e0f5e9":"#fde8e8",color:u.active?"#0d5c2b":"#8b1a1a",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>
+                    {u.active?"Active":"Inactive"}
+                  </span>
+                </div>
+                <div>
+                  {u.id!==userProfile?.id&&(
+                    <Btn small variant={u.active?"danger":"ghost"} onClick={()=>toggleActive(u)}>
+                      {u.active?"Deactivate":"Activate"}
+                    </Btn>
+                  )}
+                </div>
+              </div>
+            ))}
+            {users.length===0&&<div style={{padding:"40px",textAlign:"center",color:B.textMute,fontSize:14}}>No users yet.</div>}
+          </div>
+        )}
+
+        {/* Setup instructions */}
+        <div style={{marginTop:24,background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,padding:24,boxShadow:B.shadow}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:8}}>How to Add Employees</div>
+          <div style={{height:1,background:`linear-gradient(90deg,${B.gold},transparent)`,marginBottom:14}}/>
+          <div style={{fontSize:13,color:B.textMid,lineHeight:1.8}}>
+            <strong>1.</strong> Go to <a href="https://supabase.com" target="_blank" rel="noreferrer" style={{color:B.gold}}>supabase.com</a> → your project → <strong>Authentication → Users → Invite User</strong><br/>
+            <strong>2.</strong> Enter their email — they'll receive a magic link to set their password<br/>
+            <strong>3.</strong> Once they've signed in once, come back here and set their role to <strong>Admin</strong> or <strong>Advisor</strong><br/>
+            <strong>4.</strong> Advisors automatically see only families where their email matches the assigned advisor email
+          </div>
+        </div>
+      </div>
+
+      {modal==="invite"&&<Modal title="Invite Employee" onClose={()=>setModal(null)}>
+        <div style={{fontSize:13,color:B.textSoft,marginBottom:20}}>An invitation email will be sent. They'll set their own password.</div>
+        <Field label="Full Name"><Inp placeholder="Jane Smith" value={invName} onChange={e=>setInvName(e.target.value)}/></Field>
+        <Field label="Email Address"><Inp type="email" placeholder="jane@pcmfamilyoffice.com" value={invEmail} onChange={e=>setInvEmail(e.target.value)}/></Field>
+        <Field label="Role">
+          <Sel value={invRole} onChange={e=>setInvRole(e.target.value)}>
+            <option value="advisor">Advisor — sees only assigned families</option>
+            <option value="admin">Admin — sees everything, manages users</option>
+          </Sel>
+        </Field>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
+          <Btn variant="ghost" onClick={()=>setModal(null)}>Cancel</Btn>
+          <Btn onClick={invite} disabled={inviting}>{inviting?"Sending…":"Send Invite"}</Btn>
+        </div>
+      </Modal>}
+    </div>
+  );
+}
 
 
 const NAV_SECTIONS = [
@@ -998,9 +1394,15 @@ const NAV_SECTIONS = [
     items: [
       {id:"dashboard",   label:"Dashboard",   icon:"⬡"},
       {id:"families",    label:"Families",    icon:"⌂"},
-      {id:"properties",  label:"Properties",  icon:"◈"},
+      {id:"portfolio",   label:"Portfolio",   icon:"◇"},
       {id:"cm-notes",    label:"Notes",       icon:"◧"},
       {id:"cm-tasks",    label:"Tasks",       icon:"◻"},
+    ]
+  },
+  {
+    section: "ADMIN",
+    items: [
+      {id:"users", label:"Users", icon:"⊕"},
     ]
   },
   {
@@ -1015,7 +1417,7 @@ const NAV_SECTIONS = [
 ];
 
 const ALL_NAV = NAV_SECTIONS.flatMap(s => s.items);
-const TABLES = ["families","contacts","properties","deals","notes","tasks"];
+const TABLES = ["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables"];
 
 // ── PROSPECTING CONTACTS (no family link) ─────────────────────────────────────
 function ProspectContactForm({initial,onSave,onClose}){
@@ -1137,12 +1539,38 @@ function CMTasksView({data,reload,toast}){
 // ── APP ────────────────────────────────────────────────────────────────────────
 export default function App(){
   const[tab,setTab]=useState("dashboard");
-  const[data,setData]=useState({families:[],contacts:[],properties:[],deals:[],notes:[],tasks:[]});
+  const[data,setData]=useState({families:[],contacts:[],properties:[],deals:[],notes:[],tasks:[],portfolio_accounts:[],valuables:[]});
   const[loading,setLoading]=useState(true);
   const[toastState,setToastState]=useState(null);
-  const[authed,setAuthed]=useState(()=>sessionStorage.getItem("pcm_auth")==="1");
+  const[authed,setAuthed]=useState(false);
+  const[userProfile,setUserProfile]=useState(null); // {id, email, role, fullName}
+  const[authLoading,setAuthLoading]=useState(true);
 
-  const logout=()=>{sessionStorage.removeItem("pcm_auth");setAuthed(false);};
+  const logout=async()=>{
+    await sb.auth.signOut();
+    setAuthed(false);
+    setUserProfile(null);
+  };
+
+  // Load user profile after auth
+  const loadProfile=useCallback(async(userId)=>{
+    const{data}=await sb.from("user_profiles").select("*").eq("id",userId).single();
+    if(data) setUserProfile({id:data.id,email:data.email,role:data.role,fullName:data.full_name,active:data.active});
+  },[]);
+
+  // Check auth on mount and listen for changes
+  useEffect(()=>{
+    sb.auth.getSession().then(({data:{session}})=>{
+      if(session?.user){setAuthed(true);loadProfile(session.user.id);}
+      setAuthLoading(false);
+    });
+    const{data:{subscription}}=sb.auth.onAuthStateChange((_,session)=>{
+      if(session?.user){setAuthed(true);loadProfile(session.user.id);}
+      else{setAuthed(false);setUserProfile(null);}
+      setAuthLoading(false);
+    });
+    return()=>subscription.unsubscribe();
+  },[loadProfile]);
 
   const showToast=useCallback((msg,type="success")=>{setToastState({msg,type});setTimeout(()=>setToastState(null),3000);},[]);
 
@@ -1158,13 +1586,13 @@ export default function App(){
   },[fetchTable]);
 
   useEffect(()=>{
-    if(!authed)return;
+    if(!authed||!userProfile)return;
     (async()=>{setLoading(true);await reload();setLoading(false);})();
-  },[authed]);
+  },[authed,userProfile]);
 
   const cmStats={
     families:   data.families.length,
-    properties: data.properties.length,
+    portfolio:  (data.portfolio_accounts||[]).length,
     "cm-notes": data.notes.filter(n=>n.familyId).length,
     "cm-tasks": data.tasks.filter(t=>t.familyId&&!t.done).length,
   };
@@ -1179,7 +1607,9 @@ export default function App(){
   const currentLabel=ALL_NAV.find(n=>n.id===tab)?.label||"";
   const currentSection=NAV_SECTIONS.find(s=>s.items.some(i=>i.id===tab))?.section||"";
 
-  if(!authed)return <LoginScreen onLogin={()=>setAuthed(true)}/>;
+  if(authLoading)return <div style={{minHeight:"100vh",background:B.navy,display:"flex",alignItems:"center",justifyContent:"center"}}><PCMLogo dark/></div>;
+  if(!authed||!userProfile)return <LoginScreen onLogin={()=>setAuthed(true)}/>;
+  if(!userProfile.active)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontFamily:"'DM Sans',sans-serif",color:B.navy,fontSize:16}}>Your account has been deactivated. Contact your administrator.</div>;
 
   return <div style={{display:"flex",height:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:B.text,overflow:"hidden"}}>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -1191,7 +1621,7 @@ export default function App(){
         <div style={{fontSize:8,color:"rgba(206,182,132,0.5)",letterSpacing:"0.18em",marginTop:8}}>DISCOVER · SIMPLIFY · EXECUTE</div>
       </div>
       <nav style={{flex:1,padding:"8px",overflowY:"auto"}}>
-        {NAV_SECTIONS.map(({section,items})=><div key={section} style={{marginBottom:6}}>
+        {NAV_SECTIONS.filter(s=>s.section!=="ADMIN"||userProfile?.role==="admin").map(({section,items})=><div key={section} style={{marginBottom:6}}>
           <div style={{fontSize:9,fontWeight:800,color:"rgba(206,182,132,0.55)",letterSpacing:"0.16em",padding:"10px 10px 4px",textTransform:"uppercase"}}>{section}</div>
           {items.map(item=><button key={item.id} onClick={()=>setTab(item.id)} style={{
             width:"100%",display:"flex",alignItems:"center",gap:9,padding:"9px 10px",
@@ -1213,7 +1643,11 @@ export default function App(){
         </div>)}
       </nav>
       <div style={{padding:"10px 16px",borderTop:"1px solid rgba(255,255,255,0.07)"}}>
-        <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",marginBottom:4}}>{data.families.length} families · {data.properties.length} properties</div>
+        {userProfile&&<div style={{marginBottom:8}}>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.8)",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userProfile.fullName||userProfile.email}</div>
+          <div style={{fontSize:9,color:B.gold,letterSpacing:"0.1em",textTransform:"uppercase",marginTop:1}}>{userProfile.role}</div>
+        </div>}
+        <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginBottom:4}}>{data.families.length} families · {(data.portfolio_accounts||[]).length} accounts</div>
         <div style={{display:"flex",justifyContent:"space-between"}}>
           <button onClick={()=>reload()} style={{background:"none",border:"none",color:"rgba(206,182,132,0.6)",fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit"}}>↺ Refresh</button>
           <button onClick={logout} style={{background:"none",border:"none",color:"rgba(255,255,255,0.35)",fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit"}}>Sign Out</button>
@@ -1235,9 +1669,10 @@ export default function App(){
         {loading?<Spinner/>:<>
           {tab==="dashboard"  &&<Dashboard            data={data}/>}
           {tab==="families"   &&<FamiliesView          data={data} reload={reload} toast={showToast}/>}
-          {tab==="properties" &&<PropertiesView        data={data} reload={reload} toast={showToast}/>}
+          {tab==="portfolio"  &&<PortfolioView         data={data} reload={reload} toast={showToast}/>}
           {tab==="cm-notes"   &&<CMNotesView           data={data} reload={reload} toast={showToast}/>}
           {tab==="cm-tasks"   &&<CMTasksView           data={data} reload={reload} toast={showToast}/>}
+          {tab==="users"      &&<UserManagementView    userProfile={userProfile} toast={showToast}/>}
           {tab==="p-contacts" &&<ProspectContactsView  data={data} reload={reload} toast={showToast}/>}
           {tab==="p-pipeline" &&<ProspectPipelineView  data={data} reload={reload} toast={showToast}/>}
           {tab==="p-notes"    &&<ProspectNotesView     data={data} reload={reload} toast={showToast}/>}
