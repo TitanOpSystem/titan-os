@@ -178,7 +178,7 @@ function FamilyReport({family,data,onClose}){
     </style></head><body>
     <div class="header">
       <div class="logo">
-        <img src="${LOGO_COLOR}" alt="PCM Family Office" style="height:60px;width:auto;"/>
+        <div style="font-family:Georgia,serif;font-size:28px;font-weight:700;color:#092b49;letter-spacing:1px;">PCM <span style='font-size:18px;font-weight:400;'>Family Office</span></div>
         <div class="sub">DISCOVER · SIMPLIFY · EXECUTE</div>
       </div>
       <div style="text-align:right;">
