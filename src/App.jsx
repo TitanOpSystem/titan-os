@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { PCM_LOGO } from "./logo.js";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = "https://unkirihxtruhdjeldfpm.supabase.co";
@@ -100,37 +101,18 @@ function SectionCard({title,children,action}){
   </div>;
 }
 
-// ── PCM LOGO (Pure SVG) ──────────────────────────────────────────────────────
+// ── PCM LOGO ─────────────────────────────────────────────────────────────────
 function PCMLogo({dark=false}){
-  const navy  = dark ? "#ffffff" : "#092b49";
-  const navy2 = dark ? "#ceb684" : "#293d5c";
-  const gold  = "#ceb684";
-  return (
-    <svg viewBox="0 0 280 82" xmlns="http://www.w3.org/2000/svg"
-      style={{width:dark?176:220,height:"auto",display:"block",margin:dark?"0":"0 auto"}}>
-      <line x1="26" y1="74" x2="26" y2="44" stroke={gold} strokeWidth="2.2" strokeLinecap="round"/>
-      <ellipse cx="18" cy="33" rx="8" ry="3.2" fill={navy} opacity=".9" transform="rotate(-40 18 33)"/>
-      <ellipse cx="11" cy="40" rx="7" ry="2.8" fill={navy} opacity=".65" transform="rotate(-18 11 40)"/>
-      <ellipse cx="34" cy="33" rx="8" ry="3.2" fill={navy} opacity=".9" transform="rotate(40 34 33)"/>
-      <ellipse cx="41" cy="40" rx="7" ry="2.8" fill={navy} opacity=".65" transform="rotate(18 41 40)"/>
-      <ellipse cx="26" cy="30" rx="7" ry="2.8" fill={navy} opacity=".75"/>
-      <line x1="48" y1="74" x2="48" y2="36" stroke={gold} strokeWidth="2.2" strokeLinecap="round"/>
-      <ellipse cx="36" cy="22" rx="10" ry="3.8" fill={navy} opacity=".92" transform="rotate(-42 36 22)"/>
-      <ellipse cx="28" cy="31" rx="8" ry="3" fill={navy} opacity=".68" transform="rotate(-20 28 31)"/>
-      <ellipse cx="60" cy="22" rx="10" ry="3.8" fill={navy} opacity=".92" transform="rotate(42 60 22)"/>
-      <ellipse cx="68" cy="31" rx="8" ry="3" fill={navy} opacity=".68" transform="rotate(20 68 31)"/>
-      <ellipse cx="48" cy="19" rx="8" ry="3" fill={navy} opacity=".78"/>
-      <line x1="70" y1="74" x2="70" y2="46" stroke={gold} strokeWidth="2.2" strokeLinecap="round"/>
-      <ellipse cx="62" cy="35" rx="8" ry="3.2" fill={navy} opacity=".9" transform="rotate(-40 62 35)"/>
-      <ellipse cx="55" cy="42" rx="7" ry="2.8" fill={navy} opacity=".65" transform="rotate(-18 55 42)"/>
-      <ellipse cx="78" cy="35" rx="8" ry="3.2" fill={navy} opacity=".9" transform="rotate(40 78 35)"/>
-      <ellipse cx="85" cy="42" rx="7" ry="2.8" fill={navy} opacity=".65" transform="rotate(18 85 42)"/>
-      <ellipse cx="70" cy="32" rx="7" ry="2.8" fill={navy} opacity=".75"/>
-      <line x1="12" y1="76" x2="84" y2="76" stroke={gold} strokeWidth="1.2" opacity=".5"/>
-      <text x="100" y="50" fontFamily="Georgia,serif" fontSize="40" fontWeight="400" fill={navy} letterSpacing="2">PCM</text>
-      <text x="103" y="70" fontFamily="Georgia,serif" fontSize="15" fontWeight="400" fill={navy2} letterSpacing="2">Family Office</text>
-    </svg>
-  );
+  if(dark){
+    // Sidebar: logo on a white rounded background so it shows on navy
+    return (
+      <div style={{background:"#ffffff",borderRadius:8,padding:"6px 10px",display:"inline-block"}}>
+        <img src={PCM_LOGO} alt="PCM Family Office" style={{height:38,width:"auto",display:"block"}}/>
+      </div>
+    );
+  }
+  // Login screen: full size color logo
+  return <img src={PCM_LOGO} alt="PCM Family Office" style={{height:80,width:"auto",display:"block",margin:"0 auto"}}/>;
 }
 
 // ── FAMILY REPORT (Printable) ─────────────────────────────────────────────────
@@ -178,7 +160,7 @@ function FamilyReport({family,data,onClose}){
     </style></head><body>
     <div class="header">
       <div class="logo">
-        <div style="font-family:Georgia,serif;font-size:28px;font-weight:700;color:#092b49;letter-spacing:1px;">PCM <span style='font-size:18px;font-weight:400;'>Family Office</span></div>
+        <img src="${PCM_LOGO}" alt="PCM Family Office" style="height:60px;width:auto;"/>
         <div class="sub">DISCOVER · SIMPLIFY · EXECUTE</div>
       </div>
       <div style="text-align:right;">
