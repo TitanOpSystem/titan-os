@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { LOGO_COLOR, LOGO_DARK } from "./logos.js";
 
 const SUPABASE_URL = "https://unkirihxtruhdjeldfpm.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVua2lyaWh4dHJ1aGRqZWxkZnBtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNTA3MjUsImV4cCI6MjA5MTcyNjcyNX0._Ve9Pr3ooja-YdHYFIupebaZRhDjmJDnz2b-vzrhY04";
@@ -103,13 +104,11 @@ function SectionCard({title,children,action}){
 // ── PCM LOGO ──────────────────────────────────────────────────────────────────
 function PCMLogo({dark=false}){
   if(dark){
-    // Sidebar: show color logo on a white pill background so it's visible
     return <div style={{background:"rgba(255,255,255,0.95)",borderRadius:8,padding:"8px 12px",display:"inline-block"}}>
-      <img src="/pcm-logo.jpg" alt="PCM Family Office" style={{height:40,width:"auto",display:"block"}}/>
+      <img src={LOGO_COLOR} alt="PCM Family Office" style={{height:40,width:"auto",display:"block"}}/>
     </div>;
   }
-  // Login screen & reports: full color logo on white background
-  return <img src="/pcm-logo.jpg" alt="PCM Family Office" style={{height:72,width:"auto",display:"block",margin:"0 auto"}}/>;
+  return <img src={LOGO_COLOR} alt="PCM Family Office" style={{height:72,width:"auto",display:"block",margin:"0 auto"}}/>;
 }
 
 // ── FAMILY REPORT (Printable) ─────────────────────────────────────────────────
@@ -157,7 +156,7 @@ function FamilyReport({family,data,onClose}){
     </style></head><body>
     <div class="header">
       <div class="logo">
-        <img src="${window.location.origin}/pcm-logo.jpg" alt="PCM Family Office" style="height:60px;width:auto;"/>
+        <img src="${LOGO_COLOR}" alt="PCM Family Office" style="height:60px;width:auto;"/>
         <div class="sub">DISCOVER · SIMPLIFY · EXECUTE</div>
       </div>
       <div style="text-align:right;">
