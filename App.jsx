@@ -104,11 +104,19 @@ function SectionCard({title,children,action}){
 // ── PCM LOGO ──────────────────────────────────────────────────────────────────
 function PCMLogo({dark=false}){
   if(dark){
-    return <div style={{background:"rgba(255,255,255,0.95)",borderRadius:8,padding:"8px 12px",display:"inline-block"}}>
-      <img src={LOGO_COLOR} alt="PCM Family Office" style={{height:40,width:"auto",display:"block"}}/>
-    </div>;
+    // Sidebar: invert color logo to white using CSS filter
+    return <img
+      src={LOGO_COLOR}
+      alt="PCM Family Office"
+      style={{height:48,width:"auto",display:"block",filter:"brightness(0) invert(1)"}}
+    />;
   }
-  return <img src={LOGO_COLOR} alt="PCM Family Office" style={{height:72,width:"auto",display:"block",margin:"0 auto"}}/>;
+  // Login screen & reports: full color logo
+  return <img
+    src={LOGO_COLOR}
+    alt="PCM Family Office"
+    style={{height:72,width:"auto",display:"block",margin:"0 auto"}}
+  />;
 }
 
 // ── FAMILY REPORT (Printable) ─────────────────────────────────────────────────
