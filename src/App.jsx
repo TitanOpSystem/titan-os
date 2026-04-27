@@ -101,17 +101,16 @@ function SectionCard({title,children,action}){
 }
 
 // ── PCM LOGO ──────────────────────────────────────────────────────────────────
-function PCMLogo({white=false}){
-  // white=true: used on navy background — show white version via CSS filter
-  // white=false: used on light background — show full color
+function PCMLogo({dark=false}){
+  // dark=true: sidebar (dark bg logo, no filter needed)
+  // dark=false: login screen & reports (full color logo)
   return <img
-    src="/pcm-logo.jpg"
+    src={dark ? "/pcm-logo-dark.png" : "/pcm-logo.jpg"}
     alt="PCM Family Office"
     style={{
-      height: white ? 48 : 64,
+      height: dark ? 52 : 68,
       width: "auto",
       display: "block",
-      filter: white ? "brightness(0) invert(1)" : "none",
     }}
   />;
 }
@@ -988,18 +987,150 @@ function LoginScreen({onLogin}){
 }
 
 
-const NAV=[
-  {id:"dashboard",  label:"Dashboard",   icon:"⬡"},
-  {id:"families",   label:"Families",    icon:"⌂"},
-  {id:"properties", label:"Properties",  icon:"◈"},
-  {id:"contacts",   label:"Contacts",    icon:"◉"},
-  {id:"deals",      label:"Deals",       icon:"◆"},
-  {id:"notes",      label:"Notes",       icon:"◧"},
-  {id:"tasks",      label:"Tasks",       icon:"◻"},
+
+const NAV_SECTIONS = [
+  {
+    section: "CLIENT MANAGEMENT",
+    items: [
+      {id:"dashboard",   label:"Dashboard",   icon:"⬡"},
+      {id:"families",    label:"Families",    icon:"⌂"},
+      {id:"properties",  label:"Properties",  icon:"◈"},
+      {id:"cm-notes",    label:"Notes",       icon:"◧"},
+      {id:"cm-tasks",    label:"Tasks",       icon:"◻"},
+    ]
+  },
+  {
+    section: "PROSPECTING",
+    items: [
+      {id:"p-contacts",  label:"Contacts",    icon:"◉"},
+      {id:"p-pipeline",  label:"Pipeline",    icon:"◆"},
+      {id:"p-notes",     label:"Notes",       icon:"◧"},
+      {id:"p-tasks",     label:"Tasks",       icon:"◻"},
+    ]
+  },
 ];
 
-const TABLES=["families","contacts","properties","deals","notes","tasks"];
+const ALL_NAV = NAV_SECTIONS.flatMap(s => s.items);
+const TABLES = ["families","contacts","properties","deals","notes","tasks"];
 
+// ── PROSPECTING CONTACTS (no family link) ─────────────────────────────────────
+function ProspectContactForm({initial,onSave,onClose}){
+  const[f,setF]=useState(initial||{name:"",company:"",email:"",phone:"",type:"Individual",tags:"",source:""});
+  const[saving,setSaving]=useState(false);
+  const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  const save=async()=>{if(!f.name.trim())return;setSaving(true);await onSave(f);onClose();};
+  return <div>
+    <Grid2>
+      <Field label="Full Name"><Inp placeholder="Jane Smith" value={f.name} onChange={set("name")}/></Field>
+      <Field label="Company"><Inp placeholder="Acme Corp" value={f.company||""} onChange={set("company")}/></Field>
+    </Grid2>
+    <Grid2>
+      <Field label="Email"><Inp placeholder="jane@example.com" value={f.email||""} onChange={set("email")}/></Field>
+      <Field label="Phone"><Inp placeholder="+1 555 000" value={f.phone||""} onChange={set("phone")}/></Field>
+    </Grid2>
+    <Grid2>
+      <Field label="Type"><Sel value={f.type} onChange={set("type")}><option>Individual</option><option>Business</option></Sel></Field>
+      <Field label="Lead Source"><Inp placeholder="Referral, LinkedIn…" value={f.source||""} onChange={set("source")}/></Field>
+    </Grid2>
+    <Field label="Tags"><Inp placeholder="warm-lead, vip" value={f.tags||""} onChange={set("tags")}/></Field>
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
+      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Contact"}</Btn>
+    </div>
+  </div>;
+}
+
+function ProspectContactsView({data,reload,toast}){
+  const prospects=data.contacts.filter(c=>!c.familyId);
+  const[modal,setModal]=useState(null);
+  const[search,setSearch]=useState("");
+  const[selected,setSelected]=useState(null);
+  const filtered=useMemo(()=>prospects.filter(c=>[c.name,c.company,c.email,c.tags].join(" ").toLowerCase().includes(search.toLowerCase())),[prospects,search]);
+
+  const add=async f=>{
+    const{error}=await sb.from("contacts").insert({family_id:null,name:f.name,company:f.company||null,email:f.email||null,phone:f.phone||null,type:f.type,tags:f.tags||null});
+    if(error)toast(error.message,"error");else{toast("Contact added");reload("contacts");}
+  };
+  const edit=async f=>{
+    const{error}=await sb.from("contacts").update({name:f.name,company:f.company||null,email:f.email||null,phone:f.phone||null,type:f.type,tags:f.tags||null}).eq("id",modal.id);
+    if(error)toast(error.message,"error");else{toast("Updated");reload("contacts");setSelected({...selected,...f});}
+  };
+  const del=async id=>{
+    const{error}=await sb.from("contacts").delete().eq("id",id);
+    if(error)toast(error.message,"error");else{toast("Deleted");reload("contacts");if(selected?.id===id)setSelected(null);}
+  };
+  const cDeals=selected?data.deals.filter(d=>d.contactId===selected.id):[];
+  const cNotes=selected?data.notes.filter(n=>n.contactId===selected.id):[];
+
+  return <div style={{display:"flex",height:"100%",minHeight:0}}>
+    <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:`1px solid ${B.borderLight}`}}>
+      <div style={{padding:"14px 20px",display:"flex",gap:10,alignItems:"center",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
+        <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search prospects…" style={{flex:1}}/>
+        <Btn onClick={()=>setModal("add")}>+ New Contact</Btn>
+      </div>
+      <div style={{overflowY:"auto",flex:1}}>
+        {filtered.length===0&&<div style={{padding:"60px 24px",color:B.textMute,textAlign:"center",fontSize:14}}>No prospect contacts yet.</div>}
+        {filtered.map(c=><div key={c.id} onClick={()=>setSelected(c)} style={{padding:"13px 20px",cursor:"pointer",borderBottom:`1px solid ${B.borderLight}`,background:selected?.id===c.id?B.bg:B.white}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div>
+              <div style={{fontWeight:700,color:B.navy,marginBottom:2}}>{c.name}</div>
+              <div style={{fontSize:12,color:B.textSoft}}>{c.company||c.email||"—"}</div>
+            </div>
+            <Badge scheme={c.type==="Business"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{c.type}</Badge>
+          </div>
+        </div>)}
+      </div>
+    </div>
+    {selected?(
+      <div style={{width:370,padding:22,overflowY:"auto",flexShrink:0,background:B.bg}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+          <div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600}}>{selected.name}</div>
+            <div style={{fontSize:12,color:B.textSoft,marginTop:2}}>{selected.company}</div>
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            <Btn small variant="ghost" onClick={()=>setModal(selected)}>Edit</Btn>
+            <Btn small variant="danger" onClick={()=>del(selected.id)}>Delete</Btn>
+          </div>
+        </div>
+        <div style={{height:2,background:`linear-gradient(90deg,${B.gold},transparent)`,marginBottom:12}}/>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
+          {selected.email&&<IRow label="Email" value={selected.email}/>}
+          {selected.phone&&<IRow label="Phone" value={selected.phone}/>}
+          {selected.tags&&<IRow label="Tags" value={selected.tags}/>}
+          <IRow label="Added" value={fmt(selected.createdAt)}/>
+        </div>
+        <SectionLabel>Deals ({cDeals.length})</SectionLabel>
+        {cDeals.length===0?<Empty text="No deals linked."/>:cDeals.map(d=><div key={d.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${B.borderLight}`}}><span style={{fontSize:13}}>{d.title}</span><Badge scheme={STAGE_COLORS[d.stage]}>{d.stage}</Badge></div>)}
+        <SectionLabel>Notes ({cNotes.length})</SectionLabel>
+        {cNotes.length===0?<Empty text="No notes."/>:cNotes.slice(0,3).map(n=><div key={n.id} style={{padding:"6px 0",borderBottom:`1px solid ${B.borderLight}`}}><div style={{fontSize:13,color:B.textMid}}>{n.body}</div><div style={{fontSize:11,color:B.textMute,marginTop:2}}>{fmt(n.createdAt)}</div></div>)}
+      </div>
+    ):<div style={{width:370,display:"flex",alignItems:"center",justifyContent:"center",color:B.textMute,fontSize:13,background:B.bg}}>Select a contact</div>}
+    {modal==="add"&&<Modal title="New Prospect Contact" onClose={()=>setModal(null)}><ProspectContactForm onSave={add} onClose={()=>setModal(null)}/></Modal>}
+    {modal&&modal!=="add"&&<Modal title="Edit Contact" onClose={()=>setModal(null)}><ProspectContactForm initial={modal} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
+  </div>;
+}
+
+// Prospecting wrappers — filter to no-family records only
+function ProspectPipelineView({data,reload,toast}){
+  return <DealsView data={{...data,contacts:data.contacts.filter(c=>!c.familyId),families:[],deals:data.deals.filter(d=>!d.familyId)}} reload={reload} toast={toast}/>;
+}
+function ProspectNotesView({data,reload,toast}){
+  return <NotesView data={{...data,contacts:data.contacts.filter(c=>!c.familyId),families:[],notes:data.notes.filter(n=>!n.familyId)}} reload={reload} toast={toast}/>;
+}
+function ProspectTasksView({data,reload,toast}){
+  return <TasksView data={{...data,contacts:data.contacts.filter(c=>!c.familyId),families:[],tasks:data.tasks.filter(t=>!t.familyId)}} reload={reload} toast={toast}/>;
+}
+
+// Client Management wrappers — filter to family-linked records only
+function CMNotesView({data,reload,toast}){
+  return <NotesView data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={toast}/>;
+}
+function CMTasksView({data,reload,toast}){
+  return <TasksView data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={toast}/>;
+}
+
+// ── APP ────────────────────────────────────────────────────────────────────────
 export default function App(){
   const[tab,setTab]=useState("dashboard");
   const[data,setData]=useState({families:[],contacts:[],properties:[],deals:[],notes:[],tasks:[]});
@@ -1007,7 +1138,7 @@ export default function App(){
   const[toastState,setToastState]=useState(null);
   const[authed,setAuthed]=useState(()=>sessionStorage.getItem("pcm_auth")==="1");
 
-  const logout = () => { sessionStorage.removeItem("pcm_auth"); setAuthed(false); };
+  const logout=()=>{sessionStorage.removeItem("pcm_auth");setAuthed(false);};
 
   const showToast=useCallback((msg,type="success")=>{setToastState({msg,type});setTimeout(()=>setToastState(null),3000);},[]);
 
@@ -1023,58 +1154,90 @@ export default function App(){
   },[fetchTable]);
 
   useEffect(()=>{
-    if(!authed) return;
+    if(!authed)return;
     (async()=>{setLoading(true);await reload();setLoading(false);})();
   },[authed]);
 
-  const stats={families:data.families.length,contacts:data.contacts.length,properties:data.properties.length,deals:data.deals.filter(d=>d.stage!=="Closed Lost").length,notes:data.notes.length,tasks:data.tasks.filter(t=>!t.done).length};
+  const cmStats={
+    families:   data.families.length,
+    properties: data.properties.length,
+    "cm-notes": data.notes.filter(n=>n.familyId).length,
+    "cm-tasks": data.tasks.filter(t=>t.familyId&&!t.done).length,
+  };
+  const pStats={
+    "p-contacts": data.contacts.filter(c=>!c.familyId).length,
+    "p-pipeline": data.deals.filter(d=>!d.familyId&&d.stage!=="Closed Lost").length,
+    "p-notes":    data.notes.filter(n=>!n.familyId).length,
+    "p-tasks":    data.tasks.filter(t=>!t.familyId&&!t.done).length,
+  };
+  const allStats={...cmStats,...pStats};
   const overdue=data.tasks.filter(t=>!t.done&&t.dueDate&&new Date(t.dueDate)<new Date()).length;
+  const currentLabel=ALL_NAV.find(n=>n.id===tab)?.label||"";
+  const currentSection=NAV_SECTIONS.find(s=>s.items.some(i=>i.id===tab))?.section||"";
 
-  // Auth gate — must be AFTER all hooks
-  if (!authed) return <LoginScreen onLogin={()=>setAuthed(true)}/>;
-
+  if(!authed)return <LoginScreen onLogin={()=>setAuthed(true)}/>;
 
   return <div style={{display:"flex",height:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:B.text,overflow:"hidden"}}>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
     {/* Sidebar */}
-    <div style={{width:228,background:B.navy,display:"flex",flexDirection:"column",flexShrink:0}}>
-      <div style={{padding:"18px 20px 16px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
-        <PCMLogo white={true}/>
-        <div style={{fontSize:8,color:"rgba(206,182,132,0.5)",letterSpacing:"0.18em",marginTop:10}}>DISCOVER · SIMPLIFY · EXECUTE</div>
+    <div style={{width:232,background:B.navy,display:"flex",flexDirection:"column",flexShrink:0}}>
+      <div style={{padding:"18px 20px 14px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
+        <PCMLogo dark={true}/>
+        <div style={{fontSize:8,color:"rgba(206,182,132,0.5)",letterSpacing:"0.18em",marginTop:8}}>DISCOVER · SIMPLIFY · EXECUTE</div>
       </div>
-      <nav style={{flex:1,padding:"10px 8px",overflowY:"auto"}}>
-        {NAV.map(item=><button key={item.id} onClick={()=>setTab(item.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:"9px 11px",borderRadius:8,border:"none",cursor:"pointer",background:tab===item.id?"rgba(206,182,132,0.13)":"transparent",color:tab===item.id?B.gold:"rgba(255,255,255,0.5)",fontFamily:"inherit",fontSize:12,fontWeight:tab===item.id?700:400,marginBottom:1,textAlign:"left",borderLeft:tab===item.id?`2px solid ${B.gold}`:"2px solid transparent"}}>
-          <span style={{fontSize:13}}>{item.icon}</span>
-          <span style={{flex:1}}>{item.label}</span>
-          {item.id==="tasks"&&overdue>0?<span style={{background:"#d43030",borderRadius:10,padding:"1px 7px",fontSize:9,color:"#fff",fontWeight:700}}>{overdue}</span>:stats[item.id]>0?<span style={{background:"rgba(255,255,255,0.08)",borderRadius:10,padding:"1px 7px",fontSize:9,color:"rgba(255,255,255,0.4)"}}>{stats[item.id]}</span>:null}
-        </button>)}
+      <nav style={{flex:1,padding:"8px",overflowY:"auto"}}>
+        {NAV_SECTIONS.map(({section,items})=><div key={section} style={{marginBottom:6}}>
+          <div style={{fontSize:9,fontWeight:800,color:"rgba(206,182,132,0.55)",letterSpacing:"0.16em",padding:"10px 10px 4px",textTransform:"uppercase"}}>{section}</div>
+          {items.map(item=><button key={item.id} onClick={()=>setTab(item.id)} style={{
+            width:"100%",display:"flex",alignItems:"center",gap:9,padding:"9px 10px",
+            borderRadius:8,border:"none",cursor:"pointer",
+            background:tab===item.id?"rgba(206,182,132,0.18)":"transparent",
+            color:tab===item.id?B.gold:"rgba(255,255,255,0.85)",
+            fontFamily:"inherit",fontSize:13,fontWeight:tab===item.id?700:400,
+            marginBottom:1,textAlign:"left",
+            borderLeft:tab===item.id?`2px solid ${B.gold}`:"2px solid transparent",
+          }}>
+            <span style={{fontSize:12}}>{item.icon}</span>
+            <span style={{flex:1}}>{item.label}</span>
+            {item.id==="cm-tasks"&&overdue>0
+              ?<span style={{background:"#d43030",borderRadius:10,padding:"1px 6px",fontSize:9,color:"#fff",fontWeight:700}}>{overdue}</span>
+              :allStats[item.id]>0
+              ?<span style={{background:"rgba(255,255,255,0.12)",borderRadius:10,padding:"1px 6px",fontSize:9,color:"rgba(255,255,255,0.7)"}}>{allStats[item.id]}</span>
+              :null}
+          </button>)}
+        </div>)}
       </nav>
-      <div style={{padding:"12px 18px",borderTop:"1px solid rgba(255,255,255,0.07)"}}>
-        <div style={{fontSize:9,color:"rgba(255,255,255,0.2)",marginBottom:4}}>{data.families.length} families · {data.properties.length} properties</div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <button onClick={()=>reload()} style={{background:"none",border:"none",color:"rgba(206,182,132,0.4)",fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit"}}>↺ Refresh</button>
-          <button onClick={logout} style={{background:"none",border:"none",color:"rgba(255,255,255,0.25)",fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit",letterSpacing:"0.05em"}}>Sign Out</button>
+      <div style={{padding:"10px 16px",borderTop:"1px solid rgba(255,255,255,0.07)"}}>
+        <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",marginBottom:4}}>{data.families.length} families · {data.properties.length} properties</div>
+        <div style={{display:"flex",justifyContent:"space-between"}}>
+          <button onClick={()=>reload()} style={{background:"none",border:"none",color:"rgba(206,182,132,0.6)",fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit"}}>↺ Refresh</button>
+          <button onClick={logout} style={{background:"none",border:"none",color:"rgba(255,255,255,0.35)",fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit"}}>Sign Out</button>
         </div>
       </div>
     </div>
 
     {/* Main */}
     <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,overflow:"hidden"}}>
-      <div style={{padding:"14px 30px 12px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <h1 style={{margin:0,fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600}}>{NAV.find(n=>n.id===tab)?.label}</h1>
+      <div style={{padding:"13px 28px 11px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div>
+          <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:1}}>{currentSection}</div>
+          <h1 style={{margin:0,fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600}}>{currentLabel}</h1>
+        </div>
         <div style={{fontSize:11,color:B.textMute}}>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div>
       </div>
       <div style={{height:2,background:`linear-gradient(90deg,${B.gold},${B.goldLight}55,transparent)`}}/>
       <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg}}>
         {loading?<Spinner/>:<>
-          {tab==="dashboard"  &&<Dashboard    data={data}/>}
-          {tab==="families"   &&<FamiliesView data={data} reload={reload} toast={showToast}/>}
-          {tab==="properties" &&<PropertiesView data={data} reload={reload} toast={showToast}/>}
-          {tab==="contacts"   &&<ContactsView data={data} reload={reload} toast={showToast}/>}
-          {tab==="deals"      &&<DealsView    data={data} reload={reload} toast={showToast}/>}
-          {tab==="notes"      &&<NotesView    data={data} reload={reload} toast={showToast}/>}
-          {tab==="tasks"      &&<TasksView    data={data} reload={reload} toast={showToast}/>}
+          {tab==="dashboard"  &&<Dashboard            data={data}/>}
+          {tab==="families"   &&<FamiliesView          data={data} reload={reload} toast={showToast}/>}
+          {tab==="properties" &&<PropertiesView        data={data} reload={reload} toast={showToast}/>}
+          {tab==="cm-notes"   &&<CMNotesView           data={data} reload={reload} toast={showToast}/>}
+          {tab==="cm-tasks"   &&<CMTasksView           data={data} reload={reload} toast={showToast}/>}
+          {tab==="p-contacts" &&<ProspectContactsView  data={data} reload={reload} toast={showToast}/>}
+          {tab==="p-pipeline" &&<ProspectPipelineView  data={data} reload={reload} toast={showToast}/>}
+          {tab==="p-notes"    &&<ProspectNotesView     data={data} reload={reload} toast={showToast}/>}
+          {tab==="p-tasks"    &&<ProspectTasksView     data={data} reload={reload} toast={showToast}/>}
         </>}
       </div>
     </div>
