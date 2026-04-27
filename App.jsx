@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { LOGO_COLOR, LOGO_DARK } from "./logos.js";
 
 const SUPABASE_URL = "https://unkirihxtruhdjeldfpm.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVua2lyaWh4dHJ1aGRqZWxkZnBtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNTA3MjUsImV4cCI6MjA5MTcyNjcyNX0._Ve9Pr3ooja-YdHYFIupebaZRhDjmJDnz2b-vzrhY04";
@@ -101,22 +100,37 @@ function SectionCard({title,children,action}){
   </div>;
 }
 
-// ── PCM LOGO ──────────────────────────────────────────────────────────────────
+// ── PCM LOGO (Pure SVG) ──────────────────────────────────────────────────────
 function PCMLogo({dark=false}){
-  if(dark){
-    // Sidebar: invert color logo to white using CSS filter
-    return <img
-      src={LOGO_COLOR}
-      alt="PCM Family Office"
-      style={{height:48,width:"auto",display:"block",filter:"brightness(0) invert(1)"}}
-    />;
-  }
-  // Login screen & reports: full color logo
-  return <img
-    src={LOGO_COLOR}
-    alt="PCM Family Office"
-    style={{height:72,width:"auto",display:"block",margin:"0 auto"}}
-  />;
+  const navy  = dark ? "#ffffff" : "#092b49";
+  const navy2 = dark ? "#ceb684" : "#293d5c";
+  const gold  = "#ceb684";
+  return (
+    <svg viewBox="0 0 280 82" xmlns="http://www.w3.org/2000/svg"
+      style={{width:dark?176:220,height:"auto",display:"block",margin:dark?"0":"0 auto"}}>
+      <line x1="26" y1="74" x2="26" y2="44" stroke={gold} strokeWidth="2.2" strokeLinecap="round"/>
+      <ellipse cx="18" cy="33" rx="8" ry="3.2" fill={navy} opacity=".9" transform="rotate(-40 18 33)"/>
+      <ellipse cx="11" cy="40" rx="7" ry="2.8" fill={navy} opacity=".65" transform="rotate(-18 11 40)"/>
+      <ellipse cx="34" cy="33" rx="8" ry="3.2" fill={navy} opacity=".9" transform="rotate(40 34 33)"/>
+      <ellipse cx="41" cy="40" rx="7" ry="2.8" fill={navy} opacity=".65" transform="rotate(18 41 40)"/>
+      <ellipse cx="26" cy="30" rx="7" ry="2.8" fill={navy} opacity=".75"/>
+      <line x1="48" y1="74" x2="48" y2="36" stroke={gold} strokeWidth="2.2" strokeLinecap="round"/>
+      <ellipse cx="36" cy="22" rx="10" ry="3.8" fill={navy} opacity=".92" transform="rotate(-42 36 22)"/>
+      <ellipse cx="28" cy="31" rx="8" ry="3" fill={navy} opacity=".68" transform="rotate(-20 28 31)"/>
+      <ellipse cx="60" cy="22" rx="10" ry="3.8" fill={navy} opacity=".92" transform="rotate(42 60 22)"/>
+      <ellipse cx="68" cy="31" rx="8" ry="3" fill={navy} opacity=".68" transform="rotate(20 68 31)"/>
+      <ellipse cx="48" cy="19" rx="8" ry="3" fill={navy} opacity=".78"/>
+      <line x1="70" y1="74" x2="70" y2="46" stroke={gold} strokeWidth="2.2" strokeLinecap="round"/>
+      <ellipse cx="62" cy="35" rx="8" ry="3.2" fill={navy} opacity=".9" transform="rotate(-40 62 35)"/>
+      <ellipse cx="55" cy="42" rx="7" ry="2.8" fill={navy} opacity=".65" transform="rotate(-18 55 42)"/>
+      <ellipse cx="78" cy="35" rx="8" ry="3.2" fill={navy} opacity=".9" transform="rotate(40 78 35)"/>
+      <ellipse cx="85" cy="42" rx="7" ry="2.8" fill={navy} opacity=".65" transform="rotate(18 85 42)"/>
+      <ellipse cx="70" cy="32" rx="7" ry="2.8" fill={navy} opacity=".75"/>
+      <line x1="12" y1="76" x2="84" y2="76" stroke={gold} strokeWidth="1.2" opacity=".5"/>
+      <text x="100" y="50" fontFamily="Georgia,serif" fontSize="40" fontWeight="400" fill={navy} letterSpacing="2">PCM</text>
+      <text x="103" y="70" fontFamily="Georgia,serif" fontSize="15" fontWeight="400" fill={navy2} letterSpacing="2">Family Office</text>
+    </svg>
+  );
 }
 
 // ── FAMILY REPORT (Printable) ─────────────────────────────────────────────────
