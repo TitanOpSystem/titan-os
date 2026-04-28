@@ -370,7 +370,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600,lineHeight:1}}>{family.name}</div>
           <div style={{fontSize:12,color:B.textSoft,marginTop:2}}>Advisor: {family.advisorName||"—"}{family.advisorEmail?` · ${family.advisorEmail}`:""}</div>
         </div>
-        <div style={{display:"flex",gap:8"}}>
+        <div style={{display:"flex",gap:8}}>
           {overdueTasks.length>0&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>{overdueTasks.length} overdue</Badge>}
           {soonTasks.length>0&&<Badge scheme={{bg:"#fef3e2",text:"#8a5c00",dot:"#d4900a"}}>{soonTasks.length} due soon</Badge>}
           <Btn variant="gold" onClick={()=>setReportOpen(true)}>🖨 Print Report</Btn>
