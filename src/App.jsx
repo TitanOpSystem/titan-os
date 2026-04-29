@@ -56,6 +56,17 @@ const toClient=obj=>{
 
 const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents"];
 
+// ── RESPONSIVE ────────────────────────────────────────────────────────────────
+function useBreakpoint(){
+  const[w,setW]=useState(typeof window!=="undefined"?window.innerWidth:1200);
+  useEffect(()=>{
+    const handle=()=>setW(window.innerWidth);
+    window.addEventListener("resize",handle);
+    return()=>window.removeEventListener("resize",handle);
+  },[]);
+  return{isMobile:w<640,isTablet:w>=640&&w<1024,isDesktop:w>=1024,width:w};
+}
+
 // ── UI PRIMITIVES ─────────────────────────────────────────────────────────────
 function Badge({children,scheme}){
   const s=scheme||{bg:B.borderLight,text:B.navyMid,dot:B.navyMid};
@@ -66,8 +77,9 @@ function Spinner({size=34}){return <div style={{display:"flex",alignItems:"cente
 function Toast({msg,type}){return <div style={{position:"fixed",bottom:24,right:24,zIndex:9000,background:type==="error"?"#fde8e8":B.navy,color:type==="error"?"#8b1a1a":B.white,padding:"12px 20px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:B.shadowMd,border:`1px solid ${type==="error"?"#f5c6c6":"rgba(206,182,132,0.3)"}`}}>{type==="error"?"⚠ ":"✓ "}{msg}</div>;}
 
 function Modal({title,onClose,wide,children}){
-  return <div style={{position:"fixed",inset:0,background:"rgba(9,43,73,0.45)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(3px)",padding:20,overflowY:"auto"}} onClick={onClose}>
-    <div onClick={e=>e.stopPropagation()} style={{background:B.white,borderRadius:16,padding:36,width:"100%",maxWidth:wide?780:540,boxShadow:B.shadowMd,border:`1px solid ${B.borderLight}`,margin:"auto"}}>
+  const{isMobile}=useBreakpoint();
+  return <div style={{position:"fixed",inset:0,background:"rgba(9,43,73,0.45)",zIndex:1000,display:"flex",alignItems:isMobile?"flex-end":"center",justifyContent:"center",backdropFilter:"blur(3px)",padding:isMobile?0:20,overflowY:"auto"}} onClick={onClose}>
+    <div onClick={e=>e.stopPropagation()} style={{background:B.white,borderRadius:isMobile?"16px 16px 0 0":16,padding:isMobile?"24px 20px 32px":36,width:"100%",maxWidth:isMobile?"100%":wide?780:540,boxShadow:B.shadowMd,border:`1px solid ${B.borderLight}`,margin:isMobile?0:"auto",maxHeight:isMobile?"90vh":"none",overflowY:"auto"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600}}>{title}</span>
         <button onClick={onClose} style={{background:"none",border:"none",color:B.textMute,fontSize:20,cursor:"pointer"}}>✕</button>
@@ -82,7 +94,10 @@ const Inp=p=><input style={inp} {...p}/>;
 const Sel=({children,...p})=><select style={{...inp,cursor:"pointer"}} {...p}>{children}</select>;
 const Tex=p=><textarea style={{...inp,minHeight:80,resize:"vertical"}} {...p}/>;
 function Field({label,children}){return <div style={{marginBottom:14}}><label style={{display:"block",fontSize:11,color:B.textSoft,marginBottom:5,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>{label}</label>{children}</div>;}
-function Grid2({children}){return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{children}</div>;}
+function Grid2({children}){
+  const{isMobile}=useBreakpoint();
+  return <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12}}>{children}</div>;
+}
 function Btn({children,onClick,variant="primary",small,disabled,style:ex}){
   const v={primary:{background:B.navy,color:B.white,border:"none"},ghost:{background:"transparent",color:B.navyMid,border:`1px solid ${B.border}`},danger:{background:"#fde8e8",color:"#8b1a1a",border:"1px solid #f5c6c6"},gold:{background:B.gold,color:B.navy,border:"none"}};
   return <button onClick={onClick} disabled={disabled} style={{...v[variant],borderRadius:8,padding:small?"5px 13px":"9px 20px",fontSize:small?12:13,fontWeight:700,cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",letterSpacing:"0.03em",opacity:disabled?.65:1,...ex}} onMouseEnter={e=>{if(!disabled)e.currentTarget.style.opacity=".82";}} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>{children}</button>;
@@ -91,9 +106,10 @@ function IRow({label,value}){return <div style={{display:"flex",gap:10,fontSize:
 function SectionLabel({children}){return <div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:8,marginTop:18,paddingBottom:4,borderBottom:`1px solid ${B.borderLight}`}}>{children}</div>;}
 function Empty({text}){return <div style={{fontSize:13,color:B.textMute,padding:"12px 0",textAlign:"center"}}>{text}</div>;}
 function StatBox({label,value,accent}){
-  return <div style={{background:B.white,borderRadius:10,padding:"14px 16px",border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${accent||B.gold}`,boxShadow:B.shadow}}>
-    <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:5}}>{label}</div>
-    <div style={{fontSize:22,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:600,lineHeight:1}}>{value}</div>
+  const{isMobile}=useBreakpoint();
+  return <div style={{background:B.white,borderRadius:10,padding:isMobile?"10px 12px":"14px 16px",border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${accent||B.gold}`,boxShadow:B.shadow}}>
+    <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:4}}>{label}</div>
+    <div style={{fontSize:isMobile?18:22,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:600,lineHeight:1}}>{value}</div>
   </div>;
 }
 
@@ -129,8 +145,23 @@ function LoginScreen(){
   return(
     <div style={{minHeight:"100vh",background:`linear-gradient(135deg,${B.navy} 0%,${B.navyMid} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
       <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+      <style>{`
+        * { box-sizing: border-box; }
+        body { margin: 0; -webkit-tap-highlight-color: transparent; }
+        @media (max-width: 639px) {
+          .pcm-hide-mobile { display: none !important; }
+          .pcm-sidebar { display: none !important; }
+          .pcm-main-header { padding: 10px 16px !important; }
+        }
+        @media (min-width: 640px) {
+          .pcm-bottom-nav { display: none !important; }
+        }
+        @media (max-width: 1023px) {
+          .pcm-sidebar { width: 200px !important; }
+        }
+      `}</style>
       <div style={{position:"fixed",inset:0,backgroundImage:`radial-gradient(circle at 20% 80%,rgba(206,182,132,0.07) 0%,transparent 50%)`,pointerEvents:"none"}}/>
-      <div style={{background:"rgba(255,255,255,0.97)",borderRadius:20,padding:"48px 44px",width:"100%",maxWidth:420,boxShadow:"0 32px 80px rgba(0,0,0,0.3)",border:`1px solid rgba(206,182,132,0.3)`,position:"relative",zIndex:1}}>
+      <div style={{background:"rgba(255,255,255,0.97)",borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:420,boxShadow:"0 32px 80px rgba(0,0,0,0.3)",border:`1px solid rgba(206,182,132,0.3)`,position:"relative",zIndex:1,margin:"0 16px"}}>
         <div style={{textAlign:"center",marginBottom:32}}>
           <div style={{display:"flex",justifyContent:"center",marginBottom:20}}><PCMLogo/></div>
           <div style={{height:1,background:`linear-gradient(90deg,transparent,${B.gold},transparent)`,marginBottom:18}}/>
@@ -267,6 +298,7 @@ function FamilyReport({family,data,onClose}){
 // ── FAMILY DASHBOARD ──────────────────────────────────────────────────────────
 function FamilyDashboard({family,data,reload,toast,onBack}){
   const[activeTab,setActiveTab]=useState("overview");
+  const{isMobile,isTablet}=useBreakpoint();
   const[reportOpen,setReportOpen]=useState(false);
   const[modal,setModal]=useState(null);
 
@@ -374,8 +406,8 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%",minHeight:0}}>
       {/* Header */}
-      <div style={{padding:"14px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-        <button onClick={onBack} style={{background:"none",border:"none",color:B.textSoft,cursor:"pointer",fontSize:13,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:6,border:`1px solid ${B.border}`}}>← Families</button>
+      <div style={{padding:isMobile?"10px 14px":"14px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",gap:isMobile?8:16,flexWrap:"wrap"}}>
+        <button onClick={onBack} style={{background:"none",border:"none",color:B.textSoft,cursor:"pointer",fontSize:13,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:6,border:`1px solid ${B.border}`,flexShrink:0}}>← Back</button>
         <div style={{flex:1}}>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600,lineHeight:1}}>{family.name}</div>
           <div style={{fontSize:12,color:B.textSoft,marginTop:2}}>Advisor: {family.advisorName||"—"}{family.advisorEmail?` · ${family.advisorEmail}`:""}</div>
@@ -388,22 +420,22 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       </div>
 
       {/* Tabs */}
-      <div style={{borderBottom:`1px solid ${B.borderLight}`,background:B.white,padding:"0 28px",display:"flex",gap:2}}>
-        {TABS.map(t=><button key={t} onClick={()=>setActiveTab(t.toLowerCase())} style={{background:"none",border:"none",borderBottom:activeTab===t.toLowerCase()?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.toLowerCase()?B.navy:B.textSoft,fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.toLowerCase()?700:400,padding:"10px 14px",cursor:"pointer",marginBottom:-1}}>{t}</button>)}
+      <div style={{borderBottom:`1px solid ${B.borderLight}`,background:B.white,padding:isMobile?"0 8px":"0 28px",display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        {TABS.map(t=><button key={t} onClick={()=>setActiveTab(t.toLowerCase())} style={{background:"none",border:"none",borderBottom:activeTab===t.toLowerCase()?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.toLowerCase()?B.navy:B.textSoft,fontFamily:"inherit",fontSize:isMobile?11:13,fontWeight:activeTab===t.toLowerCase()?700:400,padding:isMobile?"8px 10px":"10px 14px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>{t}</button>)}
       </div>
 
       {/* Content */}
       <div style={{flex:1,overflowY:"auto",minHeight:0}}>
 
         {/* OVERVIEW TAB */}
-        {activeTab==="overview"&&<div style={{padding:"24px 28px"}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
+        {activeTab==="overview"&&<div style={{padding:isMobile?"14px 14px":"24px 28px"}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":isTablet?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?10:14,marginBottom:isMobile?16:24}}>
             <StatBox label="Net Worth Est." value={fmtMoney(netWorth)} accent={B.navy}/>
             <StatBox label="Real Estate" value={fmtMoney(totalRE)} accent={B.gold}/>
             <StatBox label="Portfolio" value={fmtMoney(totalAccounts)} accent={B.navyMid}/>
             <StatBox label="Valuables" value={fmtMoney(totalValuables)} accent="#8b5cf6"/>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?12:20,marginBottom:isMobile?12:20}}>
             {/* Members */}
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -463,7 +495,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* PROPERTIES TAB */}
-        {activeTab==="properties"&&<div style={{padding:"24px 28px"}}>
+        {activeTab==="properties"&&<div style={{padding:isMobile?"14px 14px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{properties.length} properties · {fmtMoney(totalRE)} total · {fmtMoney(totalDebt)} debt</div>
             <Btn onClick={()=>setModal("property")}>+ Add Property</Btn>
@@ -482,7 +514,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 <Btn small variant="danger" onClick={()=>delProperty(p.id)}>✕</Btn>
               </div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(3,1fr)",gap:8}}>
               {[["Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—"],["Loan Type",p.loanType],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—"],["Utilities",p.utilities?`${fmtMoney(p.utilities)}/mo`:"—"],["Insurance Co.",p.insuranceCompany||"—"],["Ins. Premium",p.insurancePremium?`${fmtMoney(p.insurancePremium)}/yr`:"—"],["Flood Insurance",p.floodInsurance?`Yes${p.floodInsuranceCompany?` — ${p.floodInsuranceCompany}`:""}`:("No")]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                 <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}</div>
                 <div style={{fontSize:12,color:B.text,fontWeight:600}}>{v}</div>
@@ -493,7 +525,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* PORTFOLIO TAB */}
-        {activeTab==="portfolio"&&<div style={{padding:"24px 28px"}}>
+        {activeTab==="portfolio"&&<div style={{padding:isMobile?"14px 14px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{accounts.length} accounts · {fmtMoney(totalAccounts)} total</div>
             <Btn onClick={()=>setModal("account")}>+ Add Account</Btn>
@@ -526,7 +558,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* VALUABLES TAB */}
-        {activeTab==="valuables"&&<div style={{padding:"24px 28px"}}>
+        {activeTab==="valuables"&&<div style={{padding:isMobile?"14px 14px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{valuables.length} items · {fmtMoney(totalValuables)} est. value</div>
             <Btn onClick={()=>setModal("valuable")}>+ Add Valuable</Btn>
@@ -553,7 +585,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* DEALS TAB */}
-        {activeTab==="deals"&&<div style={{padding:"24px 28px"}}>
+        {activeTab==="deals"&&<div style={{padding:isMobile?"14px 14px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{openDeals.length} open deals · {fmtMoney(openDeals.reduce((s,d)=>s+(Number(d.value)||0),0))} pipeline</div>
             <Btn onClick={()=>setModal("deal")}>+ Add Deal</Btn>
@@ -607,7 +639,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* TASKS TAB */}
-        {activeTab==="tasks"&&<div style={{padding:"24px 28px"}}>
+        {activeTab==="tasks"&&<div style={{padding:isMobile?"14px 14px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{display:"flex",gap:8}}>
               {overdueTasks.length>0&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>{overdueTasks.length} overdue</Badge>}
@@ -789,6 +821,7 @@ function FamiliesView({data,reload,toast}){
   const[modal,setModal]=useState(null);
   const[search,setSearch]=useState("");
 
+  const{isMobile,isTablet}=useBreakpoint();
   const filtered=useMemo(()=>families.filter(f=>[f.name,f.advisorName,f.advisorEmail].join(" ").toLowerCase().includes(search.toLowerCase())),[families,search]);
 
   const FamilyForm=({initial,onSave,onClose})=>{
@@ -824,9 +857,9 @@ function FamiliesView({data,reload,toast}){
       <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search families…" style={{flex:1}}/>
       <Btn onClick={()=>setModal("add")}>+ New Family</Btn>
     </div>
-    <div style={{flex:1,overflowY:"auto",padding:"16px 24px"}}>
+    <div style={{flex:1,overflowY:"auto",padding:isMobile?"10px 12px 80px":"16px 24px"}}>
       {filtered.length===0&&<Empty text="No families yet. Add your first one."/>}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":isTablet?"repeat(2,1fr)":"repeat(auto-fill,minmax(300px,1fr))",gap:isMobile?10:16}}>
         {filtered.map(f=>{
           const s=getStats(f);
           const overdue=(data.tasks||[]).filter(t=>t.familyId===f.id&&!t.done&&t.dueDate&&new Date(t.dueDate)<new Date()).length;
@@ -868,6 +901,7 @@ function PortfolioView({data,reload,toast}){
   const[filterFamily,setFilterFamily]=useState("all");
   const[selected,setSelected]=useState(null);
   const gf=id=>families.find(f=>f.id===id);
+  const{isMobile}=useBreakpoint();
   const accounts=portfolio_accounts.filter(a=>filterFamily==="all"||a.familyId===filterFamily);
   const totalValue=accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalStart=accounts.reduce((s,a)=>s+(Number(a.startingBalance)||0),0);
@@ -1164,6 +1198,7 @@ function ProspectPipelineView({data,reload,toast}){
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 function Dashboard({data}){
   const{families,contacts,properties,deals,notes,tasks,portfolio_accounts=[]}=data;
+  const{isMobile,isTablet}=useBreakpoint();
   const openDeals=deals.filter(d=>d.stage!=="Closed Lost"&&d.stage!=="Closed Won");
   const pipeline=openDeals.reduce((s,d)=>s+(Number(d.value)||0),0);
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
@@ -1184,14 +1219,14 @@ function Dashboard({data}){
       <div style={{color:B.textSoft,fontSize:14}}>PCM Family Office — Portfolio & Client Overview</div>
       <div style={{height:2,width:56,background:B.gold,marginTop:10,borderRadius:2}}/>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":isTablet?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?10:14,marginBottom:isMobile?16:24}}>
       {[{label:"Families",value:families.length,sub:`${contacts.length} contacts`,accent:B.navy},{label:"Real Estate",value:fmtMoney(totalRE),sub:`${properties.length} properties`,accent:B.gold},{label:"Portfolio",value:fmtMoney(totalPortfolio),sub:`${portfolio_accounts.length} accounts`,accent:B.navyMid},{label:"Open Tasks",value:pending.length,sub:overdue.length>0?`${overdue.length} overdue`:dueSoon.length>0?`${dueSoon.length} due soon`:"All on track",accent:overdue.length>0?"#d43030":dueSoon.length>0?"#d4900a":B.navyMid}].map(s=><div key={s.label} style={{background:B.bgCard,borderRadius:12,padding:"20px 22px",border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,borderTop:`3px solid ${s.accent}`}}>
         <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>{s.label}</div>
         <div style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:600,lineHeight:1}}>{s.value}</div>
         <div style={{fontSize:11,color:B.textSoft,marginTop:5}}>{s.sub}</div>
       </div>)}
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?12:18,marginBottom:isMobile?12:18}}>
       <div style={{background:B.bgCard,borderRadius:12,padding:24,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Pipeline by Stage</div>
         <GoldLine/>
@@ -1214,7 +1249,7 @@ function Dashboard({data}){
         </div>;})}
       </div>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?12:18}}>
       <div style={{background:B.bgCard,borderRadius:12,padding:24,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Portfolio by Family</div>
         <GoldLine/>
@@ -1543,6 +1578,7 @@ function DocumentsView({familyId,readOnly=false,toast}){
 // ── CLIENT DASHBOARD ──────────────────────────────────────────────────────────
 function ClientDashboard({family,data,userProfile,logout}){
   const[activeTab,setActiveTab]=useState("summary");
+  const{isMobile}=useBreakpoint();
   const properties=(data.properties||[]).filter(p=>p.familyId===family.id);
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
@@ -1580,7 +1616,7 @@ function ClientDashboard({family,data,userProfile,logout}){
         </div>
       </div>
       {/* Tabs */}
-      <div style={{display:"flex",gap:0}}>
+      <div style={{display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
         {TABS.map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} style={{background:"none",border:"none",borderBottom:activeTab===t.id?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.id?B.gold:"rgba(255,255,255,0.6)",fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.id?700:400,padding:"12px 18px",cursor:"pointer",display:"flex",alignItems:"center",gap:6,marginBottom:-1}}>
           <span>{t.icon}</span>{t.label}
         </button>)}
@@ -1588,7 +1624,7 @@ function ClientDashboard({family,data,userProfile,logout}){
     </div>
 
     {/* Content */}
-    <div style={{maxWidth:1100,margin:"0 auto",padding:"28px 24px"}}>
+    <div style={{maxWidth:1100,margin:"0 auto",padding:isMobile?"16px 14px 80px":"28px 24px"}}>
 
       {/* SUMMARY */}
       {activeTab==="summary"&&<div>
@@ -1603,7 +1639,7 @@ function ClientDashboard({family,data,userProfile,logout}){
           <div style={{fontSize:12,color:"rgba(206,182,132,0.8)",fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:8}}>Estimated Net Worth</div>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:52,color:B.white,fontWeight:600,lineHeight:1,marginBottom:8}}>{fmtMoney(netWorth)}</div>
           <div style={{height:1,background:"rgba(206,182,132,0.3)",margin:"16px 0"}}/>
-          <div style={{display:"flex",gap:32,flexWrap:"wrap"}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?12:20,marginTop:4}}>
             {[{l:"Real Estate",v:fmtMoney(totalRE)},{l:"Total Debt",v:fmtMoney(totalDebt),neg:true},{l:"Portfolio",v:fmtMoney(totalAccounts)},{l:"Valuables",v:fmtMoney(totalValuables)}].map(s=><div key={s.l}>
               <div style={{fontSize:10,color:"rgba(206,182,132,0.6)",fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}}>{s.l}</div>
               <div style={{fontSize:20,fontFamily:"'Cormorant Garamond',serif",color:s.neg?"#f87171":B.white,fontWeight:600}}>{s.v}</div>
@@ -1622,7 +1658,7 @@ function ClientDashboard({family,data,userProfile,logout}){
         </div>}
 
         {/* Quick stats grid */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?10:14}}>
           {[{l:"Properties",v:properties.length,icon:"🏠"},{l:"Portfolio Accounts",v:accounts.length,icon:"📈"},{l:"Valuables",v:valuables.length,icon:"💎"},{l:"Pending Tasks",v:tasks.length,icon:"✅"}].map(s=><div key={s.l} style={{background:B.white,borderRadius:12,padding:"20px",border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,textAlign:"center"}}>
             <div style={{fontSize:28,marginBottom:8}}>{s.icon}</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,color:B.navy,fontWeight:600,lineHeight:1}}>{s.v}</div>
@@ -1832,12 +1868,36 @@ export default function App(){
   // For families tab, header shows differently when inside a family dashboard
   const isFamiliesTab=tab==="families";
 
-  return <div style={{display:"flex",height:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:B.text,overflow:"hidden"}}>
+  const{isMobile,isTablet}=useBreakpoint();
+
+  // Mobile bottom nav tabs
+  const MOBILE_NAV=[
+    {id:"dashboard",label:"Home",   icon:"⬡"},
+    {id:"families", label:"Clients",icon:"⌂"},
+    {id:"cm-tasks", label:"Tasks",  icon:"◻"},
+    {id:"documents",label:"Docs",   icon:"📁"},
+    {id:"users",    label:"Admin",  icon:"⊕"},
+  ].filter(n=>n.id!=="users"||userProfile?.role==="admin");
+
+  return <div style={{display:"flex",height:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:B.text,overflow:"hidden",flexDirection:isMobile?"column":"row"}}>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <style>{`
+      * { box-sizing: border-box; }
+      body { margin: 0; -webkit-tap-highlight-color: transparent; }
+      @media (max-width: 639px) {
+        .pcm-sidebar { display: none !important; }
+      }
+      @media (min-width: 640px) {
+        .pcm-bottom-nav { display: none !important; }
+      }
+      @media (max-width: 1023px) {
+        .pcm-sidebar { width: 200px !important; }
+      }
+    `}</style>
 
     {/* Sidebar */}
-    <div style={{width:232,background:B.navy,display:"flex",flexDirection:"column",flexShrink:0}}>
-      <div style={{padding:"16px 18px 14px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
+    <div className="pcm-sidebar" style={{width:232,background:B.navy,display:"flex",flexDirection:"column",flexShrink:0}}>
+      <div style={{padding:"14px 16px 12px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
         <PCMLogo dark/>
         <div style={{fontSize:8,color:"rgba(206,182,132,0.5)",letterSpacing:"0.18em",marginTop:8}}>DISCOVER · SIMPLIFY · EXECUTE</div>
       </div>
@@ -1865,7 +1925,7 @@ export default function App(){
     <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,overflow:"hidden"}}>
       {/* Only show header when NOT in families tab (family dashboard has its own header) */}
       {tab!=="families"&&<>
-        <div style={{padding:"13px 28px 11px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{padding:isMobile?"10px 16px 9px":"13px 28px 11px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div>
             <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:1}}>{currentSection}</div>
             <h1 style={{margin:0,fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600}}>{currentLabel}</h1>
@@ -1882,7 +1942,7 @@ export default function App(){
         <div style={{height:2,background:`linear-gradient(90deg,${B.gold},${B.goldLight}55,transparent)`}}/>
       </>}
 
-      <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg}}>
+      <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg,paddingBottom:isMobile?"60px":"0"}}>
         {loading&&tab!=="families"&&tab!=="users"?<Spinner/>:<>
           {tab==="dashboard"   &&<Dashboard data={data}/>}
           {tab==="families"    &&<FamiliesView data={data} reload={reload} toast={showToast}/>}
@@ -1898,5 +1958,14 @@ export default function App(){
       </div>
     </div>
     {toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}
+
+    {/* Mobile Bottom Navigation */}
+    <div className="pcm-bottom-nav" style={{position:"fixed",bottom:0,left:0,right:0,background:B.navy,borderTop:`1px solid rgba(255,255,255,0.1)`,display:"flex",zIndex:500,paddingBottom:"env(safe-area-inset-bottom)"}}>
+      {MOBILE_NAV.map(item=><button key={item.id} onClick={()=>setTab(item.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"8px 4px",background:"none",border:"none",cursor:"pointer",color:tab===item.id?B.gold:"rgba(255,255,255,0.6)",fontFamily:"inherit",gap:3}}>
+        <span style={{fontSize:18}}>{item.icon}</span>
+        <span style={{fontSize:9,fontWeight:tab===item.id?700:400,letterSpacing:"0.03em"}}>{item.label}</span>
+        {tab===item.id&&<div style={{width:4,height:4,borderRadius:"50%",background:B.gold,marginTop:1}}/>}
+      </button>)}
+    </div>
   </div>;
 }
