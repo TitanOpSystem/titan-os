@@ -316,8 +316,15 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
     if(error)toast(error.message,"error");else reload("notes");
   };
 
-  // Add property
-  const addProperty=async(f)=>{
+  // Add/remove members
+  const addMember=async(f)=>{
+    const{error}=await sb.from("contacts").insert({family_id:family.id,name:f.name,email:f.email||null,phone:f.phone||null,company:f.company||null,type:f.type||"Individual",tags:null});
+    if(error)toast(error.message,"error");else{toast("Member added");reload("contacts");}
+  };
+  const delMember=async(id)=>{
+    const{error}=await sb.from("contacts").delete().eq("id",id);
+    if(error)toast(error.message,"error");else{toast("Member removed");reload("contacts");}
+  };
     const row={family_id:family.id,owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,notes:f.notes||null};
     const{error}=await sb.from("properties").insert(row);
     if(error)toast(error.message,"error");else{toast("Property added");reload("properties");}
@@ -397,14 +404,24 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}}>
             {/* Members */}
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Members</div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Members</div>
+                <Btn small onClick={()=>setModal("member")}>+ Add</Btn>
+              </div>
               <GoldLine/>
-              {contacts.length===0?<Empty text="No contacts linked"/>:contacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${B.borderLight}`}}>
+              {contacts.length===0?<Empty text="No members yet — add the first one"/>:contacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`}}>
                 <div>
                   <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{c.name}</div>
+                  <div style={{fontSize:11,color:B.textSoft,marginTop:2,display:"flex",gap:10}}>
+                    {c.email&&<span>✉ {c.email}</span>}
+                    {c.phone&&<span>📞 {c.phone}</span>}
+                  </div>
                   {c.company&&<div style={{fontSize:11,color:B.textSoft}}>{c.company}</div>}
                 </div>
-                <Badge scheme={c.type==="Business"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{c.type}</Badge>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <Badge scheme={c.type==="Business"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{c.type}</Badge>
+                  <button onClick={()=>delMember(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
+                </div>
               </div>)}
             </div>
             {/* Upcoming Tasks */}
@@ -621,6 +638,9 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       </div>}
 
       {/* Modals */}
+      {modal==="member"&&<Modal title="Add Member" onClose={()=>setModal(null)}>
+        <MemberForm onSave={async f=>{await addMember(f);setModal(null);}} onClose={()=>setModal(null)}/>
+      </Modal>}
       {modal==="task"&&<Modal title="New Task" onClose={()=>setModal(null)}><TaskForm contacts={contacts} onSave={async f=>{await addTask(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="property"&&<Modal title="Add Property" onClose={()=>setModal(null)} wide><PropertyForm onSave={async f=>{await addProperty(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="valuable"&&<Modal title="Add Valuable" onClose={()=>setModal(null)}><ValuableForm onSave={async f=>{await addValuable(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
@@ -629,6 +649,29 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       {reportOpen&&<FamilyReport family={family} data={data} onClose={()=>setReportOpen(false)}/>}
     </div>
   );
+}
+
+// ── MEMBER FORM ───────────────────────────────────────────────────────────────
+function MemberForm({initial,onSave,onClose}){
+  const[f,setF]=useState(initial||{name:"",email:"",phone:"",company:"",type:"Individual"});
+  const[saving,setSaving]=useState(false);
+  const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  const save=async()=>{if(!f.name.trim())return;setSaving(true);await onSave(f);onClose();};
+  return <div>
+    <Field label="Full Name"><Inp placeholder="Jane Smith" value={f.name} onChange={set("name")}/></Field>
+    <Grid2>
+      <Field label="Email"><Inp type="email" placeholder="jane@email.com" value={f.email||""} onChange={set("email")}/></Field>
+      <Field label="Phone"><Inp placeholder="+1 555 000" value={f.phone||""} onChange={set("phone")}/></Field>
+    </Grid2>
+    <Grid2>
+      <Field label="Company / LLC"><Inp placeholder="Smith Holdings LLC" value={f.company||""} onChange={set("company")}/></Field>
+      <Field label="Type"><Sel value={f.type} onChange={set("type")}><option>Individual</option><option>Business</option></Sel></Field>
+    </Grid2>
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
+      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn onClick={save} disabled={saving}>{saving?"Saving…":"Add Member"}</Btn>
+    </div>
+  </div>;
 }
 
 // ── TASK FORM (with reminder) ─────────────────────────────────────────────────
