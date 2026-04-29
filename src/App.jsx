@@ -65,7 +65,7 @@ const bp=()=>({
 });
 
 // Responsive hook - only use in top-level components
-function useBreakpoint(){
+function getBreakpoint(){
   const[size,setSize]=useState(()=>bp());
   useEffect(()=>{
     const handle=()=>setSize(bp());
@@ -304,7 +304,7 @@ function FamilyReport({family,data,onClose}){
 // ── FAMILY DASHBOARD ──────────────────────────────────────────────────────────
 function FamilyDashboard({family,data,reload,toast,onBack}){
   const[activeTab,setActiveTab]=useState("overview");
-  const{isMobile,isTablet}=bp();
+  const{isMobile,isTablet}=getBreakpoint();
   const[reportOpen,setReportOpen]=useState(false);
   const[modal,setModal]=useState(null);
 
@@ -841,7 +841,7 @@ function FamiliesView({data,reload,toast}){
   const[modal,setModal]=useState(null);
   const[search,setSearch]=useState("");
 
-  const{isMobile,isTablet}=bp();
+  const{isMobile,isTablet}=getBreakpoint();
   const filtered=useMemo(()=>families.filter(f=>[f.name,f.advisorName,f.advisorEmail].join(" ").toLowerCase().includes(search.toLowerCase())),[families,search]);
 
   const add=async f=>{const{error}=await sb.from("families").insert({name:f.name,advisor_name:f.advisorName||null,advisor_email:f.advisorEmail||null,notes:f.notes||null});if(error)toast(error.message,"error");else{toast("Family added");reload("families");}};
@@ -926,7 +926,7 @@ function PortfolioView({data,reload,toast}){
   const[filterFamily,setFilterFamily]=useState("all");
   const[selected,setSelected]=useState(null);
   const gf=id=>families.find(f=>f.id===id);
-  const{isMobile}=bp();
+  const{isMobile}=getBreakpoint();
   const accounts=portfolio_accounts.filter(a=>filterFamily==="all"||a.familyId===filterFamily);
   const totalValue=accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalStart=accounts.reduce((s,a)=>s+(Number(a.startingBalance)||0),0);
@@ -1208,7 +1208,7 @@ function ProspectPipelineView({data,reload,toast}){
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 function Dashboard({data}){
   const{families,contacts,properties,deals,notes,tasks,portfolio_accounts=[]}=data;
-  const{isMobile,isTablet}=bp();
+  const{isMobile,isTablet}=getBreakpoint();
   const openDeals=deals.filter(d=>d.stage!=="Closed Lost"&&d.stage!=="Closed Won");
   const pipeline=openDeals.reduce((s,d)=>s+(Number(d.value)||0),0);
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
@@ -1588,7 +1588,7 @@ function DocumentsView({familyId,readOnly=false,toast}){
 // ── CLIENT DASHBOARD ──────────────────────────────────────────────────────────
 function ClientDashboard({family,data,userProfile,logout}){
   const[activeTab,setActiveTab]=useState("summary");
-  const{isMobile}=bp();
+  const{isMobile}=getBreakpoint();
   const properties=(data.properties||[]).filter(p=>p.familyId===family.id);
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
@@ -1813,6 +1813,12 @@ export default function App(){
   const[authed,setAuthed]=useState(false);
   const[userProfile,setUserProfile]=useState(null);
   const[authLoading,setAuthLoading]=useState(true);
+  const[,forceUpdate]=useState(0);
+  useEffect(()=>{
+    const handle=()=>forceUpdate(n=>n+1);
+    window.addEventListener("resize",handle);
+    return()=>window.removeEventListener("resize",handle);
+  },[]);
 
   const logout=async()=>{await sb.auth.signOut();setAuthed(false);setUserProfile(null);};
   const showToast=useCallback((msg,type="success")=>{setToastState({msg,type});setTimeout(()=>setToastState(null),3500);},[]);
@@ -1872,10 +1878,8 @@ export default function App(){
     return <ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout}/>;
   }
 
-  const{isMobile,isTablet}=useBreakpoint();
+  const{isMobile,isTablet}=getBreakpoint();
 
-  // Client role — show read-only family dashboard
-  if(userProfile.role==="client") return <ClientDashboard userProfile={userProfile} data={data} logout={logout}/>;
 
   // For families tab, header shows differently when inside a family dashboard
   const isFamiliesTab=tab==="families";
