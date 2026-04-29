@@ -1260,7 +1260,8 @@ function UserManagementView({userProfile,data={},toast}){
     toast(`Password reset email sent to ${u.email}`);
   };
 
-  if(userProfile?.role!=="admin")return(
+  if(!userProfile)return <Spinner/>;
+  if(userProfile.role!=="admin")return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",flexDirection:"column",gap:12,color:B.textMute}}>
       <div style={{fontSize:40}}>🔒</div>
       <div style={{fontSize:16,color:B.navy,fontWeight:600}}>Admin Access Only</div>
@@ -1836,7 +1837,7 @@ export default function App(){
       </>}
 
       <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg}}>
-        {loading&&tab!=="families"?<Spinner/>:<>
+        {loading&&tab!=="families"&&tab!=="users"?<Spinner/>:<>
           {tab==="dashboard"   &&<Dashboard data={data}/>}
           {tab==="families"    &&<FamiliesView data={data} reload={reload} toast={showToast}/>}
           {tab==="portfolio"   &&<PortfolioView data={data} reload={reload} toast={showToast}/>}
