@@ -1193,39 +1193,191 @@ function Dashboard({data}){
 
 // ── USER MANAGEMENT ───────────────────────────────────────────────────────────
 function UserManagementView({userProfile,data={},toast}){
-  const[users,setUsers]=useState([]);const[loading,setLoading]=useState(true);const[modal,setModal]=useState(null);
-  const loadUsers=async()=>{const{data}=await sb.from("user_profiles").select("*").order("created_at",{ascending:false});if(data)setUsers(data);setLoading(false);};
+  const families=data.families||[];
+  const[users,setUsers]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[modal,setModal]=useState(null);
+  // New user form state
+  const[newEmail,setNewEmail]=useState("");
+  const[newName,setNewName]=useState("");
+  const[newRole,setNewRole]=useState("advisor");
+  const[newFamily,setNewFamily]=useState("");
+  const[newPassword,setNewPassword]=useState("");
+  const[creating,setCreating]=useState(false);
+  const[created,setCreated]=useState(null);
+
+  const loadUsers=async()=>{
+    const{data:rows}=await sb.from("user_profiles").select("*").order("created_at",{ascending:false});
+    if(rows)setUsers(rows);
+    setLoading(false);
+  };
   useEffect(()=>{loadUsers();},[]);
-  const toggleActive=async u=>{const{error}=await sb.from("user_profiles").update({active:!u.active}).eq("id",u.id);if(error)toast(error.message,"error");else{toast(u.active?"Deactivated":"Activated");loadUsers();}};
-  const changeRole=async(u,role)=>{const{error}=await sb.from("user_profiles").update({role}).eq("id",u.id);if(error)toast(error.message,"error");else{toast("Role updated");loadUsers();}};
-  const assignFamily=async(u,familyId)=>{const{error}=await sb.from("user_profiles").update({family_id:familyId||null}).eq("id",u.id);if(error)toast(error.message,"error");else{toast("Family assigned");loadUsers();}};;
-  if(userProfile?.role!=="admin")return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",flexDirection:"column",gap:12,color:B.textMute}}><div style={{fontSize:40}}>🔒</div><div style={{fontSize:16,color:B.navy,fontWeight:600}}>Admin Access Only</div></div>;
+
+  const toggleActive=async u=>{
+    const{error}=await sb.from("user_profiles").update({active:!u.active}).eq("id",u.id);
+    if(error)toast(error.message,"error");else{toast(u.active?"Deactivated":"Activated");loadUsers();}
+  };
+  const changeRole=async(u,role)=>{
+    const{error}=await sb.from("user_profiles").update({role}).eq("id",u.id);
+    if(error)toast(error.message,"error");else{toast("Role updated");loadUsers();}
+  };
+  const assignFamily=async(u,familyId)=>{
+    const{error}=await sb.from("user_profiles").update({family_id:familyId||null}).eq("id",u.id);
+    if(error)toast(error.message,"error");else{toast("Family assigned");loadUsers();}
+  };
+
+  const createUser=async()=>{
+    if(!newEmail.trim()||!newPassword.trim())return toast("Email and password are required","error");
+    if(newPassword.length<8)return toast("Password must be at least 8 characters","error");
+    setCreating(true);
+    // Sign up the new user
+    const{data:authData,error:authError}=await sb.auth.signUp({
+      email:newEmail.trim(),
+      password:newPassword,
+      options:{data:{full_name:newName,role:newRole}}
+    });
+    if(authError){setCreating(false);return toast(authError.message,"error");}
+    // Insert/update their profile with role and family
+    const userId=authData?.user?.id;
+    if(userId){
+      await sb.from("user_profiles").upsert({
+        id:userId,
+        email:newEmail.trim(),
+        full_name:newName||newEmail.trim(),
+        role:newRole,
+        family_id:newFamily||null,
+        active:true,
+      });
+    }
+    setCreating(false);
+    setCreated({email:newEmail,role:newRole,password:newPassword});
+    setNewEmail("");setNewName("");setNewRole("advisor");setNewFamily("");setNewPassword("");
+    setTimeout(loadUsers,1500);
+  };
+
+  const resetPass=u=>{
+    sb.auth.resetPasswordForEmail(u.email,{redirectTo:window.location.origin});
+    toast(`Password reset email sent to ${u.email}`);
+  };
+
+  if(userProfile?.role!=="admin")return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",flexDirection:"column",gap:12,color:B.textMute}}>
+      <div style={{fontSize:40}}>🔒</div>
+      <div style={{fontSize:16,color:B.navy,fontWeight:600}}>Admin Access Only</div>
+    </div>
+  );
+
   return <div style={{height:"100%",overflow:"auto",padding:"28px 32px"}}>
-    <div style={{maxWidth:860,margin:"0 auto"}}>
-      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,color:B.navy,fontWeight:600,marginBottom:20}}>User Management</div>
-      {loading?<Spinner/>:<div style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,overflow:"hidden"}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 140px 120px 110px",padding:"10px 20px",background:B.bg,borderBottom:`1px solid ${B.borderLight}`}}>
-          {["Name","Email","Role","Status",""].map(h=><div key={h} style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase"}}>{h}</div>)}
-        </div>
-        {users.map(u=><div key={u.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 140px 120px 110px",padding:"14px 20px",borderBottom:`1px solid ${B.borderLight}`,alignItems:"center",opacity:u.active?1:0.6}}>
-          <div><div style={{fontWeight:700,color:B.navy,fontSize:13}}>{u.full_name||"—"}</div>{u.id===userProfile?.id&&<div style={{fontSize:10,color:B.gold,fontWeight:700}}>You</div>}</div>
-          <div style={{fontSize:13,color:B.textMid,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email}</div>
-          <div>{u.id===userProfile?.id?<Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{u.role}</Badge>:<select value={u.role} onChange={e=>changeRole(u,e.target.value)} style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 8px",fontSize:12,color:B.text,outline:"none",fontFamily:"inherit",cursor:"pointer"}}><option value="advisor">Advisor</option><option value="admin">Admin</option></select>}</div>
-          <div><span style={{background:u.active?"#e0f5e9":"#fde8e8",color:u.active?"#0d5c2b":"#8b1a1a",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{u.active?"Active":"Inactive"}</span></div>
-          <div>{u.id!==userProfile?.id&&<Btn small variant={u.active?"danger":"ghost"} onClick={()=>toggleActive(u)}>{u.active?"Deactivate":"Activate"}</Btn>}</div>
-        </div>)}
-        {users.length===0&&<div style={{padding:"40px",textAlign:"center",color:B.textMute}}>No users yet.</div>}
-      </div>}
-      <div style={{marginTop:24,background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,padding:24,boxShadow:B.shadow}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:8}}>Adding New Employees</div>
-        <GoldLine/>
-        <div style={{fontSize:13,color:B.textMid,lineHeight:2}}>
-          <strong>1.</strong> Go to <a href="https://supabase.com" target="_blank" rel="noreferrer" style={{color:B.gold}}>supabase.com</a> → your project → <strong>Authentication → Users → Invite User</strong><br/>
-          <strong>2.</strong> Enter their email — they'll receive a link to set their password<br/>
-          <strong>3.</strong> Once they log in once, their profile appears here — set their role above<br/>
-          <strong>4.</strong> Advisors only see families where their email matches the assigned advisor email
-        </div>
+    <div style={{maxWidth:920,margin:"0 auto"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,color:B.navy,fontWeight:600}}>User Management</div>
+        <Btn onClick={()=>setModal("create")}>+ Add User</Btn>
       </div>
+
+      {/* User table */}
+      {loading?<Spinner/>:<div style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,overflow:"hidden",marginBottom:24}}>
+        <div style={{display:"grid",gridTemplateColumns:"1.2fr 1.4fr 130px 1fr 110px 130px",padding:"10px 20px",background:B.bg,borderBottom:`1px solid ${B.borderLight}`,gap:8}}>
+          {["Name","Email","Role","Family (clients)","Status","Actions"].map(h=><div key={h} style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.08em",textTransform:"uppercase"}}>{h}</div>)}
+        </div>
+        {users.map(u=><div key={u.id} style={{display:"grid",gridTemplateColumns:"1.2fr 1.4fr 130px 1fr 110px 130px",padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,alignItems:"center",gap:8,opacity:u.active?1:0.6}}>
+          <div>
+            <div style={{fontWeight:700,color:B.navy,fontSize:13}}>{u.full_name||"—"}</div>
+            {u.id===userProfile?.id&&<div style={{fontSize:10,color:B.gold,fontWeight:700}}>You</div>}
+          </div>
+          <div style={{fontSize:12,color:B.textMid,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email}</div>
+          <div>
+            {u.id===userProfile?.id
+              ?<Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{u.role}</Badge>
+              :<select value={u.role||"advisor"} onChange={e=>changeRole(u,e.target.value)} style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 8px",fontSize:12,color:B.text,outline:"none",fontFamily:"inherit",cursor:"pointer",width:"100%"}}>
+                <option value="admin">Admin</option>
+                <option value="advisor">Advisor</option>
+                <option value="client">Client</option>
+              </select>}
+          </div>
+          <div>
+            {u.role==="client"
+              ?<select value={u.family_id||""} onChange={e=>assignFamily(u,e.target.value)} style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 8px",fontSize:11,color:B.text,outline:"none",fontFamily:"inherit",cursor:"pointer",width:"100%"}}>
+                <option value="">— Assign Family —</option>
+                {families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+              :<span style={{fontSize:11,color:B.textMute}}>—</span>}
+          </div>
+          <div>
+            <span style={{background:u.active?"#e0f5e9":"#fde8e8",color:u.active?"#0d5c2b":"#8b1a1a",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>
+              {u.active?"Active":"Inactive"}
+            </span>
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {u.id!==userProfile?.id&&<>
+              <Btn small variant={u.active?"danger":"ghost"} onClick={()=>toggleActive(u)}>{u.active?"Deactivate":"Activate"}</Btn>
+              <Btn small variant="ghost" onClick={()=>resetPass(u)}>Reset PW</Btn>
+            </>}
+          </div>
+        </div>)}
+        {users.length===0&&<div style={{padding:"40px",textAlign:"center",color:B.textMute,fontSize:14}}>No users yet. Add your first user above.</div>}
+      </div>}
+
+      {/* Create User Modal */}
+      {modal==="create"&&<Modal title="Add New User" onClose={()=>{setModal(null);setCreated(null);}}>
+        {created?(
+          <div style={{textAlign:"center",padding:"10px 0"}}>
+            <div style={{fontSize:48,marginBottom:16}}>✅</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,marginBottom:8}}>User Created!</div>
+            <div style={{fontSize:13,color:B.textSoft,marginBottom:20}}>Share these credentials with <strong>{created.email}</strong></div>
+            <div style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 20px",textAlign:"left",marginBottom:20}}>
+              <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${B.borderLight}`}}>
+                <span style={{fontSize:12,color:B.textSoft}}>Email</span>
+                <span style={{fontSize:13,fontWeight:700,color:B.navy}}>{created.email}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${B.borderLight}`}}>
+                <span style={{fontSize:12,color:B.textSoft}}>Password</span>
+                <span style={{fontSize:13,fontWeight:700,color:B.navy,fontFamily:"monospace"}}>{created.password}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0"}}>
+                <span style={{fontSize:12,color:B.textSoft}}>Role</span>
+                <span style={{fontSize:13,fontWeight:700,color:B.navy}}>{created.role}</span>
+              </div>
+            </div>
+            <div style={{background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#8a5c00",marginBottom:20,textAlign:"left"}}>
+              ⚠️ Save this password now — it cannot be retrieved later. The user can reset it from the login screen.
+            </div>
+            <Btn onClick={()=>{setModal(null);setCreated(null);}}>Done</Btn>
+          </div>
+        ):(
+          <div>
+            <Grid2>
+              <Field label="Full Name"><Inp placeholder="Jane Smith" value={newName} onChange={e=>setNewName(e.target.value)}/></Field>
+              <Field label="Email Address"><Inp type="email" placeholder="jane@email.com" value={newEmail} onChange={e=>setNewEmail(e.target.value)}/></Field>
+            </Grid2>
+            <Field label="Temporary Password">
+              <div style={{display:"flex",gap:8}}>
+                <Inp placeholder="Min 8 characters" value={newPassword} onChange={e=>setNewPassword(e.target.value)} style={{flex:1}}/>
+                <Btn variant="ghost" onClick={()=>setNewPassword(Math.random().toString(36).slice(2,10)+"Aa1!")}>Generate</Btn>
+              </div>
+            </Field>
+            <Grid2>
+              <Field label="Role">
+                <Sel value={newRole} onChange={e=>setNewRole(e.target.value)}>
+                  <option value="advisor">Advisor — sees assigned families</option>
+                  <option value="admin">Admin — sees everything</option>
+                  <option value="client">Client — read-only portal</option>
+                </Sel>
+              </Field>
+              {newRole==="client"&&<Field label="Assign to Family">
+                <Sel value={newFamily} onChange={e=>setNewFamily(e.target.value)}>
+                  <option value="">— Select family —</option>
+                  {families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+                </Sel>
+              </Field>}
+            </Grid2>
+            {newRole==="client"&&!newFamily&&<div style={{background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#8a5c00",marginBottom:14}}>Select a family so the client can see their portal.</div>}
+            <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
+              <Btn variant="ghost" onClick={()=>setModal(null)}>Cancel</Btn>
+              <Btn onClick={createUser} disabled={creating||!newEmail||!newPassword}>{creating?"Creating…":"Create User"}</Btn>
+            </div>
+          </div>
+        )}
+      </Modal>}
     </div>
   </div>;
 }
