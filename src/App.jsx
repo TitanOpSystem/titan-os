@@ -57,14 +57,22 @@ const toClient=obj=>{
 const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents"];
 
 // ── RESPONSIVE ────────────────────────────────────────────────────────────────
+// Simple breakpoint helper - not a hook, safe to call anywhere
+const bp=()=>({
+  isMobile: typeof window!=="undefined"&&window.innerWidth<640,
+  isTablet: typeof window!=="undefined"&&window.innerWidth>=640&&window.innerWidth<1024,
+  isDesktop: typeof window!=="undefined"&&window.innerWidth>=1024,
+});
+
+// Responsive hook - only use in top-level components
 function useBreakpoint(){
-  const[w,setW]=useState(typeof window!=="undefined"?window.innerWidth:1200);
+  const[size,setSize]=useState(()=>bp());
   useEffect(()=>{
-    const handle=()=>setW(window.innerWidth);
-    window.addEventListener("resize",handle);
+    const handle=()=>setSize(bp());
+    window.addEventListener("resize",handle,{passive:true});
     return()=>window.removeEventListener("resize",handle);
   },[]);
-  return{isMobile:w<640,isTablet:w>=640&&w<1024,isDesktop:w>=1024,width:w};
+  return size;
 }
 
 // ── UI PRIMITIVES ─────────────────────────────────────────────────────────────
@@ -296,7 +304,7 @@ function FamilyReport({family,data,onClose}){
 // ── FAMILY DASHBOARD ──────────────────────────────────────────────────────────
 function FamilyDashboard({family,data,reload,toast,onBack}){
   const[activeTab,setActiveTab]=useState("overview");
-  const{isMobile,isTablet}=useBreakpoint();
+  const{isMobile,isTablet}=bp();
   const[reportOpen,setReportOpen]=useState(false);
   const[modal,setModal]=useState(null);
 
@@ -812,6 +820,20 @@ function AccountForm({initial,onSave,onClose}){
   </div>;
 }
 
+// ── FAMILY FORM ──────────────────────────────────────────────────────────────
+function FamilyForm({initial,onSave,onClose}){
+  const[f,setF]=useState(initial||{name:"",advisorName:"",advisorEmail:"",notes:""});
+  const[saving,setSaving]=useState(false);
+  const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  const save=async()=>{if(!f.name.trim())return;setSaving(true);await onSave(f);onClose();};
+  return <div>
+    <Field label="Family Name"><Inp placeholder="The Smith Family" value={f.name} onChange={set("name")}/></Field>
+    <Grid2><Field label="Advisor Name"><Inp value={f.advisorName||""} onChange={set("advisorName")}/></Field><Field label="Advisor Email"><Inp type="email" value={f.advisorEmail||""} onChange={set("advisorEmail")}/></Field></Grid2>
+    <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Family"}</Btn></div>
+  </div>;
+}
+
 // ── FAMILIES LIST VIEW ────────────────────────────────────────────────────────
 function FamiliesView({data,reload,toast}){
   const{families}=data;
@@ -819,21 +841,8 @@ function FamiliesView({data,reload,toast}){
   const[modal,setModal]=useState(null);
   const[search,setSearch]=useState("");
 
-  const{isMobile,isTablet}=useBreakpoint();
+  const{isMobile,isTablet}=bp();
   const filtered=useMemo(()=>families.filter(f=>[f.name,f.advisorName,f.advisorEmail].join(" ").toLowerCase().includes(search.toLowerCase())),[families,search]);
-
-  const FamilyForm=({initial,onSave,onClose})=>{
-    const[f,setF]=useState(initial||{name:"",advisorName:"",advisorEmail:"",notes:""});
-    const[saving,setSaving]=useState(false);
-    const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
-    const save=async()=>{if(!f.name.trim())return;setSaving(true);await onSave(f);onClose();};
-    return <div>
-      <Field label="Family Name"><Inp placeholder="The Smith Family" value={f.name} onChange={set("name")}/></Field>
-      <Grid2><Field label="Advisor Name"><Inp value={f.advisorName||""} onChange={set("advisorName")}/></Field><Field label="Advisor Email"><Inp type="email" value={f.advisorEmail||""} onChange={set("advisorEmail")}/></Field></Grid2>
-      <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
-      <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Family"}</Btn></div>
-    </div>;
-  };
 
   const add=async f=>{const{error}=await sb.from("families").insert({name:f.name,advisor_name:f.advisorName||null,advisor_email:f.advisorEmail||null,notes:f.notes||null});if(error)toast(error.message,"error");else{toast("Family added");reload("families");}};
   const edit=async f=>{const{error}=await sb.from("families").update({name:f.name,advisor_name:f.advisorName||null,advisor_email:f.advisorEmail||null,notes:f.notes||null}).eq("id",modal.id);if(error)toast(error.message,"error");else{toast("Updated");reload("families");}};
@@ -899,7 +908,7 @@ function PortfolioView({data,reload,toast}){
   const[filterFamily,setFilterFamily]=useState("all");
   const[selected,setSelected]=useState(null);
   const gf=id=>families.find(f=>f.id===id);
-  const{isMobile}=useBreakpoint();
+  const{isMobile}=bp();
   const accounts=portfolio_accounts.filter(a=>filterFamily==="all"||a.familyId===filterFamily);
   const totalValue=accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalStart=accounts.reduce((s,a)=>s+(Number(a.startingBalance)||0),0);
@@ -1138,6 +1147,20 @@ function ProspectContactsView({data,reload,toast}){
   </div>;
 }
 
+function ProspectDealForm({initial,contacts=[],onSave,onClose}){
+  const[f,setF]=useState(initial||{contactId:"",title:"",value:"",stage:"Lead",closeDate:""});
+  const[saving,setSaving]=useState(false);
+  const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  const save=async()=>{if(!f.title.trim())return;setSaving(true);await onSave(f);onClose();};
+  return <div>
+    <Field label="Deal Title"><Inp value={f.title} onChange={set("title")}/></Field>
+    <Field label="Contact"><Sel value={f.contactId||""} onChange={set("contactId")}><option value="">— None —</option>{contacts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Sel></Field>
+    <Grid2><Field label="Value ($)"><Inp type="number" value={f.value||""} onChange={set("value")}/></Field><Field label="Close Date"><Inp type="date" value={f.closeDate||""} onChange={set("closeDate")}/></Field></Grid2>
+    <Field label="Stage"><Sel value={f.stage} onChange={set("stage")}>{STAGES.map(s=><option key={s}>{s}</option>)}</Sel></Field>
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save"}</Btn></div>
+  </div>;
+}
+
 function ProspectPipelineView({data,reload,toast}){
   const deals=data.deals.filter(d=>!d.familyId);
   const contacts=data.contacts.filter(c=>!c.familyId);
@@ -1146,20 +1169,6 @@ function ProspectPipelineView({data,reload,toast}){
   const byStage=STAGES.reduce((acc,s)=>({...acc,[s]:filtered.filter(d=>d.stage===s)}),{});
   const pipeline=deals.filter(d=>d.stage!=="Closed Lost").reduce((s,d)=>s+(Number(d.value)||0),0);
   const gc=id=>contacts.find(c=>c.id===id);
-
-  const DealForm=({initial,onSave,onClose})=>{
-    const[f,setF]=useState(initial||{contactId:"",title:"",value:"",stage:"Lead",closeDate:""});
-    const[saving,setSaving]=useState(false);
-    const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
-    const save=async()=>{if(!f.title.trim())return;setSaving(true);await onSave(f);onClose();};
-    return <div>
-      <Field label="Deal Title"><Inp value={f.title} onChange={set("title")}/></Field>
-      <Field label="Contact"><Sel value={f.contactId||""} onChange={set("contactId")}><option value="">— None —</option>{contacts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Sel></Field>
-      <Grid2><Field label="Value ($)"><Inp type="number" value={f.value||""} onChange={set("value")}/></Field><Field label="Close Date"><Inp type="date" value={f.closeDate||""} onChange={set("closeDate")}/></Field></Grid2>
-      <Field label="Stage"><Sel value={f.stage} onChange={set("stage")}>{STAGES.map(s=><option key={s}>{s}</option>)}</Sel></Field>
-      <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save"}</Btn></div>
-    </div>;
-  };
 
   const add=async f=>{const{error}=await sb.from("deals").insert({family_id:null,contact_id:f.contactId||null,title:f.title,value:f.value||null,stage:f.stage,close_date:f.closeDate||null});if(error)toast(error.message,"error");else{toast("Deal added");reload("deals");}};
   const edit=async f=>{const{error}=await sb.from("deals").update({contact_id:f.contactId||null,title:f.title,value:f.value||null,stage:f.stage,close_date:f.closeDate||null}).eq("id",modal.id);if(error)toast(error.message,"error");else{toast("Updated");reload("deals");}};
@@ -1188,15 +1197,15 @@ function ProspectPipelineView({data,reload,toast}){
         </div>;})}
       </div>;})}
     </div>
-    {modal==="add"&&<Modal title="New Deal" onClose={()=>setModal(null)}><DealForm onSave={add} onClose={()=>setModal(null)}/></Modal>}
-    {modal&&modal!=="add"&&<Modal title="Edit Deal" onClose={()=>setModal(null)}><DealForm initial={modal} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
+    {modal==="add"&&<Modal title="New Deal" onClose={()=>setModal(null)}><ProspectDealForm contacts={contacts} onSave={add} onClose={()=>setModal(null)}/></Modal>}
+    {modal&&modal!=="add"&&<Modal title="Edit Deal" onClose={()=>setModal(null)}><ProspectDealForm initial={modal} contacts={contacts} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
   </div>;
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 function Dashboard({data}){
   const{families,contacts,properties,deals,notes,tasks,portfolio_accounts=[]}=data;
-  const{isMobile,isTablet}=useBreakpoint();
+  const{isMobile,isTablet}=bp();
   const openDeals=deals.filter(d=>d.stage!=="Closed Lost"&&d.stage!=="Closed Won");
   const pipeline=openDeals.reduce((s,d)=>s+(Number(d.value)||0),0);
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
@@ -1576,7 +1585,7 @@ function DocumentsView({familyId,readOnly=false,toast}){
 // ── CLIENT DASHBOARD ──────────────────────────────────────────────────────────
 function ClientDashboard({family,data,userProfile,logout}){
   const[activeTab,setActiveTab]=useState("summary");
-  const{isMobile}=useBreakpoint();
+  const{isMobile}=bp();
   const properties=(data.properties||[]).filter(p=>p.familyId===family.id);
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
