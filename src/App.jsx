@@ -1872,13 +1872,13 @@ export default function App(){
     return <ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout}/>;
   }
 
+  const{isMobile,isTablet}=useBreakpoint();
+
   // Client role — show read-only family dashboard
   if(userProfile.role==="client") return <ClientDashboard userProfile={userProfile} data={data} logout={logout}/>;
 
   // For families tab, header shows differently when inside a family dashboard
   const isFamiliesTab=tab==="families";
-
-  const{isMobile,isTablet}=useBreakpoint();
 
   // Mobile bottom nav tabs
   const MOBILE_NAV=[
