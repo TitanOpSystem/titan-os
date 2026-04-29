@@ -1930,14 +1930,5 @@ export default function App(){
       </div>
     </div>
     {toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}
-
-    {/* Mobile Bottom Navigation */}
-    <div className="pcm-bottom-nav" style={{position:"fixed",bottom:0,left:0,right:0,background:B.navy,borderTop:`1px solid rgba(255,255,255,0.1)`,display:"flex",zIndex:500,paddingBottom:"env(safe-area-inset-bottom)"}}>
-      {MOBILE_NAV.map(item=><button key={item.id} onClick={()=>setTab(item.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"8px 4px",background:"none",border:"none",cursor:"pointer",color:tab===item.id?B.gold:"rgba(255,255,255,0.6)",fontFamily:"inherit",gap:3}}>
-        <span style={{fontSize:18}}>{item.icon}</span>
-        <span style={{fontSize:9,fontWeight:tab===item.id?700:400,letterSpacing:"0.03em"}}>{item.label}</span>
-        {tab===item.id&&<div style={{width:4,height:4,borderRadius:"50%",background:B.gold,marginTop:1}}/>}
-      </button>)}
-    </div>
   </div>;
 }
