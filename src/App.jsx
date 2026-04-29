@@ -1,10 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { PCM_LOGO } from "./logo.js";
-<<<<<<< HEAD
 // PCM Platform v5.0 — build 20260429
-=======
->>>>>>> d36b7ee856102c13e8cabf0ae3925e60bb07bd46
 
 const SUPABASE_URL = "https://unkirihxtruhdjeldfpm.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVua2lyaWh4dHJ1aGRqZWxkZnBtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNTA3MjUsImV4cCI6MjA5MTcyNjcyNX0._Ve9Pr3ooja-YdHYFIupebaZRhDjmJDnz2b-vzrhY04";
@@ -53,19 +50,11 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-<<<<<<< HEAD
   const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",file_type:"fileType",uploaded_by:"uploadedBy"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
 const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents"];
-=======
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName"};
-  return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
-};
-
-const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables"];
->>>>>>> d36b7ee856102c13e8cabf0ae3925e60bb07bd46
 
 // ── UI PRIMITIVES ─────────────────────────────────────────────────────────────
 function Badge({children,scheme}){
@@ -299,11 +288,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   const overdueTasks=pendingTasks.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
   const soonTasks=pendingTasks.filter(t=>t.dueDate&&!overdueTasks.includes(t)&&(new Date(t.dueDate)-new Date())/(86400000)<=30);
 
-<<<<<<< HEAD
   const TABS=["Overview","Properties","Portfolio","Valuables","Deals","Notes","Tasks","Documents"];
-=======
-  const TABS=["Overview","Properties","Portfolio","Valuables","Deals","Notes","Tasks"];
->>>>>>> d36b7ee856102c13e8cabf0ae3925e60bb07bd46
 
   // Quick add note
   const[noteBody,setNoteBody]=useState("");
@@ -630,14 +615,11 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
       </div>
 
-<<<<<<< HEAD
       {/* DOCUMENTS TAB */}
       {activeTab==="documents"&&<div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
         <DocumentsView familyId={family.id} readOnly={false} toast={toast}/>
       </div>}
 
-=======
->>>>>>> d36b7ee856102c13e8cabf0ae3925e60bb07bd46
       {/* Modals */}
       {modal==="task"&&<Modal title="New Task" onClose={()=>setModal(null)}><TaskForm contacts={contacts} onSave={async f=>{await addTask(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="property"&&<Modal title="Add Property" onClose={()=>setModal(null)} wide><PropertyForm onSave={async f=>{await addProperty(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
@@ -1211,7 +1193,6 @@ function Dashboard({data}){
 }
 
 // ── USER MANAGEMENT ───────────────────────────────────────────────────────────
-<<<<<<< HEAD
 function UserManagementView({userProfile,data={},toast}){
   const families=data.families||[];
   const[users,setUsers]=useState([]);
@@ -1399,46 +1380,10 @@ function UserManagementView({userProfile,data={},toast}){
           </div>
         )}
       </Modal>}
-=======
-function UserManagementView({userProfile,toast}){
-  const[users,setUsers]=useState([]);const[loading,setLoading]=useState(true);const[modal,setModal]=useState(null);
-  const loadUsers=async()=>{const{data}=await sb.from("user_profiles").select("*").order("created_at",{ascending:false});if(data)setUsers(data);setLoading(false);};
-  useEffect(()=>{loadUsers();},[]);
-  const toggleActive=async u=>{const{error}=await sb.from("user_profiles").update({active:!u.active}).eq("id",u.id);if(error)toast(error.message,"error");else{toast(u.active?"Deactivated":"Activated");loadUsers();}};
-  const changeRole=async(u,role)=>{const{error}=await sb.from("user_profiles").update({role}).eq("id",u.id);if(error)toast(error.message,"error");else{toast("Role updated");loadUsers();}};
-  if(userProfile?.role!=="admin")return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",flexDirection:"column",gap:12,color:B.textMute}}><div style={{fontSize:40}}>🔒</div><div style={{fontSize:16,color:B.navy,fontWeight:600}}>Admin Access Only</div></div>;
-  return <div style={{height:"100%",overflow:"auto",padding:"28px 32px"}}>
-    <div style={{maxWidth:860,margin:"0 auto"}}>
-      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,color:B.navy,fontWeight:600,marginBottom:20}}>User Management</div>
-      {loading?<Spinner/>:<div style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,overflow:"hidden"}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 140px 120px 110px",padding:"10px 20px",background:B.bg,borderBottom:`1px solid ${B.borderLight}`}}>
-          {["Name","Email","Role","Status",""].map(h=><div key={h} style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase"}}>{h}</div>)}
-        </div>
-        {users.map(u=><div key={u.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 140px 120px 110px",padding:"14px 20px",borderBottom:`1px solid ${B.borderLight}`,alignItems:"center",opacity:u.active?1:0.6}}>
-          <div><div style={{fontWeight:700,color:B.navy,fontSize:13}}>{u.full_name||"—"}</div>{u.id===userProfile?.id&&<div style={{fontSize:10,color:B.gold,fontWeight:700}}>You</div>}</div>
-          <div style={{fontSize:13,color:B.textMid,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email}</div>
-          <div>{u.id===userProfile?.id?<Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{u.role}</Badge>:<select value={u.role} onChange={e=>changeRole(u,e.target.value)} style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 8px",fontSize:12,color:B.text,outline:"none",fontFamily:"inherit",cursor:"pointer"}}><option value="advisor">Advisor</option><option value="admin">Admin</option></select>}</div>
-          <div><span style={{background:u.active?"#e0f5e9":"#fde8e8",color:u.active?"#0d5c2b":"#8b1a1a",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>{u.active?"Active":"Inactive"}</span></div>
-          <div>{u.id!==userProfile?.id&&<Btn small variant={u.active?"danger":"ghost"} onClick={()=>toggleActive(u)}>{u.active?"Deactivate":"Activate"}</Btn>}</div>
-        </div>)}
-        {users.length===0&&<div style={{padding:"40px",textAlign:"center",color:B.textMute}}>No users yet.</div>}
-      </div>}
-      <div style={{marginTop:24,background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,padding:24,boxShadow:B.shadow}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:8}}>Adding New Employees</div>
-        <GoldLine/>
-        <div style={{fontSize:13,color:B.textMid,lineHeight:2}}>
-          <strong>1.</strong> Go to <a href="https://supabase.com" target="_blank" rel="noreferrer" style={{color:B.gold}}>supabase.com</a> → your project → <strong>Authentication → Users → Invite User</strong><br/>
-          <strong>2.</strong> Enter their email — they'll receive a link to set their password<br/>
-          <strong>3.</strong> Once they log in once, their profile appears here — set their role above<br/>
-          <strong>4.</strong> Advisors only see families where their email matches the assigned advisor email
-        </div>
-      </div>
->>>>>>> d36b7ee856102c13e8cabf0ae3925e60bb07bd46
     </div>
   </div>;
 }
 
-<<<<<<< HEAD
 // ── DOCUMENTS VIEW ────────────────────────────────────────────────────────────
 const DOC_CATEGORIES = ["General","Tax","Legal","Insurance","Investment","Real Estate","Estate Planning","Other"];
 
@@ -1747,8 +1692,6 @@ function ClientDashboard({family,data,userProfile,logout}){
 }
 
 
-=======
->>>>>>> d36b7ee856102c13e8cabf0ae3925e60bb07bd46
 // ── NAV ───────────────────────────────────────────────────────────────────────
 const NAV_SECTIONS=[
   {section:"CLIENT MANAGEMENT",items:[
@@ -1785,11 +1728,7 @@ export default function App(){
 
   const loadProfile=useCallback(async userId=>{
     const{data:d}=await sb.from("user_profiles").select("*").eq("id",userId).single();
-<<<<<<< HEAD
     if(d)setUserProfile({id:d.id,email:d.email,role:d.role,fullName:d.full_name,active:d.active,familyId:d.family_id});
-=======
-    if(d)setUserProfile({id:d.id,email:d.email,role:d.role,fullName:d.full_name,active:d.active});
->>>>>>> d36b7ee856102c13e8cabf0ae3925e60bb07bd46
   },[]);
 
   useEffect(()=>{
@@ -1809,7 +1748,6 @@ export default function App(){
     else await Promise.all(TABLES.map(fetchTable));
   },[fetchTable]);
 
-<<<<<<< HEAD
   useEffect(()=>{
     if(!authed||!userProfile)return;
     (async()=>{
@@ -1823,9 +1761,6 @@ export default function App(){
       setLoading(false);
     })();
   },[authed,userProfile]);
-=======
-  useEffect(()=>{if(!authed||!userProfile)return;(async()=>{setLoading(true);await reload();setLoading(false);})();},[authed,userProfile]);
->>>>>>> d36b7ee856102c13e8cabf0ae3925e60bb07bd46
 
   const cmStats={families:data.families.length,portfolio:(data.portfolio_accounts||[]).length,"cm-notes":data.notes.filter(n=>n.familyId).length,"cm-tasks":data.tasks.filter(t=>t.familyId&&!t.done).length};
   const pStats={"p-contacts":data.contacts.filter(c=>!c.familyId).length,"p-pipeline":data.deals.filter(d=>!d.familyId&&d.stage!=="Closed Lost").length,"p-notes":data.notes.filter(n=>!n.familyId).length,"p-tasks":data.tasks.filter(t=>!t.familyId&&!t.done).length};
@@ -1838,7 +1773,6 @@ export default function App(){
   if(!authed||!userProfile)return <LoginScreen/>;
   if(userProfile.active===false)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontFamily:"'DM Sans',sans-serif",color:B.navy,fontSize:16,flexDirection:"column",gap:12}}><div style={{fontSize:40}}>🔒</div>Your account has been deactivated. Contact your administrator.</div>;
 
-<<<<<<< HEAD
   // Client role — show read-only family dashboard
   if(userProfile.role==="client"){
     const clientFamily=data.families.find(f=>f.id===userProfile.familyId);
@@ -1850,8 +1784,6 @@ export default function App(){
   // Client role — show read-only family dashboard
   if(userProfile.role==="client") return <ClientDashboard userProfile={userProfile} data={data} logout={logout}/>;
 
-=======
->>>>>>> d36b7ee856102c13e8cabf0ae3925e60bb07bd46
   // For families tab, header shows differently when inside a family dashboard
   const isFamiliesTab=tab==="families";
 
@@ -1906,21 +1838,13 @@ export default function App(){
       </>}
 
       <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg}}>
-<<<<<<< HEAD
         {loading&&tab!=="families"&&tab!=="users"?<Spinner/>:<>
-=======
-        {loading&&tab!=="families"?<Spinner/>:<>
->>>>>>> d36b7ee856102c13e8cabf0ae3925e60bb07bd46
           {tab==="dashboard"   &&<Dashboard data={data}/>}
           {tab==="families"    &&<FamiliesView data={data} reload={reload} toast={showToast}/>}
           {tab==="portfolio"   &&<PortfolioView data={data} reload={reload} toast={showToast}/>}
           {tab==="cm-notes"    &&<NotesView data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={showToast}/>}
           {tab==="cm-tasks"    &&<TasksView data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={showToast}/>}
-<<<<<<< HEAD
           {tab==="users"       &&<UserManagementView userProfile={userProfile} data={data} toast={showToast}/>}
-=======
-          {tab==="users"       &&<UserManagementView userProfile={userProfile} toast={showToast}/>}
->>>>>>> d36b7ee856102c13e8cabf0ae3925e60bb07bd46
           {tab==="p-contacts"  &&<ProspectContactsView data={data} reload={reload} toast={showToast}/>}
           {tab==="p-pipeline"  &&<ProspectPipelineView data={data} reload={reload} toast={showToast}/>}
           {tab==="p-notes"     &&<NotesView data={{...data,notes:data.notes.filter(n=>!n.familyId),families:[]}} reload={reload} toast={showToast}/>}
