@@ -56,8 +56,6 @@ const toClient=obj=>{
 
 const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents"];
 
-);
-
 
 // ── UI PRIMITIVES ─────────────────────────────────────────────────────────────
 function Badge({children,scheme}){
