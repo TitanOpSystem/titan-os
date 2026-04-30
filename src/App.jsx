@@ -188,6 +188,7 @@ function FamilyReport({family,data,onClose}){
     .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #ceb684;}
     .logo{font-size:26px;font-weight:700;color:#092b49;}
     .logo-sub{font-size:9px;letter-spacing:.18em;color:#8fa0b2;margin-top:3px;}
+    .logo-img{height:60px;width:auto;display:block;}
     h1{font-size:22px;font-weight:700;margin-bottom:2px;}
     .advisor{font-size:12px;color:#5a6e84;margin-top:4px;}
     .date{font-size:11px;color:#8fa0b2;margin-top:2px;}
@@ -208,7 +209,7 @@ function FamilyReport({family,data,onClose}){
     @media print{body{padding:20px;}}
     </style></head><body>
     <div class="header">
-      <div><div class="logo">PCM Family Office</div><div class="logo-sub">DISCOVER · SIMPLIFY · EXECUTE</div></div>
+      <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/><div class="logo-sub">DISCOVER · SIMPLIFY · EXECUTE</div></div>
       <div style="text-align:right"><h1>${family.name}</h1><div class="advisor">Advisor: ${family.advisorName||"—"} | ${family.advisorEmail||""}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
     </div>
     <div class="stats">
