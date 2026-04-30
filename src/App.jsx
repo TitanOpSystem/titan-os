@@ -34,7 +34,7 @@ const PRIORITY_COLORS={
 const PROP_TYPES=["Residential","Commercial","Industrial","Land","Mixed Use","Vacation"];
 const LOAN_TYPES=["Fixed","ARM","Interest Only","Balloon","Bridge","HELOC"];
 const VALUABLE_CATS=["Car / Vehicle","Jewelry","Art","Watch","Boat / Watercraft","Other"];
-const ACCT_TYPES=["Investment","Brokerage","Retirement (IRA)","401(k)","Trust","Savings","Other"];
+const ACCT_TYPES=["Investment","Brokerage","Retirement (IRA)","401(k)","Trust","Savings","Other","Money Market",Checking"];
 const REMINDER_OPTIONS=[
   {label:"1 day before",days:1},
   {label:"3 days before",days:3},
