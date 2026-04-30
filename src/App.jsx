@@ -102,8 +102,8 @@ function StatBox({label,value,accent}){
 }
 
 function PCMLogo({dark=false}){
-  if(dark)return <div style={{background:"rgba(255,255,255,0.95)",borderRadius:8,padding:"6px 10px",display:"inline-block"}}><img src={PCM_LOGO} alt="PCM Family Office" style={{height:36,width:"auto",display:"block"}}/></div>;
-  return <img src={PCM_LOGO} alt="PCM Family Office" style={{height:72,width:"auto",display:"block",margin:"0 auto"}}/>;
+  if(dark)return <div style={{background:"rgba(255,255,255,0.97)",borderRadius:8,padding:"6px 12px",display:"inline-block"}}><img src={PCM_LOGO} alt="PCM Family Office" style={{height:52,width:"auto",display:"block"}}/></div>;
+  return <img src={PCM_LOGO} alt="PCM Family Office" style={{height:100,width:"auto",display:"block",margin:"0 auto"}}/>;
 }
 
 // ── LOGIN SCREEN ──────────────────────────────────────────────────────────────
@@ -133,21 +133,6 @@ function LoginScreen(){
   return(
     <div style={{minHeight:"100vh",background:`linear-gradient(135deg,${B.navy} 0%,${B.navyMid} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
       <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-      <style>{`
-        * { box-sizing: border-box; }
-        body { margin: 0; -webkit-tap-highlight-color: transparent; }
-        @media (max-width: 639px) {
-          .pcm-hide-mobile { display: none !important; }
-          .pcm-sidebar { display: none !important; }
-          .pcm-main-header { padding: 10px 16px !important; }
-        }
-        @media (min-width: 640px) {
-          .pcm-bottom-nav { display: none !important; }
-        }
-        @media (max-width: 1023px) {
-          .pcm-sidebar { width: 200px !important; }
-        }
-      `}</style>
       <div style={{position:"fixed",inset:0,backgroundImage:`radial-gradient(circle at 20% 80%,rgba(206,182,132,0.07) 0%,transparent 50%)`,pointerEvents:"none"}}/>
       <div style={{background:"rgba(255,255,255,0.97)",borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:420,boxShadow:"0 32px 80px rgba(0,0,0,0.3)",border:`1px solid rgba(206,182,132,0.3)`,position:"relative",zIndex:1,margin:"0 16px"}}>
         <div style={{textAlign:"center",marginBottom:32}}>
@@ -1853,22 +1838,9 @@ export default function App(){
 
   return <div style={{display:"flex",height:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:B.text,overflow:"hidden",flexDirection:"row"}}>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-    <style>{`
-      * { box-sizing: border-box; }
-      body { margin: 0; -webkit-tap-highlight-color: transparent; }
-      @media (max-width: 639px) {
-        .pcm-sidebar { display: none !important; }
-      }
-      @media (min-width: 640px) {
-        .pcm-bottom-nav { display: none !important; }
-      }
-      @media (max-width: 1023px) {
-        .pcm-sidebar { width: 200px !important; }
-      }
-    `}</style>
 
     {/* Sidebar */}
-    <div className="pcm-sidebar" style={{width:232,background:B.navy,display:"flex",flexDirection:"column",flexShrink:0}}>
+    <div style={{width:232,background:B.navy,display:"flex",flexDirection:"column",flexShrink:0}}>
       <div style={{padding:"14px 16px 12px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
         <PCMLogo dark/>
         <div style={{fontSize:8,color:"rgba(206,182,132,0.5)",letterSpacing:"0.18em",marginTop:8}}>DISCOVER · SIMPLIFY · EXECUTE</div>
