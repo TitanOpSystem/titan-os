@@ -102,8 +102,8 @@ function StatBox({label,value,accent}){
 }
 
 function PCMLogo({dark=false}){
-  if(dark)return <div style={{background:"rgba(255,255,255,0.97)",borderRadius:8,padding:"6px 12px",display:"inline-block"}}><img src={PCM_LOGO} alt="PCM Family Office" style={{height:52,width:"auto",display:"block"}}/></div>;
-  return <img src={PCM_LOGO} alt="PCM Family Office" style={{height:100,width:"auto",display:"block",margin:"0 auto"}}/>;
+  if(dark)return <div style={{background:"rgba(255,255,255,0.97)",borderRadius:8,padding:"8px 14px",display:"inline-block"}}><img src={PCM_LOGO} alt="PCM Family Office" style={{height:64,width:"auto",display:"block"}}/></div>;
+  return <img src={PCM_LOGO} alt="PCM Family Office" style={{height:110,width:"auto",display:"block",margin:"0 auto"}}/>;
 }
 
 // ── LOGIN SCREEN ──────────────────────────────────────────────────────────────
