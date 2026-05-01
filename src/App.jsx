@@ -183,12 +183,12 @@ function FamilyReport({family,data,onClose}){
 
   const print=()=>{
     const w=window.open("","_blank");
-    w.document.write(`<!DOCTYPE html><html><head><title>PCM Report — ${family.name}</title>
+    w.document.write(`<!DOCTYPE html><html><head><title> </title>
     <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:#092b49;background:#fff;padding:40px;font-size:13px;line-height:1.6;}
     .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #ceb684;}
     .logo{font-size:26px;font-weight:700;color:#092b49;}
     .logo-sub{font-size:9px;letter-spacing:.18em;color:#8fa0b2;margin-top:3px;}
-    .logo-img{height:60px;width:auto;display:block;}
+    .logo-img{height:120px;width:auto;display:block;}
     h1{font-size:22px;font-weight:700;margin-bottom:2px;}
     .advisor{font-size:12px;color:#5a6e84;margin-top:4px;}
     .date{font-size:11px;color:#8fa0b2;margin-top:2px;}
@@ -250,10 +250,6 @@ function FamilyReport({family,data,onClose}){
     </tbody></table>
     <h2>Activity Notes</h2>
     ${notes.slice(0,10).map(n=>`<div class="note"><div>${n.body}</div><div class="note-date">${fmt(n.createdAt)}</div></div>`).join("")||"<p style='color:#8fa0b2'>No notes</p>"}
-    <div class="footer">
-      <div class="footer-l"><strong>PCM Family Office</strong><br/>info@pcmfamilyoffice.com · DISCOVER · SIMPLIFY · EXECUTE</div>
-      <div class="footer-c">CONFIDENTIAL<br/><span style="font-size:9px;font-weight:400;color:#5a6e84">Property of PCM Family Office — Authorized Recipients Only</span></div>
-    </div>
     </body></html>`);
     w.document.close();w.focus();setTimeout(()=>w.print(),400);
   };
