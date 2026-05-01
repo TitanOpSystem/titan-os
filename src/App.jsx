@@ -33,7 +33,7 @@ const PRIORITY_COLORS={
 const PROP_TYPES=["Residential","Commercial","Industrial","Land","Mixed Use","Vacation"];
 const LOAN_TYPES=["Fixed","ARM","Interest Only","Balloon","Bridge","HELOC"];
 const VALUABLE_CATS=["Car / Vehicle","Jewelry","Art","Watch","Boat / Watercraft","Other"];
-const ACCT_TYPES=["Investment","Brokerage","Retirement (IRA)","401(k)","Trust","Savings","Other"];
+const ACCT_TYPES=["Investment","Brokerage","Retirement (IRA)","401(k)","Trust","Savings","Other","Checking","Money Market","Line of Credit"];
 const REMINDER_OPTIONS=[
   {label:"1 day before",days:1},
   {label:"3 days before",days:3},
@@ -177,8 +177,8 @@ function FamilyReport({family,data,onClose}){
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
   const totalPortfolio=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
-  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0);
-  const totalAccounts=accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0)+accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalAccounts=accounts.filter(a=>a.accountType!=="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalValuables=valuables.reduce((s,v)=>s+(Number(v.estimatedValue)||0),0);
 
   const print=()=>{
@@ -282,8 +282,8 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
 
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
-  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0);
-  const totalAccounts=accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0)+accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalAccounts=accounts.filter(a=>a.accountType!=="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalValuables=valuables.reduce((s,v)=>s+(Number(v.estimatedValue)||0),0);
   const netWorth=totalRE-totalDebt+totalAccounts+totalValuables;
   const overdueTasks=pendingTasks.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
@@ -1179,8 +1179,8 @@ function Dashboard({data}){
   const openDeals=deals.filter(d=>d.stage!=="Closed Lost"&&d.stage!=="Closed Won");
   const pipeline=openDeals.reduce((s,d)=>s+(Number(d.value)||0),0);
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
-  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0);
-  const totalPortfolio=portfolio_accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0)+portfolio_accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalPortfolio=portfolio_accounts.filter(a=>a.accountType!=="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const pending=tasks.filter(t=>!t.done);
   const overdue=pending.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
   const dueSoon=pending.filter(t=>t.dueDate&&!overdue.includes(t)&&(new Date(t.dueDate)-new Date())/(86400000)<=30);
@@ -1560,8 +1560,8 @@ function ClientDashboard({family,data,userProfile,logout}){
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
   const tasks=(data.tasks||[]).filter(t=>t.familyId===family.id&&!t.done);
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
-  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0);
-  const totalAccounts=accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0)+accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalAccounts=accounts.filter(a=>a.accountType!=="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalValuables=valuables.reduce((s,v)=>s+(Number(v.estimatedValue)||0),0);
   const netWorth=totalRE-totalDebt+totalAccounts+totalValuables;
   const overdue=tasks.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
