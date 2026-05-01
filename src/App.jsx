@@ -209,7 +209,7 @@ function FamilyReport({family,data,onClose}){
     @media print{body{padding:20px;}}
     </style></head><body>
     <div class="header">
-      <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/><div class="logo-sub">DISCOVER · SIMPLIFY · EXECUTE</div></div>
+      <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/></div>
       <div style="text-align:right"><h1>${family.name}</h1><div class="advisor">Advisor: ${family.advisorName||"—"} | ${family.advisorEmail||""}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
     </div>
     <div class="stats">
