@@ -332,6 +332,11 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
     const{error}=await sb.from("properties").insert(row);
     if(error)toast(error.message,"error");else{toast("Property added");reload("properties");}
   };
+  const editProperty=async(id,f)=>{
+    const row={owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,notes:f.notes||null};
+    const{error}=await sb.from("properties").update(row).eq("id",id);
+    if(error)toast(error.message,"error");else{toast("Property updated");reload("properties");}
+  };
   const delProperty=async(id)=>{
     const{error}=await sb.from("properties").delete().eq("id",id);
     if(error)toast(error.message,"error");else reload("properties");
@@ -341,6 +346,10 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   const addValuable=async(f)=>{
     const{error}=await sb.from("valuables").insert({family_id:family.id,category:f.category,description:f.description,make_model:f.makeModel||null,year:f.year||null,estimated_value:f.estimatedValue||null,insured:!!f.insured,insurance_company:f.insuranceCompany||null,notes:f.notes||null});
     if(error)toast(error.message,"error");else{toast("Valuable added");reload("valuables");}
+  };
+  const editValuable=async(id,f)=>{
+    const{error}=await sb.from("valuables").update({category:f.category,description:f.description,make_model:f.makeModel||null,year:f.year||null,estimated_value:f.estimatedValue||null,insured:!!f.insured,insurance_company:f.insuranceCompany||null,notes:f.notes||null}).eq("id",id);
+    if(error)toast(error.message,"error");else{toast("Valuable updated");reload("valuables");}
   };
   const delValuable=async(id)=>{
     const{error}=await sb.from("valuables").delete().eq("id",id);
@@ -484,6 +493,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                   <div style={{fontSize:16,fontWeight:700,color:B.navy}}>{fmtMoney(p.currentValue||p.purchasePrice)}</div>
                   {p.loanBalance&&<div style={{fontSize:11,color:B.textSoft}}>Balance: {fmtMoney(p.loanBalance)}</div>}
                 </div>
+                <Btn small variant="ghost" onClick={()=>setModal({type:"editProperty",property:p})}>Edit</Btn>
                 <Btn small variant="danger" onClick={()=>delProperty(p.id)}>✕</Btn>
               </div>
             </div>
@@ -550,6 +560,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <div style={{fontSize:15,fontWeight:700,color:B.navy}}>{fmtMoney(v.estimatedValue)}</div>
+                  <Btn small variant="ghost" onClick={()=>setModal({type:"editValuable",valuable:v})}>Edit</Btn>
                   <Btn small variant="danger" onClick={()=>delValuable(v.id)}>✕</Btn>
                 </div>
               </div>)}
@@ -651,7 +662,9 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       </Modal>}
       {modal==="task"&&<Modal title="New Task" onClose={()=>setModal(null)}><TaskForm contacts={contacts} onSave={async f=>{await addTask(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="property"&&<Modal title="Add Property" onClose={()=>setModal(null)} wide><PropertyForm onSave={async f=>{await addProperty(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
+      {modal&&modal.type==="editProperty"&&<Modal title="Edit Property" onClose={()=>setModal(null)} wide><PropertyForm initial={modal.property} onSave={async f=>{await editProperty(modal.property.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="valuable"&&<Modal title="Add Valuable" onClose={()=>setModal(null)}><ValuableForm onSave={async f=>{await addValuable(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
+      {modal&&modal.type==="editValuable"&&<Modal title="Edit Valuable" onClose={()=>setModal(null)}><ValuableForm initial={modal.valuable} onSave={async f=>{await editValuable(modal.valuable.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="deal"&&<Modal title="Add Deal" onClose={()=>setModal(null)}><SimpleDealForm contacts={contacts} onSave={async f=>{await addDeal(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="account"&&<Modal title="Add Portfolio Account" onClose={()=>setModal(null)}><AccountForm onSave={async f=>{await addAccount(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal&&modal.type==="editAccount"&&<Modal title="Edit Portfolio Account" onClose={()=>setModal(null)}><AccountForm initial={modal.account} onSave={async f=>{await editAccount(modal.account.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
@@ -1444,7 +1457,11 @@ function UserManagementView({userProfile,data={},toast}){
 // ── DOCUMENTS VIEW ────────────────────────────────────────────────────────────
 const DOC_CATEGORIES = ["General","Tax","Legal","Insurance","Investment","Real Estate","Estate Planning","Other"];
 
-function DocumentsView({familyId,readOnly=false,toast}){
+function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
+  // Backward compat: if readOnly passed, default canUpload=false canDelete=false
+  // If canUpload/canDelete passed explicitly, use those
+  const allowUpload=canUpload!==undefined?canUpload:!readOnly;
+  const allowDelete=canDelete!==undefined?canDelete:!readOnly;
   const[docs,setDocs]=useState([]);
   const[loading,setLoading]=useState(true);
   const[uploading,setUploading]=useState(false);
@@ -1484,9 +1501,19 @@ function DocumentsView({familyId,readOnly=false,toast}){
   };
 
   const download=async(doc)=>{
-    const{data,error}=await sb.storage.from("documents").createSignedUrl(doc.filePath,300);
-    if(error)return toast("Could not get download link","error");
-    window.open(data.signedUrl,"_blank");
+    try{
+      const{data,error}=await sb.storage.from("documents").createSignedUrl(doc.filePath,300,{download:doc.name||true});
+      if(error||!data?.signedUrl){toast("Could not get download link","error");return;}
+      // Use anchor element to bypass popup blockers
+      const a=document.createElement("a");
+      a.href=data.signedUrl;
+      a.download=doc.name||"document";
+      a.target="_blank";
+      a.rel="noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }catch(e){toast("Download failed: "+e.message,"error");}
   };
 
   const del=async(doc)=>{
@@ -1505,7 +1532,7 @@ function DocumentsView({familyId,readOnly=false,toast}){
       <div style={{flex:1,display:"flex",gap:6,flexWrap:"wrap"}}>
         {["All",...DOC_CATEGORIES].map(c=><button key={c} onClick={()=>setFilterCat(c)} style={{background:filterCat===c?B.navy:"transparent",border:`1px solid ${filterCat===c?B.navy:B.border}`,color:filterCat===c?B.white:B.textSoft,borderRadius:20,padding:"3px 12px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{c}</button>)}
       </div>
-      {!readOnly&&<Btn onClick={()=>setModal("upload")}>⬆ Upload Document</Btn>}
+      {allowUpload&&<Btn onClick={()=>setModal("upload")}>⬆ Upload Document</Btn>}
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
       {loading?<Spinner/>:filtered.length===0?<div style={{padding:"60px 0",textAlign:"center",color:B.textMute}}><div style={{fontSize:40,marginBottom:12}}>📁</div>No documents yet.</div>:
@@ -1525,7 +1552,7 @@ function DocumentsView({familyId,readOnly=false,toast}){
           <div style={{fontSize:11,color:B.textMute}}>{fmt(doc.createdAt)}</div>
           <div style={{display:"flex",gap:8,marginTop:4}}>
             <Btn small onClick={()=>download(doc)} style={{flex:1}}>⬇ Download</Btn>
-            {!readOnly&&<Btn small variant="danger" onClick={()=>del(doc)}>✕</Btn>}
+            {allowDelete&&<Btn small variant="danger" onClick={()=>del(doc)}>✕</Btn>}
           </div>
         </div>)}
       </div>}
@@ -1553,7 +1580,7 @@ function DocumentsView({familyId,readOnly=false,toast}){
 }
 
 // ── CLIENT DASHBOARD ──────────────────────────────────────────────────────────
-function ClientDashboard({family,data,userProfile,logout}){
+function ClientDashboard({family,data,userProfile,logout,toast}){
   const[activeTab,setActiveTab]=useState("summary");
   const properties=(data.properties||[]).filter(p=>p.familyId===family.id);
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
@@ -1735,7 +1762,7 @@ function ClientDashboard({family,data,userProfile,logout}){
       {/* DOCUMENTS */}
       {activeTab==="documents"&&<div style={{height:"calc(100vh - 200px)"}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:20}}>Documents</div>
-        <DocumentsView familyId={family.id} readOnly={true} toast={()=>{}}/>
+        <DocumentsView familyId={family.id} canUpload={true} canDelete={false} toast={toast||(()=>{})}/>
       </div>}
 
     </div>
@@ -1834,7 +1861,7 @@ export default function App(){
     const clientFamily=data.families.find(f=>f.id===userProfile.familyId);
     if(loading)return <div style={{minHeight:"100vh",background:B.navy,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
     if(!clientFamily)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,flexDirection:"column",gap:12,color:B.navy,fontFamily:"'DM Sans',sans-serif"}}><PCMLogo/><div style={{marginTop:20,fontSize:16}}>No family assigned to your account. Contact your advisor.</div><button onClick={logout} style={{marginTop:12,background:"none",border:`1px solid ${B.border}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontFamily:"inherit",color:B.textSoft}}>Sign Out</button></div>;
-    return <ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout}/>;
+    return <><ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout} toast={showToast}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
   }
 
 
