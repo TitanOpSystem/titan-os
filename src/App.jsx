@@ -269,7 +269,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -1180,17 +1180,45 @@ function CashFlowReport({family,projectionMonths,filingStatus,baseIncome,stateRa
 }
 
 // ── CASH FLOW VIEW (the tab content) ──────────────────────────────────────────
-function CashFlowView({family,events,properties,reload,toast}){
+function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
   const isMobile=useIsMobile();
   const[modal,setModal]=useState(null);
   const[reportOpen,setReportOpen]=useState(false);
-  // Settings (persisted in localStorage per family)
+  // Settings: DB (family.cashFlowSettings) is source of truth, localStorage is fallback
   const settingsKey=`cf_settings_${family.id}`;
+  const defaults={projectionMonths:60,filingStatus:"mfj",baseIncome:0,stateCode:"FL",stateTaxRate:0,localTaxRate:0,localTaxLabel:"",includeRental:false};
   const loadSettings=()=>{
-    try{const s=JSON.parse(localStorage.getItem(settingsKey)||"{}");return{projectionMonths:s.projectionMonths||60,filingStatus:s.filingStatus||"mfj",baseIncome:s.baseIncome||0,stateCode:s.stateCode||"FL",stateTaxRate:s.stateTaxRate!==undefined?s.stateTaxRate:0,localTaxRate:s.localTaxRate||0,localTaxLabel:s.localTaxLabel||"",includeRental:s.includeRental||false};}catch{return{projectionMonths:60,filingStatus:"mfj",baseIncome:0,stateCode:"FL",stateTaxRate:0,localTaxRate:0,localTaxLabel:"",includeRental:false};}
+    // 1) Try DB
+    if(family.cashFlowSettings&&typeof family.cashFlowSettings==="object"){
+      return{...defaults,...family.cashFlowSettings};
+    }
+    // 2) Fallback to localStorage
+    try{const s=JSON.parse(localStorage.getItem(settingsKey)||"{}");return{...defaults,...s};}
+    catch{return defaults;}
   };
   const[settings,setSettings]=useState(loadSettings);
-  const updateSetting=(k,v)=>{const next={...settings,[k]:v};setSettings(next);try{localStorage.setItem(settingsKey,JSON.stringify(next));}catch{}};
+  // Reload settings when family.cashFlowSettings changes (e.g., after advisor saves and client reloads)
+  useEffect(()=>{setSettings(loadSettings());// eslint-disable-next-line
+  },[family.id,family.cashFlowSettings]);
+  const updateSetting=async(k,v)=>{
+    if(readOnly)return;
+    const next={...settings,[k]:v};
+    setSettings(next);
+    // Save to localStorage (immediate UX) and DB (so client view sees same)
+    try{localStorage.setItem(settingsKey,JSON.stringify(next));}catch{}
+    const{error}=await sb.from("families").update({cash_flow_settings:next}).eq("id",family.id);
+    if(error){toast&&toast("Could not save settings: "+error.message,"error");return;}
+    if(reload)reload("families");
+  };
+  const updateSettings=async(patch)=>{
+    if(readOnly)return;
+    const next={...settings,...patch};
+    setSettings(next);
+    try{localStorage.setItem(settingsKey,JSON.stringify(next));}catch{}
+    const{error}=await sb.from("families").update({cash_flow_settings:next}).eq("id",family.id);
+    if(error){toast&&toast("Could not save settings: "+error.message,"error");return;}
+    if(reload)reload("families");
+  };
 
   // Add synthetic rental events if toggled
   const allEvents=useMemo(()=>{
@@ -1253,46 +1281,44 @@ function CashFlowView({family,events,properties,reload,toast}){
     if(error)toast(error.message,"error");else{toast("Event deleted");reload("cash_flow_events");}
   };
 
-  return <div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
+  return <div style={{padding:readOnly?0:(isMobile?"16px 14px":"24px 28px")}}>
     {/* Settings Bar */}
     <div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:isMobile?14:18,marginBottom:18,boxShadow:B.shadow}}>
-      <div style={{fontSize:11,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Projection Settings</div>
+      <div style={{fontSize:11,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Projection Settings{readOnly?" (read-only)":""}</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12}}>
         <Field label="Projection Window">
-          <Sel value={settings.projectionMonths} onChange={e=>updateSetting("projectionMonths",Number(e.target.value))}>
+          <Sel value={settings.projectionMonths} disabled={readOnly} onChange={e=>updateSetting("projectionMonths",Number(e.target.value))}>
             {CF_PROJECTION_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
           </Sel>
         </Field>
         <Field label="Filing Status">
-          <Sel value={settings.filingStatus} onChange={e=>updateSetting("filingStatus",e.target.value)}>
+          <Sel value={settings.filingStatus} disabled={readOnly} onChange={e=>updateSetting("filingStatus",e.target.value)}>
             <option value="mfj">Married Filing Jointly</option>
             <option value="single">Single</option>
           </Sel>
         </Field>
         <Field label="Base Annual Income">
-          <Inp type="number" value={settings.baseIncome||""} onChange={e=>updateSetting("baseIncome",Number(e.target.value)||0)} placeholder="0"/>
+          <Inp type="number" disabled={readOnly} value={settings.baseIncome||""} onChange={e=>updateSetting("baseIncome",Number(e.target.value)||0)} placeholder="0"/>
         </Field>
         <Field label="State">
-          <Sel value={settings.stateCode} onChange={e=>{
+          <Sel value={settings.stateCode} disabled={readOnly} onChange={e=>{
             const code=e.target.value;
             const st=STATE_TAX_RATES.find(s=>s.code===code);
-            const next={...settings,stateCode:code,stateTaxRate:st?st.rate:0};
-            setSettings(next);
-            try{localStorage.setItem(settingsKey,JSON.stringify(next));}catch{}
+            updateSettings({stateCode:code,stateTaxRate:st?st.rate:0});
           }}>
             {STATE_TAX_RATES.map(s=><option key={s.code} value={s.code}>{s.name} ({s.rate.toFixed(2)}%)</option>)}
           </Sel>
         </Field>
         <Field label="Local / City Tax (%)">
-          <Inp type="number" step="0.01" value={settings.localTaxRate||""} onChange={e=>updateSetting("localTaxRate",Number(e.target.value)||0)} placeholder="e.g., NYC 3.876"/>
+          <Inp type="number" step="0.01" disabled={readOnly} value={settings.localTaxRate||""} onChange={e=>updateSetting("localTaxRate",Number(e.target.value)||0)} placeholder="e.g., NYC 3.876"/>
         </Field>
       </div>
       <div style={{marginTop:12,display:"flex",gap:14,flexWrap:"wrap",alignItems:"center"}}>
-        <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13,color:B.text}}>
-          <input type="checkbox" checked={!!settings.includeRental} onChange={e=>updateSetting("includeRental",e.target.checked)} style={{width:16,height:16,accentColor:B.navy}}/>
+        <label style={{display:"flex",alignItems:"center",gap:8,cursor:readOnly?"not-allowed":"pointer",fontSize:13,color:B.text,opacity:readOnly?0.7:1}}>
+          <input type="checkbox" disabled={readOnly} checked={!!settings.includeRental} onChange={e=>updateSetting("includeRental",e.target.checked)} style={{width:16,height:16,accentColor:B.navy}}/>
           <span>Include rental income from properties</span>
         </label>
-        <div style={{fontSize:11,color:B.textSoft,marginLeft:"auto"}}>State rate auto-fills from selection. Common local rates: NYC 3.876% · Philadelphia 3.75% · Detroit 2.4%</div>
+        {!readOnly&&<div style={{fontSize:11,color:B.textSoft,marginLeft:"auto"}}>State rate auto-fills from selection. Common local rates: NYC 3.876% · Philadelphia 3.75% · Detroit 2.4%</div>}
       </div>
     </div>
 
@@ -1351,13 +1377,13 @@ function CashFlowView({family,events,properties,reload,toast}){
     {/* Events Table */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,gap:10,flexWrap:"wrap"}}>
       <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Events ({events.length})</div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+      {!readOnly&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         <Btn variant="gold" onClick={()=>setReportOpen(true)}>🖨 Print Report</Btn>
         <Btn onClick={()=>setModal({type:"add"})}>+ New Event</Btn>
-      </div>
+      </div>}
     </div>
 
-    {enrichedEvents.length===0?<Empty text="No cash flow events yet. Add your first event."/>:enrichedEvents.map(e=>{
+    {enrichedEvents.length===0?<Empty text={readOnly?"No cash flow events yet.":"No cash flow events yet. Add your first event."}/>:enrichedEvents.map(e=>{
       const freqLabel=CF_FREQUENCIES.find(fr=>fr.value===e.frequency)?.label||e.frequency;
       const treatLabel=CF_TAX_TREATMENTS.find(t=>t.value===e.taxTreatment)?.label.split(" (")[0]||e.taxTreatment;
       return <div key={e.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${e._synthetic?B.navyMid:B.gold}`,borderRadius:10,padding:isMobile?14:16,marginBottom:8,boxShadow:B.shadow}}>
@@ -1378,7 +1404,7 @@ function CashFlowView({family,events,properties,reload,toast}){
             <div style={{fontSize:13,fontWeight:700,color:"#0d5c2b"}}>{fmtMoney(e.projectedNet)} <span style={{fontSize:10,color:B.textSoft,fontWeight:400}}>net</span></div>
           </div>
         </div>
-        {!e._synthetic&&<div style={{display:"flex",gap:6,marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`,justifyContent:"flex-end"}}>
+        {!e._synthetic&&!readOnly&&<div style={{display:"flex",gap:6,marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`,justifyContent:"flex-end"}}>
           <Btn small variant="ghost" onClick={()=>setModal({type:"edit",event:e})}>Edit</Btn>
           <Btn small variant="danger" onClick={()=>{if(confirm("Delete this event?"))delEvent(e.id);}}>Delete</Btn>
         </div>}
@@ -2202,6 +2228,7 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
     {id:"summary",   label:"Summary",    icon:"◈"},
     {id:"portfolio", label:"Portfolio",  icon:"◇"},
     {id:"properties",label:"Properties", icon:"⌂"},
+    {id:"cashflow",  label:"Cash Flow",  icon:"$"},
     {id:"valuables", label:"Valuables",  icon:"◆"},
     {id:"tasks",     label:"Tasks",      icon:"◻"},
     {id:"documents", label:"Documents",  icon:"📁"},
@@ -2330,6 +2357,13 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
             </div>)}
           </div>
         </div>)}
+      </div>}
+
+      {/* CASH FLOW (read-only) */}
+      {activeTab==="cashflow"&&<div>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:8}}>Cash Flow Projection</div>
+        <div style={{fontSize:14,color:B.textSoft,marginBottom:20}}>Projection of expected cash flow events configured by your advisor.</div>
+        <CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} properties={properties} reload={()=>{}} toast={toast||(()=>{})} readOnly={true}/>
       </div>}
 
       {/* VALUABLES */}
