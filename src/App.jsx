@@ -46,6 +46,213 @@ const PROP_TYPES=["Residential","Commercial","Industrial","Land","Mixed Use","Va
 const LOAN_TYPES=["Fixed","ARM","Interest Only","Balloon","Bridge","HELOC"];
 const VALUABLE_CATS=["Car / Vehicle","Jewelry","Art","Watch","Boat / Watercraft","Other"];
 const ACCT_TYPES=["Investment","Brokerage","Retirement (IRA)","401(k)","Trust","Savings","Other","Checking","Money Market","Line of Credit"];
+
+// ── CASH FLOW ─────────────────────────────────────────────────────────────────
+const CF_EVENT_TYPES=["Salary","Bonus","Sale","RSU","Grant","PE Deal","Rental Income","Distribution","Other Income","Other Expense"];
+const CF_FREQUENCIES=[
+  {value:"once",label:"One-time"},
+  {value:"weekly",label:"Weekly"},
+  {value:"biweekly",label:"Bi-weekly"},
+  {value:"monthly",label:"Monthly"},
+  {value:"quarterly",label:"Quarterly"},
+  {value:"annually",label:"Annually"},
+];
+const CF_TAX_TREATMENTS=[
+  {value:"ordinary",label:"Ordinary Income (W-2, Salary, Bonus, RSU vesting)"},
+  {value:"ltcg",label:"Long-Term Capital Gains (held >1 year)"},
+  {value:"stcg",label:"Short-Term Capital Gains (held <1 year, taxed as ordinary)"},
+  {value:"qualified_div",label:"Qualified Dividends (LTCG rates)"},
+  {value:"none",label:"Non-taxable / Already taxed"},
+];
+const CF_PROJECTION_OPTIONS=[
+  {value:12,label:"12 Months"},
+  {value:24,label:"2 Years"},
+  {value:36,label:"3 Years"},
+  {value:60,label:"5 Years"},
+  {value:84,label:"7 Years"},
+  {value:120,label:"10 Years"},
+];
+
+// 2026 Federal Tax Brackets (projected based on inflation adjustments from 2025)
+// Source: IRS Rev. Proc. 2024-40 (2025 brackets) — these are projected forward ~2.5% for 2026
+const TAX_BRACKETS_2026={
+  single:[
+    {min:0,max:11925,rate:0.10},
+    {min:11925,max:48475,rate:0.12},
+    {min:48475,max:103350,rate:0.22},
+    {min:103350,max:197300,rate:0.24},
+    {min:197300,max:250525,rate:0.32},
+    {min:250525,max:626350,rate:0.35},
+    {min:626350,max:Infinity,rate:0.37},
+  ],
+  mfj:[
+    {min:0,max:23850,rate:0.10},
+    {min:23850,max:96950,rate:0.12},
+    {min:96950,max:206700,rate:0.22},
+    {min:206700,max:394600,rate:0.24},
+    {min:394600,max:501050,rate:0.32},
+    {min:501050,max:751600,rate:0.35},
+    {min:751600,max:Infinity,rate:0.37},
+  ],
+};
+// Long-term capital gains brackets for 2026
+const LTCG_BRACKETS_2026={
+  single:[
+    {min:0,max:48350,rate:0.00},
+    {min:48350,max:533400,rate:0.15},
+    {min:533400,max:Infinity,rate:0.20},
+  ],
+  mfj:[
+    {min:0,max:96700,rate:0.00},
+    {min:96700,max:600050,rate:0.15},
+    {min:600050,max:Infinity,rate:0.20},
+  ],
+};
+// Net Investment Income Tax (NIIT) thresholds — 3.8% on capital gains above this
+const NIIT_THRESHOLD={single:200000,mfj:250000};
+const NIIT_RATE=0.038;
+
+// State income tax — top marginal rates as of 2025-2026.
+// Values are top brackets; using these for high-income family-office clients.
+// Sources: state revenue dept publications. Rates change yearly — review annually.
+const STATE_TAX_RATES=[
+  {code:"AL",name:"Alabama",rate:5.0},
+  {code:"AK",name:"Alaska",rate:0.0},
+  {code:"AZ",name:"Arizona",rate:2.5},
+  {code:"AR",name:"Arkansas",rate:3.9},
+  {code:"CA",name:"California",rate:13.3},
+  {code:"CO",name:"Colorado",rate:4.4},
+  {code:"CT",name:"Connecticut",rate:6.99},
+  {code:"DE",name:"Delaware",rate:6.6},
+  {code:"DC",name:"District of Columbia",rate:10.75},
+  {code:"FL",name:"Florida",rate:0.0},
+  {code:"GA",name:"Georgia",rate:5.39},
+  {code:"HI",name:"Hawaii",rate:11.0},
+  {code:"ID",name:"Idaho",rate:5.695},
+  {code:"IL",name:"Illinois",rate:4.95},
+  {code:"IN",name:"Indiana",rate:3.0},
+  {code:"IA",name:"Iowa",rate:3.8},
+  {code:"KS",name:"Kansas",rate:5.58},
+  {code:"KY",name:"Kentucky",rate:4.0},
+  {code:"LA",name:"Louisiana",rate:3.0},
+  {code:"ME",name:"Maine",rate:7.15},
+  {code:"MD",name:"Maryland",rate:5.75},
+  {code:"MA",name:"Massachusetts",rate:9.0},
+  {code:"MI",name:"Michigan",rate:4.25},
+  {code:"MN",name:"Minnesota",rate:9.85},
+  {code:"MS",name:"Mississippi",rate:4.4},
+  {code:"MO",name:"Missouri",rate:4.7},
+  {code:"MT",name:"Montana",rate:5.9},
+  {code:"NE",name:"Nebraska",rate:5.2},
+  {code:"NV",name:"Nevada",rate:0.0},
+  {code:"NH",name:"New Hampshire",rate:0.0},
+  {code:"NJ",name:"New Jersey",rate:10.75},
+  {code:"NM",name:"New Mexico",rate:5.9},
+  {code:"NY",name:"New York",rate:10.9},
+  {code:"NC",name:"North Carolina",rate:4.5},
+  {code:"ND",name:"North Dakota",rate:2.5},
+  {code:"OH",name:"Ohio",rate:3.5},
+  {code:"OK",name:"Oklahoma",rate:4.75},
+  {code:"OR",name:"Oregon",rate:9.9},
+  {code:"PA",name:"Pennsylvania",rate:3.07},
+  {code:"RI",name:"Rhode Island",rate:5.99},
+  {code:"SC",name:"South Carolina",rate:6.2},
+  {code:"SD",name:"South Dakota",rate:0.0},
+  {code:"TN",name:"Tennessee",rate:0.0},
+  {code:"TX",name:"Texas",rate:0.0},
+  {code:"UT",name:"Utah",rate:4.55},
+  {code:"VT",name:"Vermont",rate:8.75},
+  {code:"VA",name:"Virginia",rate:5.75},
+  {code:"WA",name:"Washington",rate:0.0},
+  {code:"WV",name:"West Virginia",rate:5.12},
+  {code:"WI",name:"Wisconsin",rate:7.65},
+  {code:"WY",name:"Wyoming",rate:0.0},
+];
+
+// Calculate marginal federal tax on an additional dollar at given income level
+function marginalRate(income,brackets){
+  for(const b of brackets){if(income>=b.min&&income<b.max)return b.rate;}
+  return brackets[brackets.length-1].rate;
+}
+// Calculate effective tax owed on an amount given a base income (for marginal stacking)
+function calcOrdinaryTax(amount,baseIncome,filingStatus){
+  const brackets=TAX_BRACKETS_2026[filingStatus]||TAX_BRACKETS_2026.mfj;
+  let remaining=amount;let tax=0;let cur=baseIncome;
+  for(const b of brackets){
+    if(remaining<=0)break;
+    if(cur>=b.max)continue;
+    const room=b.max-Math.max(cur,b.min);
+    const inThisBracket=Math.min(remaining,room);
+    if(inThisBracket>0){tax+=inThisBracket*b.rate;remaining-=inThisBracket;cur+=inThisBracket;}
+  }
+  return tax;
+}
+function calcLTCGTax(amount,baseIncome,filingStatus){
+  const brackets=LTCG_BRACKETS_2026[filingStatus]||LTCG_BRACKETS_2026.mfj;
+  let remaining=amount;let tax=0;let cur=baseIncome;
+  for(const b of brackets){
+    if(remaining<=0)break;
+    if(cur>=b.max)continue;
+    const room=b.max-Math.max(cur,b.min);
+    const inThisBracket=Math.min(remaining,room);
+    if(inThisBracket>0){tax+=inThisBracket*b.rate;remaining-=inThisBracket;cur+=inThisBracket;}
+  }
+  return tax;
+}
+function calcNIIT(capGainsAmount,totalIncome,filingStatus){
+  const threshold=NIIT_THRESHOLD[filingStatus]||NIIT_THRESHOLD.mfj;
+  if(totalIncome<=threshold)return 0;
+  const aboveThreshold=totalIncome-threshold;
+  const taxable=Math.min(capGainsAmount,aboveThreshold);
+  return Math.max(0,taxable)*NIIT_RATE;
+}
+// Calculate total tax + net for a single event given the family's tax context
+function calcEventTax(grossAmount,treatment,baseIncome,filingStatus,stateRate,localRate){
+  const gross=Number(grossAmount)||0;
+  if(gross<=0||treatment==="none")return{tax:0,fedTax:0,stateTax:0,localTax:0,niit:0,net:gross};
+  let fedTax=0;let niit=0;
+  if(treatment==="ordinary"||treatment==="stcg"){
+    fedTax=calcOrdinaryTax(gross,baseIncome,filingStatus);
+  }else if(treatment==="ltcg"||treatment==="qualified_div"){
+    fedTax=calcLTCGTax(gross,baseIncome,filingStatus);
+    niit=calcNIIT(gross,baseIncome+gross,filingStatus);
+  }
+  const stateTax=gross*((Number(stateRate)||0)/100);
+  const localTax=gross*((Number(localRate)||0)/100);
+  const totalTax=fedTax+stateTax+localTax+niit;
+  return{tax:totalTax,fedTax,stateTax,localTax,niit,net:gross-totalTax};
+}
+// Expand a recurring event into monthly occurrences within projection window
+function expandEvent(event,projectionStart,monthsOut){
+  const occurrences=[];
+  const start=new Date(event.startDate);
+  if(isNaN(start))return occurrences;
+  const end=event.endDate?new Date(event.endDate):null;
+  const projEnd=new Date(projectionStart);projEnd.setMonth(projEnd.getMonth()+monthsOut);
+  const amount=Number(event.amount)||0;
+  if(event.frequency==="once"){
+    if(start>=projectionStart&&start<=projEnd&&(!end||start<=end)){
+      occurrences.push({date:start,amount});
+    }
+    return occurrences;
+  }
+  // Recurring — advance through dates
+  let cur=new Date(start);
+  let safety=600; // max iterations
+  while(cur<=projEnd&&safety-->0){
+    if(cur>=projectionStart&&(!end||cur<=end)){
+      occurrences.push({date:new Date(cur),amount});
+    }
+    if(event.frequency==="weekly")cur.setDate(cur.getDate()+7);
+    else if(event.frequency==="biweekly")cur.setDate(cur.getDate()+14);
+    else if(event.frequency==="monthly")cur.setMonth(cur.getMonth()+1);
+    else if(event.frequency==="quarterly")cur.setMonth(cur.getMonth()+3);
+    else if(event.frequency==="annually")cur.setFullYear(cur.getFullYear()+1);
+    else break;
+  }
+  return occurrences;
+}
+
 const REMINDER_OPTIONS=[
   {label:"1 day before",days:1},
   {label:"3 days before",days:3},
@@ -62,11 +269,11 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
-const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents"];
+const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events"];
 
 
 // ── UI PRIMITIVES ─────────────────────────────────────────────────────────────
@@ -302,7 +509,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   const overdueTasks=pendingTasks.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
   const soonTasks=pendingTasks.filter(t=>t.dueDate&&!overdueTasks.includes(t)&&(new Date(t.dueDate)-new Date())/(86400000)<=30);
 
-  const TABS=["Overview","Properties","Portfolio","Valuables","Deals","Notes","Tasks","Documents"];
+  const TABS=["Overview","Properties","Portfolio","Cash Flow","Valuables","Deals","Notes","Tasks","Documents"];
 
   // Quick add note
   const[noteBody,setNoteBody]=useState("");
@@ -417,7 +624,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
       {/* Tabs */}
       <div style={{borderBottom:`1px solid ${B.borderLight}`,background:B.white,padding:isMobile?"0 8px":"0 28px",display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-        {TABS.map(t=><button key={t} onClick={()=>setActiveTab(t.toLowerCase())} style={{background:"none",border:"none",borderBottom:activeTab===t.toLowerCase()?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.toLowerCase()?B.navy:B.textSoft,fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.toLowerCase()?700:400,padding:isMobile?"12px 12px":"10px 14px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>{t}</button>)}
+        {TABS.map(t=><button key={t} onClick={()=>setActiveTab(t.toLowerCase().replace(/\s+/g,""))} style={{background:"none",border:"none",borderBottom:activeTab===t.toLowerCase().replace(/\s+/g,"")?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.toLowerCase().replace(/\s+/g,"")?B.navy:B.textSoft,fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.toLowerCase().replace(/\s+/g,"")?700:400,padding:isMobile?"12px 12px":"10px 14px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>{t}</button>)}
       </div>
 
       {/* Content */}
@@ -554,6 +761,9 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
             </div>;
           })}
         </div>}
+
+        {/* CASH FLOW TAB */}
+        {activeTab==="cashflow"&&<CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} properties={properties} reload={reload} toast={toast}/>}
 
         {/* VALUABLES TAB */}
         {activeTab==="valuables"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
@@ -813,6 +1023,380 @@ function AccountForm({initial,onSave,onClose}){
     </div>}
     <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Account"}</Btn></div>
+  </div>;
+}
+
+// ── CASH FLOW EVENT FORM ──────────────────────────────────────────────────────
+function CashFlowEventForm({initial,onSave,onClose}){
+  const blank={eventType:"Salary",description:"",amount:"",frequency:"once",startDate:new Date().toISOString().slice(0,10),endDate:"",taxTreatment:"ordinary",notes:""};
+  const[f,setF]=useState(initial||blank);
+  const[saving,setSaving]=useState(false);
+  const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  const save=async()=>{if(!f.amount||!f.startDate)return;setSaving(true);await onSave(f);onClose();};
+  return <div>
+    <Grid2>
+      <Field label="Event Type"><Sel value={f.eventType} onChange={set("eventType")}>{CF_EVENT_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field>
+      <Field label="Frequency"><Sel value={f.frequency} onChange={set("frequency")}>{CF_FREQUENCIES.map(fr=><option key={fr.value} value={fr.value}>{fr.label}</option>)}</Sel></Field>
+    </Grid2>
+    <Field label="Description"><Inp placeholder="e.g., Acme Corp Q4 Bonus" value={f.description||""} onChange={set("description")}/></Field>
+    <Grid2>
+      <Field label="Gross Amount ($)"><Inp type="number" value={f.amount||""} onChange={set("amount")}/></Field>
+      <Field label="Tax Treatment"><Sel value={f.taxTreatment} onChange={set("taxTreatment")}>{CF_TAX_TREATMENTS.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</Sel></Field>
+    </Grid2>
+    <Grid2>
+      <Field label={f.frequency==="once"?"Date":"Start Date"}><Inp type="date" value={f.startDate||""} onChange={set("startDate")}/></Field>
+      {f.frequency!=="once"&&<Field label="End Date (optional)"><Inp type="date" value={f.endDate||""} onChange={set("endDate")}/></Field>}
+    </Grid2>
+    <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
+      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn onClick={save} disabled={saving||!f.amount||!f.startDate}>{saving?"Saving…":"Save Event"}</Btn>
+    </div>
+  </div>;
+}
+
+// ── CASH FLOW REPORT (printable) ──────────────────────────────────────────────
+function CashFlowReport({family,projectionMonths,filingStatus,baseIncome,stateRate,stateName,localRate,monthlyData,events,onClose}){
+  const totalGross=monthlyData.reduce((s,m)=>s+m.gross,0);
+  const totalTax=monthlyData.reduce((s,m)=>s+m.tax,0);
+  const totalNet=monthlyData.reduce((s,m)=>s+m.net,0);
+  const projOption=CF_PROJECTION_OPTIONS.find(o=>o.value===projectionMonths);
+  const projectionLabel=projOption?projOption.label:projectionMonths+" months";
+  const filingLabel=filingStatus==="mfj"?"Married Filing Jointly":"Single";
+  const print=()=>{
+    const w=window.open("","_blank");
+    // Build SVG bar chart
+    const chartW=700,chartH=200,padL=50,padR=10,padT=20,padB=40;
+    const innerW=chartW-padL-padR;
+    const innerH=chartH-padT-padB;
+    const maxVal=Math.max(...monthlyData.map(m=>m.net),1);
+    const barW=innerW/monthlyData.length;
+    const cumulative=[];
+    let runTotal=0;
+    monthlyData.forEach(m=>{runTotal+=m.net;cumulative.push(runTotal);});
+    const maxCum=Math.max(...cumulative,1);
+    const cumPath=cumulative.map((v,i)=>{
+      const x=padL+barW*i+barW/2;
+      const y=padT+innerH-(v/maxCum)*innerH;
+      return(i===0?"M":"L")+x.toFixed(1)+","+y.toFixed(1);
+    }).join(" ");
+    const bars=monthlyData.map((m,i)=>{
+      const h=(m.net/maxVal)*innerH;
+      const x=padL+barW*i+1;
+      const y=padT+innerH-h;
+      return`<rect x="${x}" y="${y}" width="${barW-2}" height="${h}" fill="#ceb684" opacity="0.7"/>`;
+    }).join("");
+    const yLabels=[0,maxVal/2,maxVal].map((v,i)=>{
+      const y=padT+innerH-(v/maxVal)*innerH;
+      return`<text x="${padL-6}" y="${y+3}" font-size="9" fill="#8fa0b2" text-anchor="end">$${(v/1000).toFixed(0)}K</text>`;
+    }).join("");
+    const xLabels=monthlyData.filter((_,i)=>i%Math.max(1,Math.floor(monthlyData.length/8))===0).map((m,idx,arr)=>{
+      const realIdx=monthlyData.findIndex(x=>x.label===m.label);
+      const x=padL+barW*realIdx+barW/2;
+      return`<text x="${x}" y="${padT+innerH+15}" font-size="8" fill="#8fa0b2" text-anchor="middle">${m.label}</text>`;
+    }).join("");
+    w.document.write(`<!DOCTYPE html><html><head><title> </title>
+    <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:#092b49;background:#fff;padding:40px;font-size:12px;line-height:1.6;}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #ceb684;}
+    .logo-img{height:120px;width:auto;display:block;}
+    h1{font-size:22px;font-weight:700;margin-bottom:2px;}
+    .sub{font-size:12px;color:#5a6e84;margin-top:4px;}
+    .date{font-size:11px;color:#8fa0b2;margin-top:2px;}
+    h2{font-size:13px;font-weight:800;color:#092b49;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #ceb684;letter-spacing:.06em;text-transform:uppercase;}
+    .assumptions{background:#f9f7f3;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
+    .a-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:3px;}
+    .a-v{font-size:13px;font-weight:700;color:#092b49;}
+    .stats{display:flex;gap:14px;margin-bottom:18px;}
+    .stat{background:#f9f7f3;border-radius:8px;padding:12px 16px;flex:1;border-top:2px solid #ceb684;}
+    .stat-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:4px;}
+    .stat-v{font-size:18px;font-weight:700;color:#092b49;}
+    table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11px;}
+    th{background:#092b49;color:#ceb684;padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
+    td{padding:5px 10px;border-bottom:1px solid #ede8de;color:#293d5c;vertical-align:top;}
+    tr:nth-child(even) td{background:#f9f7f3;}
+    .num{text-align:right;font-variant-numeric:tabular-nums;}
+    .chart-box{background:#f9f7f3;border-radius:8px;padding:14px;margin-bottom:14px;}
+    .disclaimer{margin-top:24px;padding:12px 14px;background:#fef3e2;border:1px solid #fcd97d;border-radius:6px;font-size:10px;color:#8a5c00;line-height:1.5;}
+    @media print{body{padding:20px;}}
+    </style></head><body>
+    <div class="header">
+      <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/></div>
+      <div style="text-align:right"><h1>Cash Flow Projection</h1><div class="sub">${family.name}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
+    </div>
+    <div class="assumptions">
+      <div><div class="a-l">Projection</div><div class="a-v">${projectionLabel}</div></div>
+      <div><div class="a-l">Filing Status</div><div class="a-v">${filingLabel}</div></div>
+      <div><div class="a-l">Base Income</div><div class="a-v">${fmtMoney(baseIncome)}</div></div>
+      <div><div class="a-l">State (${stateName||"—"})</div><div class="a-v">${(Number(stateRate)||0).toFixed(2)}%</div></div>
+      <div><div class="a-l">Local / City</div><div class="a-v">${(Number(localRate)||0).toFixed(2)}%</div></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-l">Total Gross</div><div class="stat-v">${fmtMoney(totalGross)}</div></div>
+      <div class="stat"><div class="stat-l">Total Tax</div><div class="stat-v">${fmtMoney(totalTax)}</div></div>
+      <div class="stat"><div class="stat-l">Total Net</div><div class="stat-v">${fmtMoney(totalNet)}</div></div>
+      <div class="stat"><div class="stat-l">Effective Rate</div><div class="stat-v">${totalGross>0?((totalTax/totalGross)*100).toFixed(1):"0.0"}%</div></div>
+    </div>
+    <h2>Net Cash Flow by Month</h2>
+    <div class="chart-box">
+      <svg viewBox="0 0 ${chartW} ${chartH}" width="100%" style="display:block">
+        ${bars}
+        <path d="${cumPath}" fill="none" stroke="#092b49" stroke-width="1.5"/>
+        ${yLabels}
+        ${xLabels}
+        <text x="${padL}" y="${padT-6}" font-size="9" fill="#5a6e84">Bars: monthly net · Line: cumulative</text>
+      </svg>
+    </div>
+    <h2>Events Detail</h2>
+    <table><thead><tr><th>Type</th><th>Description</th><th>Frequency</th><th>Start</th><th class="num">Gross</th><th>Tax</th><th class="num">Net (proj.)</th></tr></thead><tbody>
+    ${events.map(e=>{
+      const treatLabel=CF_TAX_TREATMENTS.find(t=>t.value===e.taxTreatment)?.label.split(" (")[0]||e.taxTreatment;
+      const freqLabel=CF_FREQUENCIES.find(fr=>fr.value===e.frequency)?.label||e.frequency;
+      return`<tr><td>${e.eventType}</td><td>${e.description||"—"}</td><td>${freqLabel}</td><td>${fmt(e.startDate)}</td><td class="num">${fmtMoney(e.amount)}</td><td>${treatLabel}</td><td class="num">${fmtMoney(e.projectedNet||0)}</td></tr>`;
+    }).join("")||"<tr><td colspan='7' style='color:#8fa0b2;text-align:center'>No events</td></tr>"}
+    </tbody></table>
+    <h2>Monthly Breakdown</h2>
+    <table><thead><tr><th>Month</th><th class="num">Gross</th><th class="num">Tax</th><th class="num">Net</th><th class="num">Cumulative</th></tr></thead><tbody>
+    ${(()=>{let cum=0;return monthlyData.map(m=>{cum+=m.net;return`<tr><td>${m.label}</td><td class="num">${fmtMoney(m.gross)}</td><td class="num">${fmtMoney(m.tax)}</td><td class="num">${fmtMoney(m.net)}</td><td class="num"><strong>${fmtMoney(cum)}</strong></td></tr>`;}).join("");})()}
+    </tbody></table>
+    <div class="disclaimer">
+      <strong>Disclaimer:</strong> This cash flow projection is a planning estimate only and is not tax advice. Tax calculations use 2026 federal brackets applied marginally on top of base income. Actual taxes vary based on deductions, credits, AMT, phase-outs, additional Medicare tax, state-specific rules, and other factors. Consult a qualified tax professional before making decisions based on these figures.
+    </div>
+    </body></html>`);
+    w.document.close();w.focus();setTimeout(()=>w.print(),400);
+  };
+
+  return <Modal title="Cash Flow Report" onClose={onClose} wide>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:24}}>
+      <StatBox label="Total Gross" value={fmtMoney(totalGross)} accent={B.gold}/>
+      <StatBox label="Total Tax" value={fmtMoney(totalTax)} accent="#d43030"/>
+      <StatBox label="Total Net" value={fmtMoney(totalNet)} accent={B.navy}/>
+      <StatBox label="Effective Rate" value={totalGross>0?((totalTax/totalGross)*100).toFixed(1)+"%":"—"} accent={B.navyMid}/>
+    </div>
+    <div style={{display:"flex",gap:12,justifyContent:"flex-end"}}>
+      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn variant="gold" onClick={print}>🖨 Print Report</Btn>
+    </div>
+  </Modal>;
+}
+
+// ── CASH FLOW VIEW (the tab content) ──────────────────────────────────────────
+function CashFlowView({family,events,properties,reload,toast}){
+  const isMobile=useIsMobile();
+  const[modal,setModal]=useState(null);
+  const[reportOpen,setReportOpen]=useState(false);
+  // Settings (persisted in localStorage per family)
+  const settingsKey=`cf_settings_${family.id}`;
+  const loadSettings=()=>{
+    try{const s=JSON.parse(localStorage.getItem(settingsKey)||"{}");return{projectionMonths:s.projectionMonths||60,filingStatus:s.filingStatus||"mfj",baseIncome:s.baseIncome||0,stateCode:s.stateCode||"FL",stateTaxRate:s.stateTaxRate!==undefined?s.stateTaxRate:0,localTaxRate:s.localTaxRate||0,localTaxLabel:s.localTaxLabel||"",includeRental:s.includeRental||false};}catch{return{projectionMonths:60,filingStatus:"mfj",baseIncome:0,stateCode:"FL",stateTaxRate:0,localTaxRate:0,localTaxLabel:"",includeRental:false};}
+  };
+  const[settings,setSettings]=useState(loadSettings);
+  const updateSetting=(k,v)=>{const next={...settings,[k]:v};setSettings(next);try{localStorage.setItem(settingsKey,JSON.stringify(next));}catch{}};
+
+  // Add synthetic rental events if toggled
+  const allEvents=useMemo(()=>{
+    const e=[...events];
+    if(settings.includeRental){
+      properties.filter(p=>Number(p.rentalIncome)>0).forEach(p=>{
+        e.push({id:`rental_${p.id}`,_synthetic:true,eventType:"Rental Income",description:p.address,amount:Number(p.rentalIncome),frequency:"monthly",startDate:new Date().toISOString().slice(0,10),endDate:null,taxTreatment:"ordinary",notes:`From property: ${p.address}`});
+      });
+    }
+    return e;
+  },[events,settings.includeRental,properties]);
+
+  // Build month-by-month projection
+  const{monthlyData,enrichedEvents}=useMemo(()=>{
+    const start=new Date();start.setDate(1);start.setHours(0,0,0,0);
+    const months=[];
+    for(let i=0;i<settings.projectionMonths;i++){
+      const d=new Date(start);d.setMonth(d.getMonth()+i);
+      months.push({date:new Date(d),label:d.toLocaleDateString("en-US",{month:"short",year:"2-digit"}),gross:0,tax:0,net:0});
+    }
+    const enriched=allEvents.map(ev=>{
+      const occurrences=expandEvent(ev,start,settings.projectionMonths);
+      let projGross=0;let projTax=0;
+      occurrences.forEach(occ=>{
+        // For each occurrence, calculate tax assuming this dollars stack on the family's annual base income.
+        // Approximation: cumulative annual base + occurrences in same year
+        const{tax,net}=calcEventTax(occ.amount,ev.taxTreatment,Number(settings.baseIncome)||0,settings.filingStatus,settings.stateTaxRate,settings.localTaxRate);
+        projGross+=occ.amount;projTax+=tax;
+        const monthIdx=(occ.date.getFullYear()-start.getFullYear())*12+(occ.date.getMonth()-start.getMonth());
+        if(monthIdx>=0&&monthIdx<months.length){
+          months[monthIdx].gross+=occ.amount;
+          months[monthIdx].tax+=tax;
+          months[monthIdx].net+=net;
+        }
+      });
+      return{...ev,projectedGross:projGross,projectedTax:projTax,projectedNet:projGross-projTax};
+    });
+    return{monthlyData:months,enrichedEvents:enriched};
+  },[allEvents,settings]);
+
+  const totalGross=monthlyData.reduce((s,m)=>s+m.gross,0);
+  const totalTax=monthlyData.reduce((s,m)=>s+m.tax,0);
+  const totalNet=monthlyData.reduce((s,m)=>s+m.net,0);
+  const effRate=totalGross>0?(totalTax/totalGross)*100:0;
+  const maxNet=Math.max(...monthlyData.map(m=>m.net),1);
+  const cumulative=[];let run=0;monthlyData.forEach(m=>{run+=m.net;cumulative.push(run);});
+  const maxCum=Math.max(...cumulative,1);
+
+  // Add/edit/delete event
+  const addEvent=async(f)=>{
+    const{error}=await sb.from("cash_flow_events").insert({family_id:family.id,event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment,notes:f.notes||null});
+    if(error)toast(error.message,"error");else{toast("Event added");reload("cash_flow_events");}
+  };
+  const editEvent=async(id,f)=>{
+    const{error}=await sb.from("cash_flow_events").update({event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment,notes:f.notes||null}).eq("id",id);
+    if(error)toast(error.message,"error");else{toast("Event updated");reload("cash_flow_events");}
+  };
+  const delEvent=async(id)=>{
+    const{error}=await sb.from("cash_flow_events").delete().eq("id",id);
+    if(error)toast(error.message,"error");else{toast("Event deleted");reload("cash_flow_events");}
+  };
+
+  return <div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
+    {/* Settings Bar */}
+    <div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:isMobile?14:18,marginBottom:18,boxShadow:B.shadow}}>
+      <div style={{fontSize:11,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Projection Settings</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12}}>
+        <Field label="Projection Window">
+          <Sel value={settings.projectionMonths} onChange={e=>updateSetting("projectionMonths",Number(e.target.value))}>
+            {CF_PROJECTION_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+          </Sel>
+        </Field>
+        <Field label="Filing Status">
+          <Sel value={settings.filingStatus} onChange={e=>updateSetting("filingStatus",e.target.value)}>
+            <option value="mfj">Married Filing Jointly</option>
+            <option value="single">Single</option>
+          </Sel>
+        </Field>
+        <Field label="Base Annual Income">
+          <Inp type="number" value={settings.baseIncome||""} onChange={e=>updateSetting("baseIncome",Number(e.target.value)||0)} placeholder="0"/>
+        </Field>
+        <Field label="State">
+          <Sel value={settings.stateCode} onChange={e=>{
+            const code=e.target.value;
+            const st=STATE_TAX_RATES.find(s=>s.code===code);
+            const next={...settings,stateCode:code,stateTaxRate:st?st.rate:0};
+            setSettings(next);
+            try{localStorage.setItem(settingsKey,JSON.stringify(next));}catch{}
+          }}>
+            {STATE_TAX_RATES.map(s=><option key={s.code} value={s.code}>{s.name} ({s.rate.toFixed(2)}%)</option>)}
+          </Sel>
+        </Field>
+        <Field label="State Tax Rate (%) — override">
+          <Inp type="number" step="0.01" value={settings.stateTaxRate||0} onChange={e=>updateSetting("stateTaxRate",Number(e.target.value)||0)} placeholder="0"/>
+        </Field>
+        <Field label="Local / City Tax (%)">
+          <Inp type="number" step="0.01" value={settings.localTaxRate||""} onChange={e=>updateSetting("localTaxRate",Number(e.target.value)||0)} placeholder="e.g., NYC 3.876"/>
+        </Field>
+      </div>
+      <div style={{marginTop:12,display:"flex",gap:14,flexWrap:"wrap",alignItems:"center"}}>
+        <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13,color:B.text}}>
+          <input type="checkbox" checked={!!settings.includeRental} onChange={e=>updateSetting("includeRental",e.target.checked)} style={{width:16,height:16,accentColor:B.navy}}/>
+          <span>Include rental income from properties</span>
+        </label>
+        <div style={{fontSize:11,color:B.textSoft,marginLeft:"auto"}}>State picker auto-fills the rate. Common local rates: NYC 3.876% · Philadelphia 3.75% · Detroit 2.4%</div>
+      </div>
+    </div>
+
+    {/* Stats */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:18}}>
+      <StatBox label="Projected Gross" value={fmtMoney(totalGross)} accent={B.gold}/>
+      <StatBox label="Projected Tax" value={fmtMoney(totalTax)} accent="#d43030"/>
+      <StatBox label="Projected Net" value={fmtMoney(totalNet)} accent={B.navy}/>
+      <StatBox label="Effective Rate" value={effRate.toFixed(1)+"%"} accent={B.navyMid}/>
+    </div>
+
+    {/* Chart */}
+    {monthlyData.length>0&&<div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:18,marginBottom:18,boxShadow:B.shadow}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Cash Flow by Month</div>
+        <div style={{fontSize:11,color:B.textSoft}}>Bars: monthly net · Line: cumulative</div>
+      </div>
+      <GoldLine/>
+      <svg viewBox={`0 0 ${Math.max(700,monthlyData.length*18)} 240`} style={{width:"100%",height:isMobile?180:240,display:"block"}}>
+        {(() => {
+          const W=Math.max(700,monthlyData.length*18);const H=240;const padL=50,padR=15,padT=15,padB=35;
+          const innerW=W-padL-padR;const innerH=H-padT-padB;
+          const barW=innerW/monthlyData.length;
+          const cumPath=cumulative.map((v,i)=>{
+            const x=padL+barW*i+barW/2;
+            const y=padT+innerH-(v/maxCum)*innerH;
+            return(i===0?"M":"L")+x.toFixed(1)+","+y.toFixed(1);
+          }).join(" ");
+          const stepLabel=Math.max(1,Math.floor(monthlyData.length/(isMobile?6:12)));
+          return <>
+            {/* Grid lines */}
+            {[0.25,0.5,0.75,1].map(p=><line key={p} x1={padL} x2={W-padR} y1={padT+innerH-p*innerH} y2={padT+innerH-p*innerH} stroke={B.borderLight} strokeWidth="0.5"/>)}
+            {/* Bars */}
+            {monthlyData.map((m,i)=>{
+              const h=Math.max(0,(m.net/maxNet)*innerH);
+              const x=padL+barW*i+1;
+              const y=padT+innerH-h;
+              return<rect key={i} x={x} y={y} width={barW-2} height={h} fill={B.gold} opacity="0.7"/>;
+            })}
+            {/* Cumulative line */}
+            <path d={cumPath} fill="none" stroke={B.navy} strokeWidth="1.8"/>
+            {/* Y axis labels */}
+            {[0,0.5,1].map(p=>{
+              const y=padT+innerH-p*innerH;const v=p*maxNet;
+              return<text key={p} x={padL-6} y={y+3} fontSize="9" fill={B.textMute} textAnchor="end">${(v/1000).toFixed(0)}K</text>;
+            })}
+            {/* X axis labels */}
+            {monthlyData.map((m,i)=>i%stepLabel!==0?null:<text key={i} x={padL+barW*i+barW/2} y={padT+innerH+14} fontSize="9" fill={B.textMute} textAnchor="middle">{m.label}</text>)}
+            {/* Axes */}
+            <line x1={padL} x2={W-padR} y1={padT+innerH} y2={padT+innerH} stroke={B.border} strokeWidth="1"/>
+          </>;
+        })()}
+      </svg>
+    </div>}
+
+    {/* Events Table */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,gap:10,flexWrap:"wrap"}}>
+      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Events ({events.length})</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <Btn variant="gold" onClick={()=>setReportOpen(true)}>🖨 Print Report</Btn>
+        <Btn onClick={()=>setModal({type:"add"})}>+ New Event</Btn>
+      </div>
+    </div>
+
+    {enrichedEvents.length===0?<Empty text="No cash flow events yet. Add your first event."/>:enrichedEvents.map(e=>{
+      const freqLabel=CF_FREQUENCIES.find(fr=>fr.value===e.frequency)?.label||e.frequency;
+      const treatLabel=CF_TAX_TREATMENTS.find(t=>t.value===e.taxTreatment)?.label.split(" (")[0]||e.taxTreatment;
+      return <div key={e.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${e._synthetic?B.navyMid:B.gold}`,borderRadius:10,padding:isMobile?14:16,marginBottom:8,boxShadow:B.shadow}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
+              <span style={{fontWeight:700,color:B.navy,fontSize:14}}>{e.eventType}</span>
+              <Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{freqLabel}</Badge>
+              {e._synthetic&&<Badge scheme={{bg:"#fef3e2",text:"#8a5c00",dot:"#d4900a"}}>Auto</Badge>}
+            </div>
+            {e.description&&<div style={{fontSize:13,color:B.textMid,marginBottom:4}}>{e.description}</div>}
+            <div style={{fontSize:11,color:B.textSoft}}>{fmt(e.startDate)}{e.endDate?` → ${fmt(e.endDate)}`:""} · {treatLabel}</div>
+          </div>
+          <div style={{textAlign:"right",flexShrink:0}}>
+            <div style={{fontSize:12,color:B.textSoft}}>Per occurrence</div>
+            <div style={{fontSize:16,fontWeight:700,color:B.navy}}>{fmtMoney(e.amount)}</div>
+            <div style={{fontSize:11,color:B.textSoft,marginTop:6}}>Projected ({CF_PROJECTION_OPTIONS.find(o=>o.value===settings.projectionMonths)?.label||""})</div>
+            <div style={{fontSize:13,fontWeight:700,color:"#0d5c2b"}}>{fmtMoney(e.projectedNet)} <span style={{fontSize:10,color:B.textSoft,fontWeight:400}}>net</span></div>
+          </div>
+        </div>
+        {!e._synthetic&&<div style={{display:"flex",gap:6,marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`,justifyContent:"flex-end"}}>
+          <Btn small variant="ghost" onClick={()=>setModal({type:"edit",event:e})}>Edit</Btn>
+          <Btn small variant="danger" onClick={()=>{if(confirm("Delete this event?"))delEvent(e.id);}}>Delete</Btn>
+        </div>}
+      </div>;
+    })}
+
+    {/* Disclaimer */}
+    <div style={{background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"10px 14px",marginTop:18,fontSize:11,color:"#8a5c00",lineHeight:1.5}}>
+      <strong>Planning estimate only.</strong> Tax calculations use 2026 federal brackets applied marginally on top of base income. Actual taxes vary based on deductions, credits, AMT, phase-outs, additional Medicare tax, and other factors. Not tax advice — consult a qualified tax professional.
+    </div>
+
+    {/* Modals */}
+    {modal&&modal.type==="add"&&<Modal title="New Cash Flow Event" onClose={()=>setModal(null)} wide><CashFlowEventForm onSave={async f=>{await addEvent(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
+    {modal&&modal.type==="edit"&&<Modal title="Edit Cash Flow Event" onClose={()=>setModal(null)} wide><CashFlowEventForm initial={modal.event} onSave={async f=>{await editEvent(modal.event.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
+    {reportOpen&&<CashFlowReport family={family} projectionMonths={settings.projectionMonths} filingStatus={settings.filingStatus} baseIncome={settings.baseIncome} stateRate={settings.stateTaxRate} stateName={STATE_TAX_RATES.find(s=>s.code===settings.stateCode)?.name||settings.stateCode} localRate={settings.localTaxRate} monthlyData={monthlyData} events={enrichedEvents} onClose={()=>setReportOpen(false)}/>}
   </div>;
 }
 
@@ -1831,7 +2415,7 @@ const ALL_NAV=NAV_SECTIONS.flatMap(s=>s.items);
 // ── APP ────────────────────────────────────────────────────────────────────────
 export default function App(){
   const[tab,setTab]=useState("dashboard");
-  const[data,setData]=useState({families:[],contacts:[],properties:[],deals:[],notes:[],tasks:[],portfolio_accounts:[],valuables:[],documents:[]});
+  const[data,setData]=useState({families:[],contacts:[],properties:[],deals:[],notes:[],tasks:[],portfolio_accounts:[],valuables:[],documents:[],cash_flow_events:[]});
   const[loading,setLoading]=useState(true);
   const[toastState,setToastState]=useState(null);
   const[authed,setAuthed]=useState(false);
