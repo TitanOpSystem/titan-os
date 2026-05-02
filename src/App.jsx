@@ -1283,9 +1283,6 @@ function CashFlowView({family,events,properties,reload,toast}){
             {STATE_TAX_RATES.map(s=><option key={s.code} value={s.code}>{s.name} ({s.rate.toFixed(2)}%)</option>)}
           </Sel>
         </Field>
-        <Field label="State Tax Rate (%) — override">
-          <Inp type="number" step="0.01" value={settings.stateTaxRate||0} onChange={e=>updateSetting("stateTaxRate",Number(e.target.value)||0)} placeholder="0"/>
-        </Field>
         <Field label="Local / City Tax (%)">
           <Inp type="number" step="0.01" value={settings.localTaxRate||""} onChange={e=>updateSetting("localTaxRate",Number(e.target.value)||0)} placeholder="e.g., NYC 3.876"/>
         </Field>
@@ -1295,7 +1292,7 @@ function CashFlowView({family,events,properties,reload,toast}){
           <input type="checkbox" checked={!!settings.includeRental} onChange={e=>updateSetting("includeRental",e.target.checked)} style={{width:16,height:16,accentColor:B.navy}}/>
           <span>Include rental income from properties</span>
         </label>
-        <div style={{fontSize:11,color:B.textSoft,marginLeft:"auto"}}>State picker auto-fills the rate. Common local rates: NYC 3.876% · Philadelphia 3.75% · Detroit 2.4%</div>
+        <div style={{fontSize:11,color:B.textSoft,marginLeft:"auto"}}>State rate auto-fills from selection. Common local rates: NYC 3.876% · Philadelphia 3.75% · Detroit 2.4%</div>
       </div>
     </div>
 
