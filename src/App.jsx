@@ -2237,9 +2237,9 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
   return <div style={{minHeight:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",paddingBottom:isMobile?70:0}}>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
-    {/* Header */}
+    {/* Header (navy banner with logo, family name, sign out) */}
     <div style={{background:B.navy,padding:isMobile?"0 16px":"0 32px"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:isMobile?"12px 0":"16px 0",borderBottom:"1px solid rgba(255,255,255,0.1)",gap:10,flexWrap:isMobile?"wrap":"nowrap"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:isMobile?"12px 0":"16px 0",gap:10,flexWrap:isMobile?"wrap":"nowrap"}}>
         <PCMLogo dark/>
         <div style={{display:"flex",alignItems:"center",gap:isMobile?8:16,flex:isMobile?"1 1 auto":"none",justifyContent:isMobile?"flex-end":"flex-start"}}>
           <div style={{textAlign:"right",minWidth:0}}>
@@ -2249,13 +2249,17 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
           <button onClick={logout} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.7)",borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Sign Out</button>
         </div>
       </div>
-      {/* Top Tabs (desktop only) */}
-      {!isMobile&&<div style={{display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-        {TABS.map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} style={{background:"none",border:"none",borderBottom:activeTab===t.id?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.id?B.gold:"rgba(255,255,255,0.6)",fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.id?700:400,padding:"12px 18px",cursor:"pointer",display:"flex",alignItems:"center",gap:6,marginBottom:-1}}>
-          <span>{t.icon}</span>{t.label}
-        </button>)}
-      </div>}
     </div>
+
+    {/* Gold accent line */}
+    <div style={{height:2,background:`linear-gradient(90deg,${B.gold},${B.goldLight}55,transparent)`}}/>
+
+    {/* Top Tabs (desktop only) — white bar matching advisor view */}
+    {!isMobile&&<div style={{borderBottom:`1px solid ${B.borderLight}`,background:B.white,padding:"0 32px",display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      {TABS.map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} style={{background:"none",border:"none",borderBottom:activeTab===t.id?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.id?B.navy:B.textSoft,fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.id?700:400,padding:"12px 18px",cursor:"pointer",display:"flex",alignItems:"center",gap:6,marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>
+        <span>{t.icon}</span>{t.label}
+      </button>)}
+    </div>}
 
     {/* Bottom Tab Bar (mobile only) */}
     {isMobile&&<div style={{position:"fixed",bottom:0,left:0,right:0,background:B.white,borderTop:`1px solid ${B.borderLight}`,display:"flex",justifyContent:"space-around",padding:"6px 4px 8px",zIndex:50,boxShadow:"0 -2px 12px rgba(0,0,0,0.08)"}}>
