@@ -269,7 +269,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -548,12 +548,12 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   };
   // Add property
   const addProperty=async(f)=>{
-    const row={family_id:family.id,owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,notes:f.notes||null};
+    const row={family_id:family.id,owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,hoa_fee:Number(f.hoaFee)||0,property_management_fee_pct:Number(f.propertyManagementFeePct)||0,include_mortgage_in_cashflow:f.includeMortgageInCashflow!==false,notes:f.notes||null};
     const{error}=await sb.from("properties").insert(row);
     if(error)toast(error.message,"error");else{toast("Property added");reload("properties");}
   };
   const editProperty=async(id,f)=>{
-    const row={owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,notes:f.notes||null};
+    const row={owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,hoa_fee:Number(f.hoaFee)||0,property_management_fee_pct:Number(f.propertyManagementFeePct)||0,include_mortgage_in_cashflow:f.includeMortgageInCashflow!==false,notes:f.notes||null};
     const{error}=await sb.from("properties").update(row).eq("id",id);
     if(error)toast(error.message,"error");else{toast("Property updated");reload("properties");}
   };
@@ -953,12 +953,24 @@ function TaskForm({initial,contacts=[],onSave,onClose}){
 
 // ── PROPERTY FORM ─────────────────────────────────────────────────────────────
 function PropertyForm({initial,onSave,onClose}){
-  const blank={ownerName:"",address:"",propertyType:"Residential",purchasePrice:"",purchaseDate:"",currentValue:"",lender:"",loanBalance:"",interestRate:"",loanPayment:"",loanMaturityDate:"",loanType:"Fixed",rentalIncome:"",propertyTaxes:"",utilities:"",insuranceCompany:"",insurancePremium:"",floodInsurance:false,floodInsuranceCompany:"",floodInsurancePremium:"",notes:""};
-  const[f,setF]=useState(initial||blank);
+  const blank={ownerName:"",address:"",propertyType:"Residential",purchasePrice:"",purchaseDate:"",currentValue:"",lender:"",loanBalance:"",interestRate:"",loanPayment:"",loanMaturityDate:"",loanType:"Fixed",rentalIncome:"",propertyTaxes:"",utilities:"",insuranceCompany:"",insurancePremium:"",floodInsurance:false,floodInsuranceCompany:"",floodInsurancePremium:"",hoaFee:"",propertyManagementFeePct:"",includeMortgageInCashflow:true,notes:""};
+  const[f,setF]=useState(()=>{
+    // Merge initial with defaults to ensure new fields have sensible values
+    return initial?{...blank,...initial,includeMortgageInCashflow:initial.includeMortgageInCashflow!==false}:blank;
+  });
   const[saving,setSaving]=useState(false);
   const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const setChk=k=>e=>setF(p=>({...p,[k]:e.target.checked}));
   const save=async()=>{if(!f.address.trim())return;setSaving(true);await onSave(f);onClose();};
+  // Calculate net rental for preview
+  const grossRental=Number(f.rentalIncome)||0;
+  const taxesM=(Number(f.propertyTaxes)||0)/12;
+  const insM=(Number(f.insurancePremium)||0)/12;
+  const floodM=(Number(f.floodInsurancePremium)||0)/12;
+  const hoaM=Number(f.hoaFee)||0;
+  const pmM=grossRental*((Number(f.propertyManagementFeePct)||0)/100);
+  const mortgageM=f.includeMortgageInCashflow?(Number(f.loanPayment)||0):0;
+  const netRental=grossRental-taxesM-insM-floodM-hoaM-pmM-mortgageM;
   return <div style={{maxHeight:"70vh",overflowY:"auto",paddingRight:4}}>
     <Grid2><Field label="Owner / LLC"><Inp placeholder="Smith Holdings LLC" value={f.ownerName||""} onChange={set("ownerName")}/></Field><Field label="Property Type"><Sel value={f.propertyType} onChange={set("propertyType")}>{PROP_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field></Grid2>
     <Field label="Address"><Inp placeholder="123 Main St, Tampa FL" value={f.address} onChange={set("address")}/></Field>
@@ -971,6 +983,36 @@ function PropertyForm({initial,onSave,onClose}){
     <Grid2><Field label="Insurance Company"><Inp value={f.insuranceCompany||""} onChange={set("insuranceCompany")}/></Field><Field label="Insurance Premium/yr"><Inp type="number" value={f.insurancePremium||""} onChange={set("insurancePremium")}/></Field></Grid2>
     <div style={{marginBottom:14}}><label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.floodInsurance?"#e8f0f8":B.bg,borderRadius:8,border:`1px solid ${f.floodInsurance?B.navyMid:B.border}`}}><input type="checkbox" checked={!!f.floodInsurance} onChange={setChk("floodInsurance")} style={{width:16,height:16,accentColor:B.navy}}/><span style={{fontSize:13,color:B.navy,fontWeight:600}}>Flood Insurance</span></label></div>
     {f.floodInsurance&&<Grid2><Field label="Flood Insurance Co."><Inp value={f.floodInsuranceCompany||""} onChange={set("floodInsuranceCompany")}/></Field><Field label="Flood Premium/yr"><Inp type="number" value={f.floodInsurancePremium||""} onChange={set("floodInsurancePremium")}/></Field></Grid2>}
+
+    {/* Rental Expenses section */}
+    <div style={{marginTop:18,marginBottom:8,paddingTop:14,borderTop:`1px solid ${B.borderLight}`}}>
+      <div style={{fontSize:11,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>Rental Expenses (used in Cash Flow projections)</div>
+    </div>
+    <Grid2>
+      <Field label="HOA / Monthly Fee ($)"><Inp type="number" placeholder="e.g., 350" value={f.hoaFee||""} onChange={set("hoaFee")}/></Field>
+      <Field label="Property Management Fee (%)"><Inp type="number" step="0.1" placeholder="e.g., 8" value={f.propertyManagementFeePct||""} onChange={set("propertyManagementFeePct")}/></Field>
+    </Grid2>
+    <div style={{marginBottom:14}}>
+      <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.includeMortgageInCashflow?"#e8f0f8":B.bg,borderRadius:8,border:`1px solid ${f.includeMortgageInCashflow?B.navyMid:B.border}`}}>
+        <input type="checkbox" checked={!!f.includeMortgageInCashflow} onChange={setChk("includeMortgageInCashflow")} style={{width:16,height:16,accentColor:B.navy}}/>
+        <span style={{fontSize:13,color:B.navy,fontWeight:600}}>Subtract mortgage payment from rental cash flow</span>
+      </label>
+    </div>
+    {grossRental>0&&<div style={{background:netRental>=0?"#e0f5e9":"#fde8e8",border:`1px solid ${netRental>=0?"#2e9e57":"#d43030"}`,borderRadius:8,padding:"12px 14px",marginBottom:14,fontSize:12}}>
+      <div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:6}}>Estimated Monthly Net Rental</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:4,color:B.textMid,fontFamily:"inherit"}}>
+        <span>Gross rental</span><span style={{fontWeight:600,textAlign:"right"}}>{fmtMoney(grossRental)}</span>
+        <span>– Property taxes (1/12)</span><span style={{textAlign:"right"}}>−{fmtMoney(taxesM)}</span>
+        <span>– Insurance (1/12)</span><span style={{textAlign:"right"}}>−{fmtMoney(insM)}</span>
+        {floodM>0&&<><span>– Flood insurance (1/12)</span><span style={{textAlign:"right"}}>−{fmtMoney(floodM)}</span></>}
+        <span>– HOA</span><span style={{textAlign:"right"}}>−{fmtMoney(hoaM)}</span>
+        <span>– Property mgmt ({Number(f.propertyManagementFeePct)||0}%)</span><span style={{textAlign:"right"}}>−{fmtMoney(pmM)}</span>
+        {f.includeMortgageInCashflow&&<><span>– Mortgage payment</span><span style={{textAlign:"right"}}>−{fmtMoney(mortgageM)}</span></>}
+        <span style={{fontWeight:700,paddingTop:4,borderTop:`1px solid ${netRental>=0?"#2e9e57":"#d43030"}`,color:netRental>=0?"#0d5c2b":"#8b1a1a"}}>Net per month</span>
+        <span style={{fontWeight:700,paddingTop:4,borderTop:`1px solid ${netRental>=0?"#2e9e57":"#d43030"}`,textAlign:"right",color:netRental>=0?"#0d5c2b":"#8b1a1a"}}>{netRental<0?"−":""}{fmtMoney(Math.abs(netRental))}</span>
+      </div>
+    </div>}
+
     <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Property"}</Btn></div>
   </div>;
@@ -1186,6 +1228,8 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
   const isMobile=useIsMobile();
   const[modal,setModal]=useState(null);
   const[reportOpen,setReportOpen]=useState(false);
+  const[expandedBreakdowns,setExpandedBreakdowns]=useState({});
+  const toggleBreakdown=(id)=>setExpandedBreakdowns(p=>({...p,[id]:!p[id]}));
   // Settings: DB (family.cashFlowSettings) is source of truth, localStorage is fallback
   const settingsKey=`cf_settings_${family.id}`;
   const defaults={projectionMonths:60,filingStatus:"mfj",baseIncome:0,stateCode:"FL",stateTaxRate:0,localTaxRate:0,localTaxLabel:"",includeRental:false};
@@ -1222,12 +1266,45 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
     if(reload)reload("families");
   };
 
-  // Add synthetic rental events if toggled
+  // Add synthetic rental events if toggled (with full expense math)
   const allEvents=useMemo(()=>{
     const e=[...events];
     if(settings.includeRental){
       properties.filter(p=>Number(p.rentalIncome)>0).forEach(p=>{
-        e.push({id:`rental_${p.id}`,_synthetic:true,eventType:"Rental Income",description:p.address,amount:Number(p.rentalIncome),frequency:"monthly",startDate:new Date().toISOString().slice(0,10),endDate:null,taxTreatment:"ordinary",notes:`From property: ${p.address}`});
+        const grossRental=Number(p.rentalIncome)||0;
+        const taxesM=(Number(p.propertyTaxes)||0)/12;
+        const insM=(Number(p.insurancePremium)||0)/12;
+        const floodM=(Number(p.floodInsurancePremium)||0)/12;
+        const hoaM=Number(p.hoaFee)||0;
+        const pmPct=Number(p.propertyManagementFeePct)||0;
+        const pmM=grossRental*(pmPct/100);
+        const includesMortgage=p.includeMortgageInCashflow!==false;
+        const mortgageM=includesMortgage?(Number(p.loanPayment)||0):0;
+        const netRental=grossRental-taxesM-insM-floodM-hoaM-pmM-mortgageM;
+        e.push({
+          id:`rental_${p.id}`,
+          _synthetic:true,
+          _breakdown:{
+            grossRental,
+            propertyTaxesMonthly:taxesM,
+            insuranceMonthly:insM,
+            floodInsuranceMonthly:floodM,
+            hoaMonthly:hoaM,
+            pmFeeMonthly:pmM,
+            pmFeePct:pmPct,
+            mortgageMonthly:mortgageM,
+            includesMortgage,
+            netRental,
+          },
+          eventType:"Rental Income (Net)",
+          description:p.address,
+          amount:netRental,
+          frequency:"monthly",
+          startDate:new Date().toISOString().slice(0,10),
+          endDate:null,
+          taxTreatment:netRental>0?"ordinary":"none",
+          notes:`From property: ${p.address}`,
+        });
       });
     }
     return e;
@@ -1344,32 +1421,52 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
           const W=Math.max(700,monthlyData.length*18);const H=240;const padL=50,padR=15,padT=15,padB=35;
           const innerW=W-padL-padR;const innerH=H-padT-padB;
           const barW=innerW/monthlyData.length;
+          // Find both positive and negative max for the bars
+          const maxPos=Math.max(...monthlyData.map(m=>m.net),0);
+          const minNeg=Math.min(...monthlyData.map(m=>m.net),0);
+          const range=maxPos-minNeg;
+          // Where on the inner chart is zero?
+          const zeroY=range>0?padT+innerH-(Math.abs(minNeg)/range)*innerH:padT+innerH;
+          // Cumulative y-axis (always grows from 0; can go negative if net<0 most months)
+          const maxCumAbs=Math.max(...cumulative.map(Math.abs),1);
+          const minCum=Math.min(...cumulative,0);
+          const maxCum2=Math.max(...cumulative,0);
+          const cumRange=maxCum2-minCum;
+          const cumZeroY=cumRange>0?padT+innerH-(Math.abs(minCum)/cumRange)*innerH:padT+innerH;
           const cumPath=cumulative.map((v,i)=>{
             const x=padL+barW*i+barW/2;
-            const y=padT+innerH-(v/maxCum)*innerH;
+            const y=cumRange>0?(padT+innerH-((v-minCum)/cumRange)*innerH):cumZeroY;
             return(i===0?"M":"L")+x.toFixed(1)+","+y.toFixed(1);
           }).join(" ");
           const stepLabel=Math.max(1,Math.floor(monthlyData.length/(isMobile?6:12)));
           return <>
             {/* Grid lines */}
             {[0.25,0.5,0.75,1].map(p=><line key={p} x1={padL} x2={W-padR} y1={padT+innerH-p*innerH} y2={padT+innerH-p*innerH} stroke={B.borderLight} strokeWidth="0.5"/>)}
-            {/* Bars */}
+            {/* Bars (positive: gold; negative: red, drawn below zero line) */}
             {monthlyData.map((m,i)=>{
-              const h=Math.max(0,(m.net/maxNet)*innerH);
+              if(range<=0)return null;
               const x=padL+barW*i+1;
-              const y=padT+innerH-h;
-              return<rect key={i} x={x} y={y} width={barW-2} height={h} fill={B.gold} opacity="0.7"/>;
+              const w=barW-2;
+              if(m.net>=0){
+                const h=(m.net/range)*innerH;
+                return<rect key={i} x={x} y={zeroY-h} width={w} height={h} fill={B.gold} opacity="0.75"/>;
+              }else{
+                const h=(Math.abs(m.net)/range)*innerH;
+                return<rect key={i} x={x} y={zeroY} width={w} height={h} fill="#d43030" opacity="0.65"/>;
+              }
             })}
+            {/* Zero baseline */}
+            {minNeg<0&&<line x1={padL} x2={W-padR} y1={zeroY} y2={zeroY} stroke={B.navyMid} strokeWidth="0.7" strokeDasharray="2,2"/>}
             {/* Cumulative line */}
             <path d={cumPath} fill="none" stroke={B.navy} strokeWidth="1.8"/>
             {/* Y axis labels */}
-            {[0,0.5,1].map(p=>{
-              const y=padT+innerH-p*innerH;const v=p*maxNet;
-              return<text key={p} x={padL-6} y={y+3} fontSize="9" fill={B.textMute} textAnchor="end">${(v/1000).toFixed(0)}K</text>;
+            {[maxPos,0,minNeg].filter((v,i,arr)=>arr.indexOf(v)===i).map((v,i)=>{
+              const y=range>0?(padT+innerH-((v-minNeg)/range)*innerH):padT+innerH;
+              return<text key={i} x={padL-6} y={y+3} fontSize="9" fill={B.textMute} textAnchor="end">${(v/1000).toFixed(0)}K</text>;
             })}
             {/* X axis labels */}
             {monthlyData.map((m,i)=>i%stepLabel!==0?null:<text key={i} x={padL+barW*i+barW/2} y={padT+innerH+14} fontSize="9" fill={B.textMute} textAnchor="middle">{m.label}</text>)}
-            {/* Axes */}
+            {/* Bottom axis */}
             <line x1={padL} x2={W-padR} y1={padT+innerH} y2={padT+innerH} stroke={B.border} strokeWidth="1"/>
           </>;
         })()}
@@ -1388,24 +1485,48 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
     {enrichedEvents.length===0?<Empty text={readOnly?"No cash flow events yet.":"No cash flow events yet. Add your first event."}/>:enrichedEvents.map(e=>{
       const freqLabel=CF_FREQUENCIES.find(fr=>fr.value===e.frequency)?.label||e.frequency;
       const treatLabel=CF_TAX_TREATMENTS.find(t=>t.value===e.taxTreatment)?.label.split(" (")[0]||e.taxTreatment;
-      return <div key={e.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${e._synthetic?B.navyMid:B.gold}`,borderRadius:10,padding:isMobile?14:16,marginBottom:8,boxShadow:B.shadow}}>
+      const isNegative=Number(e.amount)<0;
+      const isExpanded=!!expandedBreakdowns[e.id];
+      const bd=e._breakdown;
+      return <div key={e.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${e._synthetic?(isNegative?"#d43030":B.navyMid):B.gold}`,borderRadius:10,padding:isMobile?14:16,marginBottom:8,boxShadow:B.shadow}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
               <span style={{fontWeight:700,color:B.navy,fontSize:14}}>{e.eventType}</span>
               <Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{freqLabel}</Badge>
               {e._synthetic&&<Badge scheme={{bg:"#fef3e2",text:"#8a5c00",dot:"#d4900a"}}>Auto</Badge>}
+              {isNegative&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>Net Outflow</Badge>}
             </div>
             {e.description&&<div style={{fontSize:13,color:B.textMid,marginBottom:4}}>{e.description}</div>}
             <div style={{fontSize:11,color:B.textSoft}}>{fmt(e.startDate)}{e.endDate?` → ${fmt(e.endDate)}`:""} · {treatLabel}</div>
           </div>
           <div style={{textAlign:"right",flexShrink:0}}>
             <div style={{fontSize:12,color:B.textSoft}}>Per occurrence</div>
-            <div style={{fontSize:16,fontWeight:700,color:B.navy}}>{fmtMoney(e.amount)}</div>
+            <div style={{fontSize:16,fontWeight:700,color:isNegative?"#8b1a1a":B.navy}}>{isNegative?"−":""}{fmtMoney(Math.abs(e.amount))}</div>
             <div style={{fontSize:11,color:B.textSoft,marginTop:6}}>Projected ({CF_PROJECTION_OPTIONS.find(o=>o.value===settings.projectionMonths)?.label||""})</div>
-            <div style={{fontSize:13,fontWeight:700,color:"#0d5c2b"}}>{fmtMoney(e.projectedNet)} <span style={{fontSize:10,color:B.textSoft,fontWeight:400}}>net</span></div>
+            <div style={{fontSize:13,fontWeight:700,color:e.projectedNet>=0?"#0d5c2b":"#8b1a1a"}}>{e.projectedNet<0?"−":""}{fmtMoney(Math.abs(e.projectedNet||0))} <span style={{fontSize:10,color:B.textSoft,fontWeight:400}}>net</span></div>
           </div>
         </div>
+        {/* Breakdown for synthetic rental events */}
+        {e._synthetic&&bd&&<div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`}}>
+          <button onClick={()=>toggleBreakdown(e.id)} style={{background:"none",border:"none",color:B.navyMid,fontSize:12,fontWeight:600,cursor:"pointer",padding:0,fontFamily:"inherit"}}>
+            {isExpanded?"▼ Hide calculation":"▶ Show calculation"}
+          </button>
+          {isExpanded&&<div style={{marginTop:8,background:B.bg,borderRadius:8,padding:"10px 14px",fontSize:12}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:4,color:B.textMid}}>
+              <span>Gross rental</span><span style={{fontWeight:600,textAlign:"right"}}>{fmtMoney(bd.grossRental)}</span>
+              <span>– Property taxes (1/12)</span><span style={{textAlign:"right"}}>−{fmtMoney(bd.propertyTaxesMonthly)}</span>
+              <span>– Insurance (1/12)</span><span style={{textAlign:"right"}}>−{fmtMoney(bd.insuranceMonthly)}</span>
+              {bd.floodInsuranceMonthly>0&&<><span>– Flood insurance (1/12)</span><span style={{textAlign:"right"}}>−{fmtMoney(bd.floodInsuranceMonthly)}</span></>}
+              <span>– HOA</span><span style={{textAlign:"right"}}>−{fmtMoney(bd.hoaMonthly)}</span>
+              <span>– Property mgmt ({bd.pmFeePct}%)</span><span style={{textAlign:"right"}}>−{fmtMoney(bd.pmFeeMonthly)}</span>
+              {bd.includesMortgage&&<><span>– Mortgage payment</span><span style={{textAlign:"right"}}>−{fmtMoney(bd.mortgageMonthly)}</span></>}
+              <span style={{fontWeight:700,paddingTop:4,borderTop:`1px solid ${B.border}`,color:bd.netRental>=0?"#0d5c2b":"#8b1a1a"}}>Net per month</span>
+              <span style={{fontWeight:700,paddingTop:4,borderTop:`1px solid ${B.border}`,textAlign:"right",color:bd.netRental>=0?"#0d5c2b":"#8b1a1a"}}>{bd.netRental<0?"−":""}{fmtMoney(Math.abs(bd.netRental))}</span>
+            </div>
+            <div style={{marginTop:8,fontSize:10,color:B.textMute,fontStyle:"italic"}}>To change these, edit the property in the Properties tab.</div>
+          </div>}
+        </div>}
         {!e._synthetic&&!readOnly&&<div style={{display:"flex",gap:6,marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`,justifyContent:"flex-end"}}>
           <Btn small variant="ghost" onClick={()=>setModal({type:"edit",event:e})}>Edit</Btn>
           <Btn small variant="danger" onClick={()=>{if(confirm("Delete this event?"))delEvent(e.id);}}>Delete</Btn>
