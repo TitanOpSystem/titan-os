@@ -265,6 +265,17 @@ const REMINDER_OPTIONS=[
 
 const fmt=iso=>iso?new Date(iso).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
 const fmtMoney=n=>n!=null&&n!==""?`$${Number(n).toLocaleString()}`:"—";
+// Smart-abbreviated money for chart axis labels: $5K, $500K, $5M, $1.5M
+const fmtMoneyShort=n=>{
+  if(n==null||n==="")return"$0";
+  const num=Number(n);
+  const abs=Math.abs(num);
+  const sign=num<0?"-":"";
+  if(abs>=1e9)return`${sign}$${(abs/1e9).toFixed(abs>=1e10?0:1).replace(/\.0$/,"")}B`;
+  if(abs>=1e6)return`${sign}$${(abs/1e6).toFixed(abs>=1e7?0:1).replace(/\.0$/,"")}M`;
+  if(abs>=1e3)return`${sign}$${(abs/1e3).toFixed(abs>=1e4?0:1).replace(/\.0$/,"")}K`;
+  return`${sign}$${abs.toFixed(0)}`;
+};
 const fmtPct=n=>n!=null&&n!==""?`${Number(n).toFixed(2)}%`:"—";
 const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)return null;return(((cv-sv)/sv)*100).toFixed(2);};
 
@@ -1214,9 +1225,9 @@ function CashFlowReport({family,projectionMonths,filingStatus,baseIncome,stateRa
       }
       return svg;
     }).join("");
-    const yLabels=`<text x="${padL-6}" y="${padT+10}" font-size="9" fill="#8fa0b2" text-anchor="end">$${(maxPos/1000).toFixed(0)}K</text>
+    const yLabels=`<text x="${padL-6}" y="${padT+10}" font-size="9" fill="#8fa0b2" text-anchor="end">${fmtMoneyShort(maxPos)}</text>
       <text x="${padL-6}" y="${zeroY+3}" font-size="9" fill="#8fa0b2" text-anchor="end">$0</text>
-      ${maxNeg>0?`<text x="${padL-6}" y="${padT+innerH-3}" font-size="9" fill="#8fa0b2" text-anchor="end">−$${(maxNeg/1000).toFixed(0)}K</text>`:""}`;
+      ${maxNeg>0?`<text x="${padL-6}" y="${padT+innerH-3}" font-size="9" fill="#8fa0b2" text-anchor="end">−${fmtMoneyShort(maxNeg)}</text>`:""}`;
     const xLabels=monthlyData.filter((_,i)=>i%Math.max(1,Math.floor(monthlyData.length/8))===0).map((m,idx,arr)=>{
       const realIdx=monthlyData.findIndex(x=>x.label===m.label);
       const x=padL+barW*realIdx+barW/2;
@@ -1605,7 +1616,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
             {/* Y axis labels */}
             {[maxPos,0,minOverall].filter((v,i,arr)=>arr.indexOf(v)===i).map((v,i)=>{
               const y=range>0?(padT+innerH-((v-minOverall)/range)*innerH):padT+innerH;
-              return<text key={i} x={padL-6} y={y+3} fontSize="9" fill={B.textMute} textAnchor="end">${(v/1000).toFixed(0)}K</text>;
+              return<text key={i} x={padL-6} y={y+3} fontSize="9" fill={B.textMute} textAnchor="end">{fmtMoneyShort(v)}</text>;
             })}
             {/* X axis labels */}
             {monthlyData.map((m,i)=>i%stepLabel!==0?null:<text key={i} x={padL+barW*i+barW/2} y={padT+innerH+14} fontSize="9" fill={B.textMute} textAnchor="middle">{m.label}</text>)}
