@@ -714,6 +714,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                   <div style={{fontSize:16,fontWeight:700,color:B.navy}}>{fmtMoney(p.currentValue||p.purchasePrice)}</div>
                   {p.loanBalance&&<div style={{fontSize:11,color:B.textSoft}}>Balance: {fmtMoney(p.loanBalance)}</div>}
                 </div>
+                <Btn small variant="ghost" onClick={()=>window.open(`https://www.zillow.com/homes/${encodeURIComponent(p.address||"")}_rb/`,"_blank","noopener,noreferrer")}>🔗 Zillow</Btn>
                 <Btn small variant="ghost" onClick={()=>setModal({type:"editProperty",property:p})}>Edit</Btn>
                 <Btn small variant="danger" onClick={()=>delProperty(p.id)}>✕</Btn>
               </div>
