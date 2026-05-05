@@ -49,6 +49,7 @@ const ACCT_TYPES=["Investment","Brokerage","Retirement (IRA)","401(k)","Trust","
 
 // ── CASH FLOW ─────────────────────────────────────────────────────────────────
 const CF_EVENT_TYPES=["Salary","Bonus","Sale","RSU","Grant","PE Deal","Rental Income","Distribution","Other Income","Other Expense"];
+const CF_EXPENSE_CATEGORIES=["Rent/Mortgage","Utilities","Storage","House Cleaning","Car","School","Life Insurance","Other Insurance","Grocery","Misc","Legal","Shopping","Personal Care","Gym/Spa","Investments","Savings","Other"];
 const CF_FREQUENCIES=[
   {value:"once",label:"One-time"},
   {value:"weekly",label:"Weekly"},
@@ -269,7 +270,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -300,6 +301,39 @@ function Modal({title,onClose,wide,children}){
 
 const inp={width:"100%",background:B.bg,border:`1px solid ${B.border}`,borderRadius:8,padding:"9px 13px",color:B.text,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit"};
 const Inp=p=><input style={inp} {...p}/>;
+// Formats numbers as US dollars with commas while user types. Stores the raw numeric value (no commas) on change.
+function MoneyInput({value,onChange,placeholder,style,disabled}){
+  // Format number for display: 1234567.89 → "1,234,567.89"
+  const fmt=(v)=>{
+    if(v===""||v===null||v===undefined)return"";
+    const s=String(v);
+    // Allow trailing decimal point and trailing zeros
+    const negative=s.startsWith("-");
+    const abs=negative?s.slice(1):s;
+    if(abs===""||abs===".")return s;
+    const parts=abs.split(".");
+    const whole=parts[0]||"0";
+    const decimal=parts.length>1?"."+parts[1]:"";
+    const wholeWithCommas=whole.replace(/\B(?=(\d{3})+(?!\d))/g,",");
+    return(negative?"-":"")+wholeWithCommas+decimal;
+  };
+  // Strip non-numeric (allow leading -, decimal point) on change
+  const handleChange=(e)=>{
+    let raw=e.target.value;
+    // Allow user to type freely; strip commas and any character not digit/period/minus
+    raw=raw.replace(/,/g,"").replace(/[^0-9.\-]/g,"");
+    // Only one minus, only at start
+    if(raw.indexOf("-")>0)raw=raw.replace(/-/g,"");
+    // Only one decimal
+    const firstDot=raw.indexOf(".");
+    if(firstDot!==-1){
+      raw=raw.slice(0,firstDot+1)+raw.slice(firstDot+1).replace(/\./g,"");
+    }
+    // Pass back the cleaned numeric string (or empty)
+    onChange&&onChange({target:{value:raw}});
+  };
+  return <input type="text" inputMode="decimal" style={style||inp} disabled={disabled} value={fmt(value)} onChange={handleChange} placeholder={placeholder||"0"}/>;
+}
 const Sel=({children,...p})=><select style={{...inp,cursor:"pointer"}} {...p}>{children}</select>;
 const Tex=p=><textarea style={{...inp,minHeight:80,resize:"vertical"}} {...p}/>;
 function Field({label,children}){return <div style={{marginBottom:14}}><label style={{display:"block",fontSize:11,color:B.textSoft,marginBottom:5,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>{label}</label>{children}</div>;}
@@ -974,22 +1008,22 @@ function PropertyForm({initial,onSave,onClose}){
   return <div style={{maxHeight:"70vh",overflowY:"auto",paddingRight:4}}>
     <Grid2><Field label="Owner / LLC"><Inp placeholder="Smith Holdings LLC" value={f.ownerName||""} onChange={set("ownerName")}/></Field><Field label="Property Type"><Sel value={f.propertyType} onChange={set("propertyType")}>{PROP_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field></Grid2>
     <Field label="Address"><Inp placeholder="123 Main St, Tampa FL" value={f.address} onChange={set("address")}/></Field>
-    <Grid2><Field label="Purchase Price"><Inp type="number" value={f.purchasePrice||""} onChange={set("purchasePrice")}/></Field><Field label="Current Value"><Inp type="number" value={f.currentValue||""} onChange={set("currentValue")}/></Field></Grid2>
+    <Grid2><Field label="Purchase Price"><MoneyInput value={f.purchasePrice||""} onChange={set("purchasePrice")}/></Field><Field label="Current Value"><MoneyInput value={f.currentValue||""} onChange={set("currentValue")}/></Field></Grid2>
     <Grid2><Field label="Purchase Date"><Inp type="date" value={f.purchaseDate||""} onChange={set("purchaseDate")}/></Field><Field label="Loan Type"><Sel value={f.loanType} onChange={set("loanType")}>{LOAN_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field></Grid2>
-    <Grid2><Field label="Lender"><Inp value={f.lender||""} onChange={set("lender")}/></Field><Field label="Loan Balance"><Inp type="number" value={f.loanBalance||""} onChange={set("loanBalance")}/></Field></Grid2>
-    <Grid2><Field label="Interest Rate (%)"><Inp type="number" step="0.01" value={f.interestRate||""} onChange={set("interestRate")}/></Field><Field label="Monthly Payment"><Inp type="number" value={f.loanPayment||""} onChange={set("loanPayment")}/></Field></Grid2>
-    <Grid2><Field label="Loan Maturity Date"><Inp type="date" value={f.loanMaturityDate||""} onChange={set("loanMaturityDate")}/></Field><Field label="Rental Income/mo"><Inp type="number" value={f.rentalIncome||""} onChange={set("rentalIncome")}/></Field></Grid2>
-    <Grid2><Field label="Property Taxes/yr"><Inp type="number" value={f.propertyTaxes||""} onChange={set("propertyTaxes")}/></Field><Field label="Utilities/mo"><Inp type="number" value={f.utilities||""} onChange={set("utilities")}/></Field></Grid2>
-    <Grid2><Field label="Insurance Company"><Inp value={f.insuranceCompany||""} onChange={set("insuranceCompany")}/></Field><Field label="Insurance Premium/yr"><Inp type="number" value={f.insurancePremium||""} onChange={set("insurancePremium")}/></Field></Grid2>
+    <Grid2><Field label="Lender"><Inp value={f.lender||""} onChange={set("lender")}/></Field><Field label="Loan Balance"><MoneyInput value={f.loanBalance||""} onChange={set("loanBalance")}/></Field></Grid2>
+    <Grid2><Field label="Interest Rate (%)"><Inp type="number" step="0.01" value={f.interestRate||""} onChange={set("interestRate")}/></Field><Field label="Monthly Payment"><MoneyInput value={f.loanPayment||""} onChange={set("loanPayment")}/></Field></Grid2>
+    <Grid2><Field label="Loan Maturity Date"><Inp type="date" value={f.loanMaturityDate||""} onChange={set("loanMaturityDate")}/></Field><Field label="Rental Income/mo"><MoneyInput value={f.rentalIncome||""} onChange={set("rentalIncome")}/></Field></Grid2>
+    <Grid2><Field label="Property Taxes/yr"><MoneyInput value={f.propertyTaxes||""} onChange={set("propertyTaxes")}/></Field><Field label="Utilities/mo"><MoneyInput value={f.utilities||""} onChange={set("utilities")}/></Field></Grid2>
+    <Grid2><Field label="Insurance Company"><Inp value={f.insuranceCompany||""} onChange={set("insuranceCompany")}/></Field><Field label="Insurance Premium/yr"><MoneyInput value={f.insurancePremium||""} onChange={set("insurancePremium")}/></Field></Grid2>
     <div style={{marginBottom:14}}><label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.floodInsurance?"#e8f0f8":B.bg,borderRadius:8,border:`1px solid ${f.floodInsurance?B.navyMid:B.border}`}}><input type="checkbox" checked={!!f.floodInsurance} onChange={setChk("floodInsurance")} style={{width:16,height:16,accentColor:B.navy}}/><span style={{fontSize:13,color:B.navy,fontWeight:600}}>Flood Insurance</span></label></div>
-    {f.floodInsurance&&<Grid2><Field label="Flood Insurance Co."><Inp value={f.floodInsuranceCompany||""} onChange={set("floodInsuranceCompany")}/></Field><Field label="Flood Premium/yr"><Inp type="number" value={f.floodInsurancePremium||""} onChange={set("floodInsurancePremium")}/></Field></Grid2>}
+    {f.floodInsurance&&<Grid2><Field label="Flood Insurance Co."><Inp value={f.floodInsuranceCompany||""} onChange={set("floodInsuranceCompany")}/></Field><Field label="Flood Premium/yr"><MoneyInput value={f.floodInsurancePremium||""} onChange={set("floodInsurancePremium")}/></Field></Grid2>}
 
     {/* Rental Expenses section */}
     <div style={{marginTop:18,marginBottom:8,paddingTop:14,borderTop:`1px solid ${B.borderLight}`}}>
       <div style={{fontSize:11,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>Rental Expenses (used in Cash Flow projections)</div>
     </div>
     <Grid2>
-      <Field label="HOA / Monthly Fee ($)"><Inp type="number" placeholder="e.g., 350" value={f.hoaFee||""} onChange={set("hoaFee")}/></Field>
+      <Field label="HOA / Monthly Fee ($)"><MoneyInput placeholder="350" value={f.hoaFee||""} onChange={set("hoaFee")}/></Field>
       <Field label="Property Management Fee (%)"><Inp type="number" step="0.1" placeholder="e.g., 8" value={f.propertyManagementFeePct||""} onChange={set("propertyManagementFeePct")}/></Field>
     </Grid2>
     <div style={{marginBottom:14}}>
@@ -1027,7 +1061,7 @@ function ValuableForm({initial,onSave,onClose}){
   return <div>
     <Grid2><Field label="Category"><Sel value={f.category} onChange={set("category")}>{VALUABLE_CATS.map(c=><option key={c}>{c}</option>)}</Sel></Field><Field label="Year"><Inp type="number" placeholder="2023" value={f.year||""} onChange={set("year")}/></Field></Grid2>
     <Field label="Description"><Inp placeholder="2023 Ferrari Roma" value={f.description} onChange={set("description")}/></Field>
-    <Grid2><Field label="Make / Model"><Inp value={f.makeModel||""} onChange={set("makeModel")}/></Field><Field label="Estimated Value"><Inp type="number" value={f.estimatedValue||""} onChange={set("estimatedValue")}/></Field></Grid2>
+    <Grid2><Field label="Make / Model"><Inp value={f.makeModel||""} onChange={set("makeModel")}/></Field><Field label="Estimated Value"><MoneyInput value={f.estimatedValue||""} onChange={set("estimatedValue")}/></Field></Grid2>
     <div style={{marginBottom:14}}><label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.insured?"#e8f0f8":B.bg,borderRadius:8,border:`1px solid ${f.insured?B.navyMid:B.border}`}}><input type="checkbox" checked={!!f.insured} onChange={e=>setF(p=>({...p,insured:e.target.checked}))} style={{width:16,height:16,accentColor:B.navy}}/><span style={{fontSize:13,color:B.navy,fontWeight:600}}>Insured</span></label></div>
     {f.insured&&<Field label="Insurance Company"><Inp value={f.insuranceCompany||""} onChange={set("insuranceCompany")}/></Field>}
     <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
@@ -1044,7 +1078,7 @@ function SimpleDealForm({contacts=[],onSave,onClose}){
   return <div>
     <Field label="Deal Title"><Inp placeholder="Estate planning engagement" value={f.title} onChange={set("title")}/></Field>
     {contacts.length>0&&<Field label="Contact"><Sel value={f.contactId||""} onChange={set("contactId")}><option value="">— None —</option>{contacts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Sel></Field>}
-    <Grid2><Field label="Value ($)"><Inp type="number" value={f.value||""} onChange={set("value")}/></Field><Field label="Close Date"><Inp type="date" value={f.closeDate||""} onChange={set("closeDate")}/></Field></Grid2>
+    <Grid2><Field label="Value ($)"><MoneyInput value={f.value||""} onChange={set("value")}/></Field><Field label="Close Date"><Inp type="date" value={f.closeDate||""} onChange={set("closeDate")}/></Field></Grid2>
     <Field label="Stage"><Sel value={f.stage} onChange={set("stage")}>{STAGES.map(s=><option key={s}>{s}</option>)}</Sel></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Deal"}</Btn></div>
   </div>;
@@ -1060,7 +1094,7 @@ function AccountForm({initial,onSave,onClose}){
   return <div>
     <Grid2><Field label="Institution"><Inp placeholder="Merrill Lynch" value={f.institution} onChange={set("institution")}/></Field><Field label="Banker Name"><Inp value={f.bankerName||""} onChange={set("bankerName")}/></Field></Grid2>
     <Field label="Account Type"><Sel value={f.accountType} onChange={set("accountType")}>{ACCT_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field>
-    <Grid2><Field label="Starting Balance"><Inp type="number" value={f.startingBalance||""} onChange={set("startingBalance")}/></Field><Field label="Current Balance"><Inp type="number" value={f.currentBalance||""} onChange={set("currentBalance")}/></Field></Grid2>
+    <Grid2><Field label="Starting Balance"><MoneyInput value={f.startingBalance||""} onChange={set("startingBalance")}/></Field><Field label="Current Balance"><MoneyInput value={f.currentBalance||""} onChange={set("currentBalance")}/></Field></Grid2>
     {pct!==null&&<div style={{background:Number(pct)>=0?"#e0f5e9":"#fde8e8",border:`1px solid ${Number(pct)>=0?"#2e9e57":"#d43030"}`,borderRadius:8,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
       <span style={{fontSize:20}}>{Number(pct)>=0?"📈":"📉"}</span>
       <div style={{fontSize:18,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:Number(pct)>=0?"#0d5c2b":"#8b1a1a"}}>{Number(pct)>=0?"+":""}{pct}% performance</div>
@@ -1072,21 +1106,45 @@ function AccountForm({initial,onSave,onClose}){
 
 // ── CASH FLOW EVENT FORM ──────────────────────────────────────────────────────
 function CashFlowEventForm({initial,onSave,onClose}){
-  const blank={eventType:"Salary",description:"",amount:"",frequency:"once",startDate:new Date().toISOString().slice(0,10),endDate:"",taxTreatment:"ordinary",notes:""};
-  const[f,setF]=useState(initial||blank);
+  const blank={direction:"income",eventType:"Salary",description:"",amount:"",frequency:"once",startDate:new Date().toISOString().slice(0,10),endDate:"",taxTreatment:"ordinary",notes:""};
+  const[f,setF]=useState(()=>{
+    if(!initial)return blank;
+    return{...blank,...initial,direction:initial.direction||"income"};
+  });
   const[saving,setSaving]=useState(false);
   const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  // When user switches direction, swap default eventType to a sensible value
+  const setDirection=(dir)=>{
+    setF(p=>{
+      const next={...p,direction:dir};
+      // If the eventType doesn't fit the new direction, switch to a default
+      if(dir==="expense"&&!CF_EXPENSE_CATEGORIES.includes(p.eventType))next.eventType="Rent/Mortgage";
+      if(dir==="income"&&!CF_EVENT_TYPES.includes(p.eventType))next.eventType="Salary";
+      return next;
+    });
+  };
   const save=async()=>{if(!f.amount||!f.startDate)return;setSaving(true);await onSave(f);onClose();};
+  const isExpense=f.direction==="expense";
+  const typeOptions=isExpense?CF_EXPENSE_CATEGORIES:CF_EVENT_TYPES;
   return <div>
+    {/* Direction toggle */}
+    <Field label="Type">
+      <div style={{display:"flex",gap:8,background:B.bg,borderRadius:8,padding:4}}>
+        <button type="button" onClick={()=>setDirection("income")} style={{flex:1,background:!isExpense?B.white:"transparent",border:!isExpense?`1px solid ${B.border}`:"1px solid transparent",borderRadius:6,padding:"8px 12px",fontSize:13,fontWeight:!isExpense?700:500,color:!isExpense?"#0d5c2b":B.textSoft,cursor:"pointer",fontFamily:"inherit",boxShadow:!isExpense?B.shadow:"none"}}>📈 Income</button>
+        <button type="button" onClick={()=>setDirection("expense")} style={{flex:1,background:isExpense?B.white:"transparent",border:isExpense?`1px solid ${B.border}`:"1px solid transparent",borderRadius:6,padding:"8px 12px",fontSize:13,fontWeight:isExpense?700:500,color:isExpense?"#8b1a1a":B.textSoft,cursor:"pointer",fontFamily:"inherit",boxShadow:isExpense?B.shadow:"none"}}>📉 Expense</button>
+      </div>
+    </Field>
     <Grid2>
-      <Field label="Event Type"><Sel value={f.eventType} onChange={set("eventType")}>{CF_EVENT_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field>
+      <Field label={isExpense?"Category":"Event Type"}><Sel value={f.eventType} onChange={set("eventType")}>{typeOptions.map(t=><option key={t}>{t}</option>)}</Sel></Field>
       <Field label="Frequency"><Sel value={f.frequency} onChange={set("frequency")}>{CF_FREQUENCIES.map(fr=><option key={fr.value} value={fr.value}>{fr.label}</option>)}</Sel></Field>
     </Grid2>
-    <Field label="Description"><Inp placeholder="e.g., Acme Corp Q4 Bonus" value={f.description||""} onChange={set("description")}/></Field>
-    <Grid2>
-      <Field label="Gross Amount ($)"><Inp type="number" value={f.amount||""} onChange={set("amount")}/></Field>
+    <Field label="Description"><Inp placeholder={isExpense?"e.g., Monthly grocery budget":"e.g., Acme Corp Q4 Bonus"} value={f.description||""} onChange={set("description")}/></Field>
+    {isExpense?
+      <Field label="Amount ($)"><MoneyInput value={f.amount||""} onChange={set("amount")}/></Field>
+    :<Grid2>
+      <Field label="Gross Amount ($)"><MoneyInput value={f.amount||""} onChange={set("amount")}/></Field>
       <Field label="Tax Treatment"><Sel value={f.taxTreatment} onChange={set("taxTreatment")}>{CF_TAX_TREATMENTS.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</Sel></Field>
-    </Grid2>
+    </Grid2>}
     <Grid2>
       <Field label={f.frequency==="once"?"Date":"Start Date"}><Inp type="date" value={f.startDate||""} onChange={set("startDate")}/></Field>
       {f.frequency!=="once"&&<Field label="End Date (optional)"><Inp type="date" value={f.endDate||""} onChange={set("endDate")}/></Field>}
@@ -1094,51 +1152,77 @@ function CashFlowEventForm({initial,onSave,onClose}){
     <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
       <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-      <Btn onClick={save} disabled={saving||!f.amount||!f.startDate}>{saving?"Saving…":"Save Event"}</Btn>
+      <Btn onClick={save} disabled={saving||!f.amount||!f.startDate}>{saving?"Saving…":"Save"}</Btn>
     </div>
   </div>;
 }
 
 // ── CASH FLOW REPORT (printable) ──────────────────────────────────────────────
 function CashFlowReport({family,projectionMonths,filingStatus,baseIncome,stateRate,stateName,localRate,monthlyData,events,onClose}){
+  const totalIncome=monthlyData.reduce((s,m)=>s+(m.income||0),0);
   const totalGross=monthlyData.reduce((s,m)=>s+m.gross,0);
   const totalTax=monthlyData.reduce((s,m)=>s+m.tax,0);
+  const totalExpense=monthlyData.reduce((s,m)=>s+(m.expense||0),0);
   const totalNet=monthlyData.reduce((s,m)=>s+m.net,0);
+  const incomeEvents=events.filter(e=>e.direction!=="expense");
+  const expenseEvents=events.filter(e=>e.direction==="expense");
   const projOption=CF_PROJECTION_OPTIONS.find(o=>o.value===projectionMonths);
   const projectionLabel=projOption?projOption.label:projectionMonths+" months";
   const filingLabel=filingStatus==="mfj"?"Married Filing Jointly":"Single";
   const print=()=>{
     const w=window.open("","_blank");
-    // Build SVG bar chart
+    // Build SVG bar chart (stacked: income gold positive; expenses red negative)
     const chartW=700,chartH=200,padL=50,padR=10,padT=20,padB=40;
     const innerW=chartW-padL-padR;
     const innerH=chartH-padT-padB;
-    const maxVal=Math.max(...monthlyData.map(m=>m.net),1);
     const barW=innerW/monthlyData.length;
+    const incomeNet=monthlyData.map(m=>(m.income||0)-(m.tax||0));
+    const expenseArr=monthlyData.map(m=>m.expense||0);
+    const maxPos=Math.max(...incomeNet,0);
+    const maxNeg=Math.max(...expenseArr,0)+Math.max(...incomeNet.map(v=>v<0?Math.abs(v):0),0);
+    const range=maxPos+maxNeg;
+    const zeroY=range>0?padT+innerH-(maxNeg/range)*innerH:padT+innerH;
     const cumulative=[];
     let runTotal=0;
     monthlyData.forEach(m=>{runTotal+=m.net;cumulative.push(runTotal);});
-    const maxCum=Math.max(...cumulative,1);
+    const minCum=Math.min(...cumulative,0);
+    const maxCum2=Math.max(...cumulative,0);
+    const cumRange=maxCum2-minCum||1;
     const cumPath=cumulative.map((v,i)=>{
       const x=padL+barW*i+barW/2;
-      const y=padT+innerH-(v/maxCum)*innerH;
+      const y=padT+innerH-((v-minCum)/cumRange)*innerH;
       return(i===0?"M":"L")+x.toFixed(1)+","+y.toFixed(1);
     }).join(" ");
     const bars=monthlyData.map((m,i)=>{
-      const h=(m.net/maxVal)*innerH;
+      if(range<=0)return"";
       const x=padL+barW*i+1;
-      const y=padT+innerH-h;
-      return`<rect x="${x}" y="${y}" width="${barW-2}" height="${h}" fill="#ceb684" opacity="0.7"/>`;
+      const w=barW-2;
+      const inc=incomeNet[i];
+      const exp=expenseArr[i];
+      let svg="";
+      if(inc>=0){
+        const h=(inc/range)*innerH;
+        svg+=`<rect x="${x}" y="${zeroY-h}" width="${w}" height="${h}" fill="#ceb684" opacity="0.78"/>`;
+      }else{
+        const h=(Math.abs(inc)/range)*innerH;
+        svg+=`<rect x="${x}" y="${zeroY}" width="${w}" height="${h}" fill="#d43030" opacity="0.55"/>`;
+      }
+      if(exp>0){
+        const h=(exp/range)*innerH;
+        const yStart=inc<0?zeroY+(Math.abs(inc)/range)*innerH:zeroY;
+        svg+=`<rect x="${x}" y="${yStart}" width="${w}" height="${h}" fill="#d43030" opacity="0.78"/>`;
+      }
+      return svg;
     }).join("");
-    const yLabels=[0,maxVal/2,maxVal].map((v,i)=>{
-      const y=padT+innerH-(v/maxVal)*innerH;
-      return`<text x="${padL-6}" y="${y+3}" font-size="9" fill="#8fa0b2" text-anchor="end">$${(v/1000).toFixed(0)}K</text>`;
-    }).join("");
+    const yLabels=`<text x="${padL-6}" y="${padT+10}" font-size="9" fill="#8fa0b2" text-anchor="end">$${(maxPos/1000).toFixed(0)}K</text>
+      <text x="${padL-6}" y="${zeroY+3}" font-size="9" fill="#8fa0b2" text-anchor="end">$0</text>
+      ${maxNeg>0?`<text x="${padL-6}" y="${padT+innerH-3}" font-size="9" fill="#8fa0b2" text-anchor="end">−$${(maxNeg/1000).toFixed(0)}K</text>`:""}`;
     const xLabels=monthlyData.filter((_,i)=>i%Math.max(1,Math.floor(monthlyData.length/8))===0).map((m,idx,arr)=>{
       const realIdx=monthlyData.findIndex(x=>x.label===m.label);
       const x=padL+barW*realIdx+barW/2;
       return`<text x="${x}" y="${padT+innerH+15}" font-size="8" fill="#8fa0b2" text-anchor="middle">${m.label}</text>`;
     }).join("");
+    const zeroLine=maxNeg>0?`<line x1="${padL}" x2="${chartW-padR}" y1="${zeroY}" y2="${zeroY}" stroke="#5a6e84" stroke-width="0.5" stroke-dasharray="2,2"/>`:"";
     w.document.write(`<!DOCTYPE html><html><head><title> </title>
     <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:#092b49;background:#fff;padding:40px;font-size:12px;line-height:1.6;}
     .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #ceb684;}
@@ -1150,15 +1234,20 @@ function CashFlowReport({family,projectionMonths,filingStatus,baseIncome,stateRa
     .assumptions{background:#f9f7f3;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
     .a-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:3px;}
     .a-v{font-size:13px;font-weight:700;color:#092b49;}
-    .stats{display:flex;gap:14px;margin-bottom:18px;}
-    .stat{background:#f9f7f3;border-radius:8px;padding:12px 16px;flex:1;border-top:2px solid #ceb684;}
+    .stats{display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap;}
+    .stat{background:#f9f7f3;border-radius:8px;padding:12px 16px;flex:1;min-width:120px;border-top:2px solid #ceb684;}
     .stat-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:4px;}
     .stat-v{font-size:18px;font-weight:700;color:#092b49;}
+    .stat-red{border-top-color:#d43030;}
     table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11px;}
     th{background:#092b49;color:#ceb684;padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
     td{padding:5px 10px;border-bottom:1px solid #ede8de;color:#293d5c;vertical-align:top;}
     tr:nth-child(even) td{background:#f9f7f3;}
     .num{text-align:right;font-variant-numeric:tabular-nums;}
+    .neg{color:#8b1a1a;}
+    .legend{display:flex;gap:14px;font-size:9px;color:#5a6e84;margin-top:6px;}
+    .legend span{display:flex;align-items:center;gap:4px;}
+    .legend i{display:inline-block;width:8px;height:8px;border-radius:1px;}
     .chart-box{background:#f9f7f3;border-radius:8px;padding:14px;margin-bottom:14px;}
     .disclaimer{margin-top:24px;padding:12px 14px;background:#fef3e2;border:1px solid #fcd97d;border-radius:6px;font-size:10px;color:#8a5c00;line-height:1.5;}
     @media print{body{padding:20px;}}
@@ -1175,35 +1264,44 @@ function CashFlowReport({family,projectionMonths,filingStatus,baseIncome,stateRa
       <div><div class="a-l">Local / City</div><div class="a-v">${(Number(localRate)||0).toFixed(2)}%</div></div>
     </div>
     <div class="stats">
-      <div class="stat"><div class="stat-l">Total Gross</div><div class="stat-v">${fmtMoney(totalGross)}</div></div>
-      <div class="stat"><div class="stat-l">Total Tax</div><div class="stat-v">${fmtMoney(totalTax)}</div></div>
-      <div class="stat"><div class="stat-l">Total Net</div><div class="stat-v">${fmtMoney(totalNet)}</div></div>
+      <div class="stat"><div class="stat-l">Total Gross Income</div><div class="stat-v">${fmtMoney(totalGross)}</div></div>
+      <div class="stat stat-red"><div class="stat-l">Total Tax</div><div class="stat-v">${fmtMoney(totalTax)}</div></div>
+      <div class="stat stat-red"><div class="stat-l">Total Expenses</div><div class="stat-v">${fmtMoney(totalExpense)}</div></div>
+      <div class="stat"><div class="stat-l">Total Net</div><div class="stat-v ${totalNet<0?"neg":""}">${totalNet<0?"−":""}${fmtMoney(Math.abs(totalNet))}</div></div>
       <div class="stat"><div class="stat-l">Effective Rate</div><div class="stat-v">${totalGross>0?((totalTax/totalGross)*100).toFixed(1):"0.0"}%</div></div>
     </div>
-    <h2>Net Cash Flow by Month</h2>
+    <h2>Cash Flow by Month</h2>
     <div class="chart-box">
       <svg viewBox="0 0 ${chartW} ${chartH}" width="100%" style="display:block">
         ${bars}
+        ${zeroLine}
         <path d="${cumPath}" fill="none" stroke="#092b49" stroke-width="1.5"/>
         ${yLabels}
         ${xLabels}
-        <text x="${padL}" y="${padT-6}" font-size="9" fill="#5a6e84">Bars: monthly net · Line: cumulative</text>
       </svg>
+      <div class="legend"><span><i style="background:#ceb684"></i>Income (net)</span><span><i style="background:#d43030"></i>Expenses</span><span><i style="background:#092b49;width:14px;height:2px;border-radius:0"></i>Cumulative</span></div>
     </div>
-    <h2>Events Detail</h2>
+    ${incomeEvents.length>0?`<h2>Income Events</h2>
     <table><thead><tr><th>Type</th><th>Description</th><th>Frequency</th><th>Start</th><th class="num">Gross</th><th>Tax</th><th class="num">Net (proj.)</th></tr></thead><tbody>
-    ${events.map(e=>{
+    ${incomeEvents.map(e=>{
       const treatLabel=CF_TAX_TREATMENTS.find(t=>t.value===e.taxTreatment)?.label.split(" (")[0]||e.taxTreatment;
       const freqLabel=CF_FREQUENCIES.find(fr=>fr.value===e.frequency)?.label||e.frequency;
       return`<tr><td>${e.eventType}</td><td>${e.description||"—"}</td><td>${freqLabel}</td><td>${fmt(e.startDate)}</td><td class="num">${fmtMoney(e.amount)}</td><td>${treatLabel}</td><td class="num">${fmtMoney(e.projectedNet||0)}</td></tr>`;
-    }).join("")||"<tr><td colspan='7' style='color:#8fa0b2;text-align:center'>No events</td></tr>"}
-    </tbody></table>
+    }).join("")}
+    </tbody></table>`:""}
+    ${expenseEvents.length>0?`<h2>Expense Items</h2>
+    <table><thead><tr><th>Category</th><th>Description</th><th>Frequency</th><th>Start</th><th class="num">Amount</th><th class="num">Total (proj.)</th></tr></thead><tbody>
+    ${expenseEvents.map(e=>{
+      const freqLabel=CF_FREQUENCIES.find(fr=>fr.value===e.frequency)?.label||e.frequency;
+      return`<tr><td>${e.eventType}</td><td>${e.description||"—"}</td><td>${freqLabel}</td><td>${fmt(e.startDate)}</td><td class="num neg">−${fmtMoney(e.amount)}</td><td class="num neg">−${fmtMoney(Math.abs(e.projectedNet||0))}</td></tr>`;
+    }).join("")}
+    </tbody></table>`:""}
     <h2>Monthly Breakdown</h2>
-    <table><thead><tr><th>Month</th><th class="num">Gross</th><th class="num">Tax</th><th class="num">Net</th><th class="num">Cumulative</th></tr></thead><tbody>
-    ${(()=>{let cum=0;return monthlyData.map(m=>{cum+=m.net;return`<tr><td>${m.label}</td><td class="num">${fmtMoney(m.gross)}</td><td class="num">${fmtMoney(m.tax)}</td><td class="num">${fmtMoney(m.net)}</td><td class="num"><strong>${fmtMoney(cum)}</strong></td></tr>`;}).join("");})()}
+    <table><thead><tr><th>Month</th><th class="num">Income</th><th class="num">Tax</th><th class="num">Expenses</th><th class="num">Net</th><th class="num">Cumulative</th></tr></thead><tbody>
+    ${(()=>{let cum=0;return monthlyData.map(m=>{cum+=m.net;const negNet=m.net<0;const negCum=cum<0;return`<tr><td>${m.label}</td><td class="num">${fmtMoney(m.income||0)}</td><td class="num">${fmtMoney(m.tax)}</td><td class="num neg">${m.expense?"−"+fmtMoney(m.expense):"$0"}</td><td class="num ${negNet?"neg":""}">${negNet?"−":""}${fmtMoney(Math.abs(m.net))}</td><td class="num ${negCum?"neg":""}"><strong>${negCum?"−":""}${fmtMoney(Math.abs(cum))}</strong></td></tr>`;}).join("");})()}
     </tbody></table>
     <div class="disclaimer">
-      <strong>Disclaimer:</strong> This cash flow projection is a planning estimate only and is not tax advice. Tax calculations use 2026 federal brackets applied marginally on top of base income. Actual taxes vary based on deductions, credits, AMT, phase-outs, additional Medicare tax, state-specific rules, and other factors. Consult a qualified tax professional before making decisions based on these figures.
+      <strong>Disclaimer:</strong> This cash flow projection is a planning estimate only and is not tax advice. Tax calculations use 2026 federal brackets applied marginally on top of base income. Expenses are treated as after-tax outflows. Actual taxes vary based on deductions, credits, AMT, phase-outs, additional Medicare tax, state-specific rules, and other factors. Consult a qualified tax professional before making decisions based on these figures.
     </div>
     </body></html>`);
     w.document.close();w.focus();setTimeout(()=>w.print(),400);
@@ -1213,8 +1311,8 @@ function CashFlowReport({family,projectionMonths,filingStatus,baseIncome,stateRa
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:24}}>
       <StatBox label="Total Gross" value={fmtMoney(totalGross)} accent={B.gold}/>
       <StatBox label="Total Tax" value={fmtMoney(totalTax)} accent="#d43030"/>
-      <StatBox label="Total Net" value={fmtMoney(totalNet)} accent={B.navy}/>
-      <StatBox label="Effective Rate" value={totalGross>0?((totalTax/totalGross)*100).toFixed(1)+"%":"—"} accent={B.navyMid}/>
+      <StatBox label="Total Expenses" value={fmtMoney(totalExpense)} accent="#d43030"/>
+      <StatBox label="Total Net" value={(totalNet<0?"−":"")+fmtMoney(Math.abs(totalNet))} accent={B.navy}/>
     </div>
     <div style={{display:"flex",gap:12,justifyContent:"flex-end"}}>
       <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
@@ -1268,7 +1366,8 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
 
   // Add synthetic rental events if toggled (with full expense math)
   const allEvents=useMemo(()=>{
-    const e=[...events];
+    // Backfill direction='income' for any legacy events without it; sort by sortOrder asc
+    const e=events.map(ev=>({...ev,direction:ev.direction||"income"}));
     if(settings.includeRental){
       properties.filter(p=>Number(p.rentalIncome)>0).forEach(p=>{
         const grossRental=Number(p.rentalIncome)||0;
@@ -1284,17 +1383,10 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
         e.push({
           id:`rental_${p.id}`,
           _synthetic:true,
+          direction:"income",
           _breakdown:{
-            grossRental,
-            propertyTaxesMonthly:taxesM,
-            insuranceMonthly:insM,
-            floodInsuranceMonthly:floodM,
-            hoaMonthly:hoaM,
-            pmFeeMonthly:pmM,
-            pmFeePct:pmPct,
-            mortgageMonthly:mortgageM,
-            includesMortgage,
-            netRental,
+            grossRental,propertyTaxesMonthly:taxesM,insuranceMonthly:insM,floodInsuranceMonthly:floodM,
+            hoaMonthly:hoaM,pmFeeMonthly:pmM,pmFeePct:pmPct,mortgageMonthly:mortgageM,includesMortgage,netRental,
           },
           eventType:"Rental Income (Net)",
           description:p.address,
@@ -1304,10 +1396,12 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
           endDate:null,
           taxTreatment:netRental>0?"ordinary":"none",
           notes:`From property: ${p.address}`,
+          sortOrder:999999, // synthetic always at the end of income list
         });
       });
     }
-    return e;
+    // Sort: synthetic events go after manual events by their sortOrder
+    return e.sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0));
   },[events,settings.includeRental,properties]);
 
   // Build month-by-month projection
@@ -1316,48 +1410,80 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
     const months=[];
     for(let i=0;i<settings.projectionMonths;i++){
       const d=new Date(start);d.setMonth(d.getMonth()+i);
-      months.push({date:new Date(d),label:d.toLocaleDateString("en-US",{month:"short",year:"2-digit"}),gross:0,tax:0,net:0});
+      months.push({date:new Date(d),label:d.toLocaleDateString("en-US",{month:"short",year:"2-digit"}),income:0,tax:0,expense:0,gross:0,net:0});
     }
     const enriched=allEvents.map(ev=>{
       const occurrences=expandEvent(ev,start,settings.projectionMonths);
-      let projGross=0;let projTax=0;
+      const isExpense=ev.direction==="expense";
+      let projGross=0;let projTax=0;let projExpense=0;
       occurrences.forEach(occ=>{
-        // For each occurrence, calculate tax assuming this dollars stack on the family's annual base income.
-        // Approximation: cumulative annual base + occurrences in same year
-        const{tax,net}=calcEventTax(occ.amount,ev.taxTreatment,Number(settings.baseIncome)||0,settings.filingStatus,settings.stateTaxRate,settings.localTaxRate);
-        projGross+=occ.amount;projTax+=tax;
         const monthIdx=(occ.date.getFullYear()-start.getFullYear())*12+(occ.date.getMonth()-start.getMonth());
-        if(monthIdx>=0&&monthIdx<months.length){
+        if(monthIdx<0||monthIdx>=months.length)return;
+        if(isExpense){
+          // Expenses: amount is already after-tax, just subtract from net
+          const amt=Math.abs(Number(occ.amount)||0);
+          projExpense+=amt;
+          months[monthIdx].expense+=amt;
+          months[monthIdx].net-=amt;
+        }else{
+          // Income event: calculate tax on top of base income
+          const{tax,net}=calcEventTax(occ.amount,ev.taxTreatment,Number(settings.baseIncome)||0,settings.filingStatus,settings.stateTaxRate,settings.localTaxRate);
+          projGross+=occ.amount;projTax+=tax;
           months[monthIdx].gross+=occ.amount;
+          months[monthIdx].income+=occ.amount;
           months[monthIdx].tax+=tax;
           months[monthIdx].net+=net;
         }
       });
+      if(isExpense){
+        return{...ev,projectedGross:0,projectedTax:0,projectedExpense:projExpense,projectedNet:-projExpense};
+      }
       return{...ev,projectedGross:projGross,projectedTax:projTax,projectedNet:projGross-projTax};
     });
     return{monthlyData:months,enrichedEvents:enriched};
   },[allEvents,settings]);
 
+  const totalIncome=monthlyData.reduce((s,m)=>s+m.income,0);
   const totalGross=monthlyData.reduce((s,m)=>s+m.gross,0);
   const totalTax=monthlyData.reduce((s,m)=>s+m.tax,0);
+  const totalExpense=monthlyData.reduce((s,m)=>s+m.expense,0);
   const totalNet=monthlyData.reduce((s,m)=>s+m.net,0);
   const effRate=totalGross>0?(totalTax/totalGross)*100:0;
-  const maxNet=Math.max(...monthlyData.map(m=>m.net),1);
+  // For chart scaling: max positive (income net), min (expenses + negative net rentals)
   const cumulative=[];let run=0;monthlyData.forEach(m=>{run+=m.net;cumulative.push(run);});
-  const maxCum=Math.max(...cumulative,1);
 
-  // Add/edit/delete event
+  // Add/edit/delete/reorder event
   const addEvent=async(f)=>{
-    const{error}=await sb.from("cash_flow_events").insert({family_id:family.id,event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment,notes:f.notes||null});
+    // New events go to the end of the list
+    const maxSort=Math.max(0,...events.map(e=>Number(e.sortOrder)||0));
+    const{error}=await sb.from("cash_flow_events").insert({family_id:family.id,direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null,sort_order:maxSort+10});
     if(error)toast(error.message,"error");else{toast("Event added");reload("cash_flow_events");}
   };
   const editEvent=async(id,f)=>{
-    const{error}=await sb.from("cash_flow_events").update({event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment,notes:f.notes||null}).eq("id",id);
+    const{error}=await sb.from("cash_flow_events").update({direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null}).eq("id",id);
     if(error)toast(error.message,"error");else{toast("Event updated");reload("cash_flow_events");}
   };
   const delEvent=async(id)=>{
     const{error}=await sb.from("cash_flow_events").delete().eq("id",id);
     if(error)toast(error.message,"error");else{toast("Event deleted");reload("cash_flow_events");}
+  };
+  // Reorder: swap sort_order with neighbor (within same direction list, in user-visible order)
+  const moveEvent=async(eventId,direction)=>{
+    // Build sorted list per direction so up/down only moves within income or within expenses
+    const list=[...events].sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0));
+    const idx=list.findIndex(e=>e.id===eventId);
+    if(idx===-1)return;
+    const target=direction==="up"?idx-1:idx+1;
+    if(target<0||target>=list.length)return;
+    // Swap sort_order values
+    const a=list[idx];
+    const b=list[target];
+    const aSort=Number(a.sortOrder)||0;
+    const bSort=Number(b.sortOrder)||0;
+    const{error:e1}=await sb.from("cash_flow_events").update({sort_order:bSort}).eq("id",a.id);
+    const{error:e2}=await sb.from("cash_flow_events").update({sort_order:aSort}).eq("id",b.id);
+    if(e1||e2){toast((e1||e2).message,"error");return;}
+    reload("cash_flow_events");
   };
 
   return <div style={{padding:readOnly?0:(isMobile?"16px 14px":"24px 28px")}}>
@@ -1377,7 +1503,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
           </Sel>
         </Field>
         <Field label="Base Annual Income">
-          <Inp type="number" disabled={readOnly} value={settings.baseIncome||""} onChange={e=>updateSetting("baseIncome",Number(e.target.value)||0)} placeholder="0"/>
+          <MoneyInput disabled={readOnly} value={settings.baseIncome||""} onChange={e=>updateSetting("baseIncome",Number(e.target.value)||0)} placeholder="0"/>
         </Field>
         <Field label="State">
           <Sel value={settings.stateCode} disabled={readOnly} onChange={e=>{
@@ -1411,9 +1537,13 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
 
     {/* Chart */}
     {monthlyData.length>0&&<div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:18,marginBottom:18,boxShadow:B.shadow}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Cash Flow by Month</div>
-        <div style={{fontSize:11,color:B.textSoft}}>Bars: monthly net · Line: cumulative</div>
+        <div style={{display:"flex",gap:14,fontSize:11,color:B.textSoft,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:B.gold,borderRadius:2,display:"inline-block"}}/>Income (net)</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:"#d43030",borderRadius:2,display:"inline-block"}}/>Expenses</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:14,height:2,background:B.navy,display:"inline-block"}}/>Cumulative</span>
+        </div>
       </div>
       <GoldLine/>
       <svg viewBox={`0 0 ${Math.max(700,monthlyData.length*18)} 240`} style={{width:"100%",height:isMobile?180:240,display:"block"}}>
@@ -1421,14 +1551,16 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
           const W=Math.max(700,monthlyData.length*18);const H=240;const padL=50,padR=15,padT=15,padB=35;
           const innerW=W-padL-padR;const innerH=H-padT-padB;
           const barW=innerW/monthlyData.length;
-          // Find both positive and negative max for the bars
-          const maxPos=Math.max(...monthlyData.map(m=>m.net),0);
-          const minNeg=Math.min(...monthlyData.map(m=>m.net),0);
-          const range=maxPos-minNeg;
-          // Where on the inner chart is zero?
-          const zeroY=range>0?padT+innerH-(Math.abs(minNeg)/range)*innerH:padT+innerH;
-          // Cumulative y-axis (always grows from 0; can go negative if net<0 most months)
-          const maxCumAbs=Math.max(...cumulative.map(Math.abs),1);
+          // Income net (after tax) goes up positive; expenses go down negative — stacked
+          const incomeNetByMonth=monthlyData.map(m=>m.income-m.tax);
+          const maxPos=Math.max(...incomeNetByMonth,0);
+          const minNeg=-Math.max(...monthlyData.map(m=>m.expense),0);
+          // Also account for net rentals that may be negative themselves
+          const rentalNegativeFloor=Math.min(...monthlyData.map(m=>Math.min(0,m.income-m.tax)),0);
+          const minOverall=Math.min(minNeg,rentalNegativeFloor);
+          const range=maxPos-minOverall;
+          const zeroY=range>0?padT+innerH-(Math.abs(minOverall)/range)*innerH:padT+innerH;
+          // Cumulative
           const minCum=Math.min(...cumulative,0);
           const maxCum2=Math.max(...cumulative,0);
           const cumRange=maxCum2-minCum;
@@ -1442,26 +1574,37 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
           return <>
             {/* Grid lines */}
             {[0.25,0.5,0.75,1].map(p=><line key={p} x1={padL} x2={W-padR} y1={padT+innerH-p*innerH} y2={padT+innerH-p*innerH} stroke={B.borderLight} strokeWidth="0.5"/>)}
-            {/* Bars (positive: gold; negative: red, drawn below zero line) */}
+            {/* Stacked bars: income net above zero, expenses below */}
             {monthlyData.map((m,i)=>{
               if(range<=0)return null;
               const x=padL+barW*i+1;
               const w=barW-2;
-              if(m.net>=0){
-                const h=(m.net/range)*innerH;
-                return<rect key={i} x={x} y={zeroY-h} width={w} height={h} fill={B.gold} opacity="0.75"/>;
+              const incomeNet=m.income-m.tax;
+              const expense=m.expense;
+              const elements=[];
+              if(incomeNet>=0){
+                const h=(incomeNet/range)*innerH;
+                elements.push(<rect key={`ig-${i}`} x={x} y={zeroY-h} width={w} height={h} fill={B.gold} opacity="0.78"/>);
               }else{
-                const h=(Math.abs(m.net)/range)*innerH;
-                return<rect key={i} x={x} y={zeroY} width={w} height={h} fill="#d43030" opacity="0.65"/>;
+                // negative net rental: draw as red below zero (income side itself went negative)
+                const h=(Math.abs(incomeNet)/range)*innerH;
+                elements.push(<rect key={`in-${i}`} x={x} y={zeroY} width={w} height={h} fill="#d43030" opacity="0.55"/>);
               }
+              if(expense>0){
+                const h=(expense/range)*innerH;
+                // If income was already negative, expense stacks below it
+                const yStart=incomeNet<0?zeroY+(Math.abs(incomeNet)/range)*innerH:zeroY;
+                elements.push(<rect key={`ex-${i}`} x={x} y={yStart} width={w} height={h} fill="#d43030" opacity="0.78"/>);
+              }
+              return elements;
             })}
             {/* Zero baseline */}
-            {minNeg<0&&<line x1={padL} x2={W-padR} y1={zeroY} y2={zeroY} stroke={B.navyMid} strokeWidth="0.7" strokeDasharray="2,2"/>}
+            {minOverall<0&&<line x1={padL} x2={W-padR} y1={zeroY} y2={zeroY} stroke={B.navyMid} strokeWidth="0.7" strokeDasharray="2,2"/>}
             {/* Cumulative line */}
             <path d={cumPath} fill="none" stroke={B.navy} strokeWidth="1.8"/>
             {/* Y axis labels */}
-            {[maxPos,0,minNeg].filter((v,i,arr)=>arr.indexOf(v)===i).map((v,i)=>{
-              const y=range>0?(padT+innerH-((v-minNeg)/range)*innerH):padT+innerH;
+            {[maxPos,0,minOverall].filter((v,i,arr)=>arr.indexOf(v)===i).map((v,i)=>{
+              const y=range>0?(padT+innerH-((v-minOverall)/range)*innerH):padT+innerH;
               return<text key={i} x={padL-6} y={y+3} fontSize="9" fill={B.textMute} textAnchor="end">${(v/1000).toFixed(0)}K</text>;
             })}
             {/* X axis labels */}
@@ -1482,29 +1625,39 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
       </div>}
     </div>
 
-    {enrichedEvents.length===0?<Empty text={readOnly?"No cash flow events yet.":"No cash flow events yet. Add your first event."}/>:enrichedEvents.map(e=>{
+    {enrichedEvents.length===0?<Empty text={readOnly?"No cash flow events yet.":"No cash flow events yet. Add your first event."}/>:enrichedEvents.map((e,idx)=>{
       const freqLabel=CF_FREQUENCIES.find(fr=>fr.value===e.frequency)?.label||e.frequency;
       const treatLabel=CF_TAX_TREATMENTS.find(t=>t.value===e.taxTreatment)?.label.split(" (")[0]||e.taxTreatment;
+      const isExpense=e.direction==="expense";
       const isNegative=Number(e.amount)<0;
       const isExpanded=!!expandedBreakdowns[e.id];
       const bd=e._breakdown;
-      return <div key={e.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${e._synthetic?(isNegative?"#d43030":B.navyMid):B.gold}`,borderRadius:10,padding:isMobile?14:16,marginBottom:8,boxShadow:B.shadow}}>
+      // Real (non-synthetic) events that can be reordered
+      const reorderable=!e._synthetic&&!readOnly;
+      // Find prev/next reorderable event in the visible list
+      const reorderableEvents=enrichedEvents.filter(ev=>!ev._synthetic);
+      const myReorderIdx=reorderableEvents.findIndex(ev=>ev.id===e.id);
+      const canMoveUp=reorderable&&myReorderIdx>0;
+      const canMoveDown=reorderable&&myReorderIdx<reorderableEvents.length-1;
+      const accentColor=isExpense?"#d43030":(e._synthetic?(isNegative?"#d43030":B.navyMid):B.gold);
+      return <div key={e.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${accentColor}`,borderRadius:10,padding:isMobile?14:16,marginBottom:8,boxShadow:B.shadow}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
               <span style={{fontWeight:700,color:B.navy,fontSize:14}}>{e.eventType}</span>
+              <Badge scheme={isExpense?{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}:{bg:"#e0f5e9",text:"#0d5c2b",dot:"#18a850"}}>{isExpense?"Expense":"Income"}</Badge>
               <Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{freqLabel}</Badge>
               {e._synthetic&&<Badge scheme={{bg:"#fef3e2",text:"#8a5c00",dot:"#d4900a"}}>Auto</Badge>}
-              {isNegative&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>Net Outflow</Badge>}
+              {e._synthetic&&isNegative&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>Net Outflow</Badge>}
             </div>
             {e.description&&<div style={{fontSize:13,color:B.textMid,marginBottom:4}}>{e.description}</div>}
-            <div style={{fontSize:11,color:B.textSoft}}>{fmt(e.startDate)}{e.endDate?` → ${fmt(e.endDate)}`:""} · {treatLabel}</div>
+            <div style={{fontSize:11,color:B.textSoft}}>{fmt(e.startDate)}{e.endDate?` → ${fmt(e.endDate)}`:""}{!isExpense?` · ${treatLabel}`:""}</div>
           </div>
           <div style={{textAlign:"right",flexShrink:0}}>
-            <div style={{fontSize:12,color:B.textSoft}}>Per occurrence</div>
-            <div style={{fontSize:16,fontWeight:700,color:isNegative?"#8b1a1a":B.navy}}>{isNegative?"−":""}{fmtMoney(Math.abs(e.amount))}</div>
+            <div style={{fontSize:12,color:B.textSoft}}>{e.frequency==="once"?"Amount":"Per occurrence"}</div>
+            <div style={{fontSize:16,fontWeight:700,color:isExpense||isNegative?"#8b1a1a":B.navy}}>{isExpense?"−":(isNegative?"−":"")}{fmtMoney(Math.abs(e.amount))}</div>
             <div style={{fontSize:11,color:B.textSoft,marginTop:6}}>Projected ({CF_PROJECTION_OPTIONS.find(o=>o.value===settings.projectionMonths)?.label||""})</div>
-            <div style={{fontSize:13,fontWeight:700,color:e.projectedNet>=0?"#0d5c2b":"#8b1a1a"}}>{e.projectedNet<0?"−":""}{fmtMoney(Math.abs(e.projectedNet||0))} <span style={{fontSize:10,color:B.textSoft,fontWeight:400}}>net</span></div>
+            <div style={{fontSize:13,fontWeight:700,color:e.projectedNet>=0?"#0d5c2b":"#8b1a1a"}}>{e.projectedNet<0?"−":""}{fmtMoney(Math.abs(e.projectedNet||0))} <span style={{fontSize:10,color:B.textSoft,fontWeight:400}}>{isExpense?"total":"net"}</span></div>
           </div>
         </div>
         {/* Breakdown for synthetic rental events */}
@@ -1527,9 +1680,16 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
             <div style={{marginTop:8,fontSize:10,color:B.textMute,fontStyle:"italic"}}>To change these, edit the property in the Properties tab.</div>
           </div>}
         </div>}
-        {!e._synthetic&&!readOnly&&<div style={{display:"flex",gap:6,marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`,justifyContent:"flex-end"}}>
-          <Btn small variant="ghost" onClick={()=>setModal({type:"edit",event:e})}>Edit</Btn>
-          <Btn small variant="danger" onClick={()=>{if(confirm("Delete this event?"))delEvent(e.id);}}>Delete</Btn>
+        {/* Action row: reorder + edit + delete (only for non-synthetic, non-readOnly) */}
+        {reorderable&&<div style={{display:"flex",gap:6,marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`,justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{display:"flex",gap:4}}>
+            <button onClick={()=>moveEvent(e.id,"up")} disabled={!canMoveUp} title="Move up" style={{background:"none",border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 10px",cursor:canMoveUp?"pointer":"not-allowed",color:canMoveUp?B.navy:B.textMute,fontSize:13,fontFamily:"inherit",opacity:canMoveUp?1:0.4}}>↑</button>
+            <button onClick={()=>moveEvent(e.id,"down")} disabled={!canMoveDown} title="Move down" style={{background:"none",border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 10px",cursor:canMoveDown?"pointer":"not-allowed",color:canMoveDown?B.navy:B.textMute,fontSize:13,fontFamily:"inherit",opacity:canMoveDown?1:0.4}}>↓</button>
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            <Btn small variant="ghost" onClick={()=>setModal({type:"edit",event:e})}>Edit</Btn>
+            <Btn small variant="danger" onClick={()=>{if(confirm("Delete this event?"))delEvent(e.id);}}>Delete</Btn>
+          </div>
         </div>}
       </div>;
     })}
@@ -1541,7 +1701,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
 
     {/* Modals */}
     {modal&&modal.type==="add"&&<Modal title="New Cash Flow Event" onClose={()=>setModal(null)} wide><CashFlowEventForm onSave={async f=>{await addEvent(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
-    {modal&&modal.type==="edit"&&<Modal title="Edit Cash Flow Event" onClose={()=>setModal(null)} wide><CashFlowEventForm initial={modal.event} onSave={async f=>{await editEvent(modal.event.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
+    {modal&&modal.type==="edit"&&<Modal title={modal.event.direction==="expense"?"Edit Expense":"Edit Income Event"} onClose={()=>setModal(null)} wide><CashFlowEventForm initial={modal.event} onSave={async f=>{await editEvent(modal.event.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
     {reportOpen&&<CashFlowReport family={family} projectionMonths={settings.projectionMonths} filingStatus={settings.filingStatus} baseIncome={settings.baseIncome} stateRate={settings.stateTaxRate} stateName={STATE_TAX_RATES.find(s=>s.code===settings.stateCode)?.name||settings.stateCode} localRate={settings.localTaxRate} monthlyData={monthlyData} events={enrichedEvents} onClose={()=>setReportOpen(false)}/>}
   </div>;
 }
@@ -1636,7 +1796,7 @@ function PortfolioAccountForm({initial,families=[],onSave,onClose}){
     {families.length>0&&<Field label="Family"><Sel value={f.familyId||""} onChange={set("familyId")}><option value="">— No family —</option>{families.map(fm=><option key={fm.id} value={fm.id}>{fm.name}</option>)}</Sel></Field>}
     <Grid2><Field label="Institution"><Inp placeholder="Merrill Lynch" value={f.institution} onChange={set("institution")}/></Field><Field label="Banker Name"><Inp value={f.bankerName||""} onChange={set("bankerName")}/></Field></Grid2>
     <Field label="Account Type"><Sel value={f.accountType} onChange={set("accountType")}>{ACCT_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field>
-    <Grid2><Field label="Starting Balance"><Inp type="number" value={f.startingBalance||""} onChange={set("startingBalance")}/></Field><Field label="Current Balance"><Inp type="number" value={f.currentBalance||""} onChange={set("currentBalance")}/></Field></Grid2>
+    <Grid2><Field label="Starting Balance"><MoneyInput value={f.startingBalance||""} onChange={set("startingBalance")}/></Field><Field label="Current Balance"><MoneyInput value={f.currentBalance||""} onChange={set("currentBalance")}/></Field></Grid2>
     {pct!==null&&<div style={{background:Number(pct)>=0?"#e0f5e9":"#fde8e8",border:`1px solid ${Number(pct)>=0?"#2e9e57":"#d43030"}`,borderRadius:8,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>{Number(pct)>=0?"📈":"📉"}</span><div style={{fontSize:18,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:Number(pct)>=0?"#0d5c2b":"#8b1a1a"}}>{Number(pct)>=0?"+":""}{pct}% performance</div></div>}
     <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save"}</Btn></div>
@@ -1890,7 +2050,7 @@ function ProspectDealForm({initial,contacts=[],onSave,onClose}){
   return <div>
     <Field label="Deal Title"><Inp value={f.title} onChange={set("title")}/></Field>
     <Field label="Contact"><Sel value={f.contactId||""} onChange={set("contactId")}><option value="">— None —</option>{contacts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Sel></Field>
-    <Grid2><Field label="Value ($)"><Inp type="number" value={f.value||""} onChange={set("value")}/></Field><Field label="Close Date"><Inp type="date" value={f.closeDate||""} onChange={set("closeDate")}/></Field></Grid2>
+    <Grid2><Field label="Value ($)"><MoneyInput value={f.value||""} onChange={set("value")}/></Field><Field label="Close Date"><Inp type="date" value={f.closeDate||""} onChange={set("closeDate")}/></Field></Grid2>
     <Field label="Stage"><Sel value={f.stage} onChange={set("stage")}>{STAGES.map(s=><option key={s}>{s}</option>)}</Sel></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save"}</Btn></div>
   </div>;
