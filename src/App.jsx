@@ -7,18 +7,6 @@ const SUPABASE_URL = "https://unkirihxtruhdjeldfpm.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVua2lyaWh4dHJ1aGRqZWxkZnBtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNTA3MjUsImV4cCI6MjA5MTcyNjcyNX0._Ve9Pr3ooja-YdHYFIupebaZRhDjmJDnz2b-vzrhY04";
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ── MOBILE DETECTION ──────────────────────────────────────────────────────────
-const MOBILE_BREAKPOINT = 768;
-function useIsMobile(){
-  const[isMobile,setIsMobile]=useState(typeof window!=="undefined"&&window.innerWidth<MOBILE_BREAKPOINT);
-  useEffect(()=>{
-    const onResize=()=>setIsMobile(window.innerWidth<MOBILE_BREAKPOINT);
-    window.addEventListener("resize",onResize);
-    return()=>window.removeEventListener("resize",onResize);
-  },[]);
-  return isMobile;
-}
-
 // ── BRAND ─────────────────────────────────────────────────────────────────────
 const B = {
   navy:"#092b49",navyMid:"#293d5c",gold:"#ceb684",goldLight:"#dfc99a",
@@ -45,215 +33,7 @@ const PRIORITY_COLORS={
 const PROP_TYPES=["Residential","Commercial","Industrial","Land","Mixed Use","Vacation"];
 const LOAN_TYPES=["Fixed","ARM","Interest Only","Balloon","Bridge","HELOC"];
 const VALUABLE_CATS=["Car / Vehicle","Jewelry","Art","Watch","Boat / Watercraft","Other"];
-const ACCT_TYPES=["Investment","Brokerage","Retirement (IRA)","401(k)","Trust","Savings","Other","Checking","Money Market","Line of Credit"];
-
-// ── CASH FLOW ─────────────────────────────────────────────────────────────────
-const CF_EVENT_TYPES=["Salary","Bonus","Sale","RSU","Grant","PE Deal","Rental Income","Distribution","Other Income","Other Expense"];
-const CF_EXPENSE_CATEGORIES=["Rent/Mortgage","Utilities","Storage","House Cleaning","Car","School","Life Insurance","Other Insurance","Grocery","Misc","Legal","Shopping","Personal Care","Gym/Spa","Investments","Savings","Other"];
-const CF_FREQUENCIES=[
-  {value:"once",label:"One-time"},
-  {value:"weekly",label:"Weekly"},
-  {value:"biweekly",label:"Bi-weekly"},
-  {value:"monthly",label:"Monthly"},
-  {value:"quarterly",label:"Quarterly"},
-  {value:"annually",label:"Annually"},
-];
-const CF_TAX_TREATMENTS=[
-  {value:"ordinary",label:"Ordinary Income (W-2, Salary, Bonus, RSU vesting)"},
-  {value:"ltcg",label:"Long-Term Capital Gains (held >1 year)"},
-  {value:"stcg",label:"Short-Term Capital Gains (held <1 year, taxed as ordinary)"},
-  {value:"qualified_div",label:"Qualified Dividends (LTCG rates)"},
-  {value:"none",label:"Non-taxable / Already taxed"},
-];
-const CF_PROJECTION_OPTIONS=[
-  {value:12,label:"12 Months"},
-  {value:24,label:"2 Years"},
-  {value:36,label:"3 Years"},
-  {value:60,label:"5 Years"},
-  {value:84,label:"7 Years"},
-  {value:120,label:"10 Years"},
-];
-
-// 2026 Federal Tax Brackets (projected based on inflation adjustments from 2025)
-// Source: IRS Rev. Proc. 2024-40 (2025 brackets) — these are projected forward ~2.5% for 2026
-const TAX_BRACKETS_2026={
-  single:[
-    {min:0,max:11925,rate:0.10},
-    {min:11925,max:48475,rate:0.12},
-    {min:48475,max:103350,rate:0.22},
-    {min:103350,max:197300,rate:0.24},
-    {min:197300,max:250525,rate:0.32},
-    {min:250525,max:626350,rate:0.35},
-    {min:626350,max:Infinity,rate:0.37},
-  ],
-  mfj:[
-    {min:0,max:23850,rate:0.10},
-    {min:23850,max:96950,rate:0.12},
-    {min:96950,max:206700,rate:0.22},
-    {min:206700,max:394600,rate:0.24},
-    {min:394600,max:501050,rate:0.32},
-    {min:501050,max:751600,rate:0.35},
-    {min:751600,max:Infinity,rate:0.37},
-  ],
-};
-// Long-term capital gains brackets for 2026
-const LTCG_BRACKETS_2026={
-  single:[
-    {min:0,max:48350,rate:0.00},
-    {min:48350,max:533400,rate:0.15},
-    {min:533400,max:Infinity,rate:0.20},
-  ],
-  mfj:[
-    {min:0,max:96700,rate:0.00},
-    {min:96700,max:600050,rate:0.15},
-    {min:600050,max:Infinity,rate:0.20},
-  ],
-};
-// Net Investment Income Tax (NIIT) thresholds — 3.8% on capital gains above this
-const NIIT_THRESHOLD={single:200000,mfj:250000};
-const NIIT_RATE=0.038;
-
-// State income tax — top marginal rates as of 2025-2026.
-// Values are top brackets; using these for high-income family-office clients.
-// Sources: state revenue dept publications. Rates change yearly — review annually.
-const STATE_TAX_RATES=[
-  {code:"AL",name:"Alabama",rate:5.0},
-  {code:"AK",name:"Alaska",rate:0.0},
-  {code:"AZ",name:"Arizona",rate:2.5},
-  {code:"AR",name:"Arkansas",rate:3.9},
-  {code:"CA",name:"California",rate:13.3},
-  {code:"CO",name:"Colorado",rate:4.4},
-  {code:"CT",name:"Connecticut",rate:6.99},
-  {code:"DE",name:"Delaware",rate:6.6},
-  {code:"DC",name:"District of Columbia",rate:10.75},
-  {code:"FL",name:"Florida",rate:0.0},
-  {code:"GA",name:"Georgia",rate:5.39},
-  {code:"HI",name:"Hawaii",rate:11.0},
-  {code:"ID",name:"Idaho",rate:5.695},
-  {code:"IL",name:"Illinois",rate:4.95},
-  {code:"IN",name:"Indiana",rate:3.0},
-  {code:"IA",name:"Iowa",rate:3.8},
-  {code:"KS",name:"Kansas",rate:5.58},
-  {code:"KY",name:"Kentucky",rate:4.0},
-  {code:"LA",name:"Louisiana",rate:3.0},
-  {code:"ME",name:"Maine",rate:7.15},
-  {code:"MD",name:"Maryland",rate:5.75},
-  {code:"MA",name:"Massachusetts",rate:9.0},
-  {code:"MI",name:"Michigan",rate:4.25},
-  {code:"MN",name:"Minnesota",rate:9.85},
-  {code:"MS",name:"Mississippi",rate:4.4},
-  {code:"MO",name:"Missouri",rate:4.7},
-  {code:"MT",name:"Montana",rate:5.9},
-  {code:"NE",name:"Nebraska",rate:5.2},
-  {code:"NV",name:"Nevada",rate:0.0},
-  {code:"NH",name:"New Hampshire",rate:0.0},
-  {code:"NJ",name:"New Jersey",rate:10.75},
-  {code:"NM",name:"New Mexico",rate:5.9},
-  {code:"NY",name:"New York",rate:10.9},
-  {code:"NC",name:"North Carolina",rate:4.5},
-  {code:"ND",name:"North Dakota",rate:2.5},
-  {code:"OH",name:"Ohio",rate:3.5},
-  {code:"OK",name:"Oklahoma",rate:4.75},
-  {code:"OR",name:"Oregon",rate:9.9},
-  {code:"PA",name:"Pennsylvania",rate:3.07},
-  {code:"RI",name:"Rhode Island",rate:5.99},
-  {code:"SC",name:"South Carolina",rate:6.2},
-  {code:"SD",name:"South Dakota",rate:0.0},
-  {code:"TN",name:"Tennessee",rate:0.0},
-  {code:"TX",name:"Texas",rate:0.0},
-  {code:"UT",name:"Utah",rate:4.55},
-  {code:"VT",name:"Vermont",rate:8.75},
-  {code:"VA",name:"Virginia",rate:5.75},
-  {code:"WA",name:"Washington",rate:0.0},
-  {code:"WV",name:"West Virginia",rate:5.12},
-  {code:"WI",name:"Wisconsin",rate:7.65},
-  {code:"WY",name:"Wyoming",rate:0.0},
-];
-
-// Calculate marginal federal tax on an additional dollar at given income level
-function marginalRate(income,brackets){
-  for(const b of brackets){if(income>=b.min&&income<b.max)return b.rate;}
-  return brackets[brackets.length-1].rate;
-}
-// Calculate effective tax owed on an amount given a base income (for marginal stacking)
-function calcOrdinaryTax(amount,baseIncome,filingStatus){
-  const brackets=TAX_BRACKETS_2026[filingStatus]||TAX_BRACKETS_2026.mfj;
-  let remaining=amount;let tax=0;let cur=baseIncome;
-  for(const b of brackets){
-    if(remaining<=0)break;
-    if(cur>=b.max)continue;
-    const room=b.max-Math.max(cur,b.min);
-    const inThisBracket=Math.min(remaining,room);
-    if(inThisBracket>0){tax+=inThisBracket*b.rate;remaining-=inThisBracket;cur+=inThisBracket;}
-  }
-  return tax;
-}
-function calcLTCGTax(amount,baseIncome,filingStatus){
-  const brackets=LTCG_BRACKETS_2026[filingStatus]||LTCG_BRACKETS_2026.mfj;
-  let remaining=amount;let tax=0;let cur=baseIncome;
-  for(const b of brackets){
-    if(remaining<=0)break;
-    if(cur>=b.max)continue;
-    const room=b.max-Math.max(cur,b.min);
-    const inThisBracket=Math.min(remaining,room);
-    if(inThisBracket>0){tax+=inThisBracket*b.rate;remaining-=inThisBracket;cur+=inThisBracket;}
-  }
-  return tax;
-}
-function calcNIIT(capGainsAmount,totalIncome,filingStatus){
-  const threshold=NIIT_THRESHOLD[filingStatus]||NIIT_THRESHOLD.mfj;
-  if(totalIncome<=threshold)return 0;
-  const aboveThreshold=totalIncome-threshold;
-  const taxable=Math.min(capGainsAmount,aboveThreshold);
-  return Math.max(0,taxable)*NIIT_RATE;
-}
-// Calculate total tax + net for a single event given the family's tax context
-function calcEventTax(grossAmount,treatment,baseIncome,filingStatus,stateRate,localRate){
-  const gross=Number(grossAmount)||0;
-  if(gross<=0||treatment==="none")return{tax:0,fedTax:0,stateTax:0,localTax:0,niit:0,net:gross};
-  let fedTax=0;let niit=0;
-  if(treatment==="ordinary"||treatment==="stcg"){
-    fedTax=calcOrdinaryTax(gross,baseIncome,filingStatus);
-  }else if(treatment==="ltcg"||treatment==="qualified_div"){
-    fedTax=calcLTCGTax(gross,baseIncome,filingStatus);
-    niit=calcNIIT(gross,baseIncome+gross,filingStatus);
-  }
-  const stateTax=gross*((Number(stateRate)||0)/100);
-  const localTax=gross*((Number(localRate)||0)/100);
-  const totalTax=fedTax+stateTax+localTax+niit;
-  return{tax:totalTax,fedTax,stateTax,localTax,niit,net:gross-totalTax};
-}
-// Expand a recurring event into monthly occurrences within projection window
-function expandEvent(event,projectionStart,monthsOut){
-  const occurrences=[];
-  const start=new Date(event.startDate);
-  if(isNaN(start))return occurrences;
-  const end=event.endDate?new Date(event.endDate):null;
-  const projEnd=new Date(projectionStart);projEnd.setMonth(projEnd.getMonth()+monthsOut);
-  const amount=Number(event.amount)||0;
-  if(event.frequency==="once"){
-    if(start>=projectionStart&&start<=projEnd&&(!end||start<=end)){
-      occurrences.push({date:start,amount});
-    }
-    return occurrences;
-  }
-  // Recurring — advance through dates
-  let cur=new Date(start);
-  let safety=600; // max iterations
-  while(cur<=projEnd&&safety-->0){
-    if(cur>=projectionStart&&(!end||cur<=end)){
-      occurrences.push({date:new Date(cur),amount});
-    }
-    if(event.frequency==="weekly")cur.setDate(cur.getDate()+7);
-    else if(event.frequency==="biweekly")cur.setDate(cur.getDate()+14);
-    else if(event.frequency==="monthly")cur.setMonth(cur.getMonth()+1);
-    else if(event.frequency==="quarterly")cur.setMonth(cur.getMonth()+3);
-    else if(event.frequency==="annually")cur.setFullYear(cur.getFullYear()+1);
-    else break;
-  }
-  return occurrences;
-}
-
+const ACCT_TYPES=["Investment","Brokerage","Retirement (IRA)","401(k)","Trust","Savings","Other"];
 const REMINDER_OPTIONS=[
   {label:"1 day before",days:1},
   {label:"3 days before",days:3},
@@ -265,27 +45,16 @@ const REMINDER_OPTIONS=[
 
 const fmt=iso=>iso?new Date(iso).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
 const fmtMoney=n=>n!=null&&n!==""?`$${Number(n).toLocaleString()}`:"—";
-// Smart-abbreviated money for chart axis labels: $5K, $500K, $5M, $1.5M
-const fmtMoneyShort=n=>{
-  if(n==null||n==="")return"$0";
-  const num=Number(n);
-  const abs=Math.abs(num);
-  const sign=num<0?"-":"";
-  if(abs>=1e9)return`${sign}$${(abs/1e9).toFixed(abs>=1e10?0:1).replace(/\.0$/,"")}B`;
-  if(abs>=1e6)return`${sign}$${(abs/1e6).toFixed(abs>=1e7?0:1).replace(/\.0$/,"")}M`;
-  if(abs>=1e3)return`${sign}$${(abs/1e3).toFixed(abs>=1e4?0:1).replace(/\.0$/,"")}K`;
-  return`${sign}$${abs.toFixed(0)}`;
-};
 const fmtPct=n=>n!=null&&n!==""?`${Number(n).toFixed(2)}%`:"—";
 const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)return null;return(((cv-sv)/sv)*100).toFixed(2);};
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
-const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events"];
+const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents"];
 
 
 // ── UI PRIMITIVES ─────────────────────────────────────────────────────────────
@@ -312,39 +81,6 @@ function Modal({title,onClose,wide,children}){
 
 const inp={width:"100%",background:B.bg,border:`1px solid ${B.border}`,borderRadius:8,padding:"9px 13px",color:B.text,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit"};
 const Inp=p=><input style={inp} {...p}/>;
-// Formats numbers as US dollars with commas while user types. Stores the raw numeric value (no commas) on change.
-function MoneyInput({value,onChange,placeholder,style,disabled}){
-  // Format number for display: 1234567.89 → "1,234,567.89"
-  const fmt=(v)=>{
-    if(v===""||v===null||v===undefined)return"";
-    const s=String(v);
-    // Allow trailing decimal point and trailing zeros
-    const negative=s.startsWith("-");
-    const abs=negative?s.slice(1):s;
-    if(abs===""||abs===".")return s;
-    const parts=abs.split(".");
-    const whole=parts[0]||"0";
-    const decimal=parts.length>1?"."+parts[1]:"";
-    const wholeWithCommas=whole.replace(/\B(?=(\d{3})+(?!\d))/g,",");
-    return(negative?"-":"")+wholeWithCommas+decimal;
-  };
-  // Strip non-numeric (allow leading -, decimal point) on change
-  const handleChange=(e)=>{
-    let raw=e.target.value;
-    // Allow user to type freely; strip commas and any character not digit/period/minus
-    raw=raw.replace(/,/g,"").replace(/[^0-9.\-]/g,"");
-    // Only one minus, only at start
-    if(raw.indexOf("-")>0)raw=raw.replace(/-/g,"");
-    // Only one decimal
-    const firstDot=raw.indexOf(".");
-    if(firstDot!==-1){
-      raw=raw.slice(0,firstDot+1)+raw.slice(firstDot+1).replace(/\./g,"");
-    }
-    // Pass back the cleaned numeric string (or empty)
-    onChange&&onChange({target:{value:raw}});
-  };
-  return <input type="text" inputMode="decimal" style={style||inp} disabled={disabled} value={fmt(value)} onChange={handleChange} placeholder={placeholder||"0"}/>;
-}
 const Sel=({children,...p})=><select style={{...inp,cursor:"pointer"}} {...p}>{children}</select>;
 const Tex=p=><textarea style={{...inp,minHeight:80,resize:"vertical"}} {...p}/>;
 function Field({label,children}){return <div style={{marginBottom:14}}><label style={{display:"block",fontSize:11,color:B.textSoft,marginBottom:5,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>{label}</label>{children}</div>;}
@@ -441,18 +177,18 @@ function FamilyReport({family,data,onClose}){
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
   const totalPortfolio=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
-  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0)+accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
-  const totalAccounts=accounts.filter(a=>a.accountType!=="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0);
+  const totalAccounts=accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalValuables=valuables.reduce((s,v)=>s+(Number(v.estimatedValue)||0),0);
 
   const print=()=>{
     const w=window.open("","_blank");
-    w.document.write(`<!DOCTYPE html><html><head><title> </title>
+    w.document.write(`<!DOCTYPE html><html><head><title>PCM Report — ${family.name}</title>
     <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:#092b49;background:#fff;padding:40px;font-size:13px;line-height:1.6;}
     .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #ceb684;}
     .logo{font-size:26px;font-weight:700;color:#092b49;}
     .logo-sub{font-size:9px;letter-spacing:.18em;color:#8fa0b2;margin-top:3px;}
-    .logo-img{height:120px;width:auto;display:block;}
+    .logo-img{height:60px;width:auto;display:block;}
     h1{font-size:22px;font-weight:700;margin-bottom:2px;}
     .advisor{font-size:12px;color:#5a6e84;margin-top:4px;}
     .date{font-size:11px;color:#8fa0b2;margin-top:2px;}
@@ -473,7 +209,7 @@ function FamilyReport({family,data,onClose}){
     @media print{body{padding:20px;}}
     </style></head><body>
     <div class="header">
-      <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/></div>
+      <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/><div class="logo-sub">DISCOVER · SIMPLIFY · EXECUTE</div></div>
       <div style="text-align:right"><h1>${family.name}</h1><div class="advisor">Advisor: ${family.advisorName||"—"} | ${family.advisorEmail||""}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
     </div>
     <div class="stats">
@@ -514,12 +250,16 @@ function FamilyReport({family,data,onClose}){
     </tbody></table>
     <h2>Activity Notes</h2>
     ${notes.slice(0,10).map(n=>`<div class="note"><div>${n.body}</div><div class="note-date">${fmt(n.createdAt)}</div></div>`).join("")||"<p style='color:#8fa0b2'>No notes</p>"}
+    <div class="footer">
+      <div class="footer-l"><strong>PCM Family Office</strong><br/>info@pcmfamilyoffice.com · DISCOVER · SIMPLIFY · EXECUTE</div>
+      <div class="footer-c">CONFIDENTIAL<br/><span style="font-size:9px;font-weight:400;color:#5a6e84">Property of PCM Family Office — Authorized Recipients Only</span></div>
+    </div>
     </body></html>`);
     w.document.close();w.focus();setTimeout(()=>w.print(),400);
   };
 
   return <Modal title={`Report — ${family.name}`} onClose={onClose} wide>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:24}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:24}}>
       {[{l:"Properties",v:properties.length},{l:"Real Estate",v:fmtMoney(totalPortfolio)},{l:"Portfolio",v:fmtMoney(totalAccounts)},{l:"Open Tasks",v:tasks.length}].map(s=><StatBox key={s.l} label={s.l} value={s.v}/>)}
     </div>
     <div style={{display:"flex",gap:12,justifyContent:"flex-end"}}>
@@ -531,7 +271,6 @@ function FamilyReport({family,data,onClose}){
 
 // ── FAMILY DASHBOARD ──────────────────────────────────────────────────────────
 function FamilyDashboard({family,data,reload,toast,onBack}){
-  const isMobile=useIsMobile();
   const[activeTab,setActiveTab]=useState("overview");
   const[reportOpen,setReportOpen]=useState(false);
   const[modal,setModal]=useState(null);
@@ -547,14 +286,14 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
 
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
-  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0)+accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
-  const totalAccounts=accounts.filter(a=>a.accountType!=="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0);
+  const totalAccounts=accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalValuables=valuables.reduce((s,v)=>s+(Number(v.estimatedValue)||0),0);
   const netWorth=totalRE-totalDebt+totalAccounts+totalValuables;
   const overdueTasks=pendingTasks.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
   const soonTasks=pendingTasks.filter(t=>t.dueDate&&!overdueTasks.includes(t)&&(new Date(t.dueDate)-new Date())/(86400000)<=30);
 
-  const TABS=["Overview","Properties","Portfolio","Cash Flow","Valuables","Deals","Notes","Tasks","Documents"];
+  const TABS=["Overview","Properties","Portfolio","Valuables","Deals","Notes","Tasks","Documents"];
 
   // Quick add note
   const[noteBody,setNoteBody]=useState("");
@@ -593,14 +332,9 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   };
   // Add property
   const addProperty=async(f)=>{
-    const row={family_id:family.id,owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,hoa_fee:Number(f.hoaFee)||0,property_management_fee_pct:Number(f.propertyManagementFeePct)||0,include_mortgage_in_cashflow:f.includeMortgageInCashflow!==false,notes:f.notes||null};
+    const row={family_id:family.id,owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,notes:f.notes||null};
     const{error}=await sb.from("properties").insert(row);
     if(error)toast(error.message,"error");else{toast("Property added");reload("properties");}
-  };
-  const editProperty=async(id,f)=>{
-    const row={owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,hoa_fee:Number(f.hoaFee)||0,property_management_fee_pct:Number(f.propertyManagementFeePct)||0,include_mortgage_in_cashflow:f.includeMortgageInCashflow!==false,notes:f.notes||null};
-    const{error}=await sb.from("properties").update(row).eq("id",id);
-    if(error)toast(error.message,"error");else{toast("Property updated");reload("properties");}
   };
   const delProperty=async(id)=>{
     const{error}=await sb.from("properties").delete().eq("id",id);
@@ -611,10 +345,6 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   const addValuable=async(f)=>{
     const{error}=await sb.from("valuables").insert({family_id:family.id,category:f.category,description:f.description,make_model:f.makeModel||null,year:f.year||null,estimated_value:f.estimatedValue||null,insured:!!f.insured,insurance_company:f.insuranceCompany||null,notes:f.notes||null});
     if(error)toast(error.message,"error");else{toast("Valuable added");reload("valuables");}
-  };
-  const editValuable=async(id,f)=>{
-    const{error}=await sb.from("valuables").update({category:f.category,description:f.description,make_model:f.makeModel||null,year:f.year||null,estimated_value:f.estimatedValue||null,insured:!!f.insured,insurance_company:f.insuranceCompany||null,notes:f.notes||null}).eq("id",id);
-    if(error)toast(error.message,"error");else{toast("Valuable updated");reload("valuables");}
   };
   const delValuable=async(id)=>{
     const{error}=await sb.from("valuables").delete().eq("id",id);
@@ -641,10 +371,6 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
     const{error}=await sb.from("portfolio_accounts").insert({family_id:family.id,institution:f.institution,banker_name:f.bankerName||null,account_type:f.accountType,starting_balance:f.startingBalance||null,current_balance:f.currentBalance||null,notes:f.notes||null});
     if(error)toast(error.message,"error");else{toast("Account added");reload("portfolio_accounts");}
   };
-  const editAccount=async(id,f)=>{
-    const{error}=await sb.from("portfolio_accounts").update({institution:f.institution,banker_name:f.bankerName||null,account_type:f.accountType,starting_balance:f.startingBalance||null,current_balance:f.currentBalance||null,notes:f.notes||null}).eq("id",id);
-    if(error)toast(error.message,"error");else{toast("Account updated");reload("portfolio_accounts");}
-  };
   const delAccount=async(id)=>{
     const{error}=await sb.from("portfolio_accounts").delete().eq("id",id);
     if(error)toast(error.message,"error");else reload("portfolio_accounts");
@@ -653,37 +379,36 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%",minHeight:0}}>
       {/* Header */}
-      <div style={{padding:isMobile?"12px 16px":"14px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",gap:isMobile?10:16,flexWrap:"wrap"}}>
-        <button onClick={onBack} style={{background:"none",border:`1px solid ${B.border}`,color:B.textSoft,cursor:"pointer",fontSize:13,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:6,flexShrink:0}}>←</button>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?18:22,color:B.navy,fontWeight:600,lineHeight:1.1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.name}</div>
-          {!isMobile&&<div style={{fontSize:12,color:B.textSoft,marginTop:2}}>Advisor: {family.advisorName||"—"}{family.advisorEmail?` · ${family.advisorEmail}`:""}</div>}
-          {isMobile&&family.advisorName&&<div style={{fontSize:11,color:B.textSoft,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.advisorName}</div>}
+      <div style={{padding:"14px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+        <button onClick={onBack} style={{background:"none",border:`1px solid ${B.border}`,color:B.textSoft,cursor:"pointer",fontSize:13,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:6,flexShrink:0}}>← Back</button>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600,lineHeight:1}}>{family.name}</div>
+          <div style={{fontSize:12,color:B.textSoft,marginTop:2}}>Advisor: {family.advisorName||"—"}{family.advisorEmail?` · ${family.advisorEmail}`:""}</div>
         </div>
-        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:8}}>
           {overdueTasks.length>0&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>{overdueTasks.length} overdue</Badge>}
           {soonTasks.length>0&&<Badge scheme={{bg:"#fef3e2",text:"#8a5c00",dot:"#d4900a"}}>{soonTasks.length} due soon</Badge>}
-          <Btn variant="gold" small={isMobile} onClick={()=>setReportOpen(true)}>🖨{!isMobile&&" Print Report"}</Btn>
+          <Btn variant="gold" onClick={()=>setReportOpen(true)}>🖨 Print Report</Btn>
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{borderBottom:`1px solid ${B.borderLight}`,background:B.white,padding:isMobile?"0 8px":"0 28px",display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-        {TABS.map(t=><button key={t} onClick={()=>setActiveTab(t.toLowerCase().replace(/\s+/g,""))} style={{background:"none",border:"none",borderBottom:activeTab===t.toLowerCase().replace(/\s+/g,"")?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.toLowerCase().replace(/\s+/g,"")?B.navy:B.textSoft,fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.toLowerCase().replace(/\s+/g,"")?700:400,padding:isMobile?"12px 12px":"10px 14px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>{t}</button>)}
+      <div style={{borderBottom:`1px solid ${B.borderLight}`,background:B.white,padding:"0 28px",display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        {TABS.map(t=><button key={t} onClick={()=>setActiveTab(t.toLowerCase())} style={{background:"none",border:"none",borderBottom:activeTab===t.toLowerCase()?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.toLowerCase()?B.navy:B.textSoft,fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.toLowerCase()?700:400,padding:"10px 14px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>{t}</button>)}
       </div>
 
       {/* Content */}
       <div style={{flex:1,overflowY:"auto",minHeight:0}}>
 
         {/* OVERVIEW TAB */}
-        {activeTab==="overview"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:14,marginBottom:24}}>
+        {activeTab==="overview"&&<div style={{padding:"24px 28px"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
             <StatBox label="Net Worth Est." value={fmtMoney(netWorth)} accent={B.navy}/>
             <StatBox label="Real Estate" value={fmtMoney(totalRE)} accent={B.gold}/>
             <StatBox label="Portfolio" value={fmtMoney(totalAccounts)} accent={B.navyMid}/>
             <StatBox label="Valuables" value={fmtMoney(totalValuables)} accent="#8b5cf6"/>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:20,marginBottom:20}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}}>
             {/* Members */}
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -743,7 +468,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* PROPERTIES TAB */}
-        {activeTab==="properties"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
+        {activeTab==="properties"&&<div style={{padding:"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{properties.length} properties · {fmtMoney(totalRE)} total · {fmtMoney(totalDebt)} debt</div>
             <Btn onClick={()=>setModal("property")}>+ Add Property</Btn>
@@ -759,13 +484,10 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                   <div style={{fontSize:16,fontWeight:700,color:B.navy}}>{fmtMoney(p.currentValue||p.purchasePrice)}</div>
                   {p.loanBalance&&<div style={{fontSize:11,color:B.textSoft}}>Balance: {fmtMoney(p.loanBalance)}</div>}
                 </div>
-                <Btn small variant="ghost" onClick={()=>window.open(`https://www.zillow.com/homes/${encodeURIComponent(p.address||"")}_rb/`,"_blank","noopener,noreferrer")}>🔗 Zillow</Btn>
-                <Btn small variant="ghost" onClick={()=>window.open(`https://www.google.com/search?q=${encodeURIComponent(`"${p.address||""}" property tax records`)}`,"_blank","noopener,noreferrer")}>🏛 Tax Records</Btn>
-                <Btn small variant="ghost" onClick={()=>setModal({type:"editProperty",property:p})}>Edit</Btn>
                 <Btn small variant="danger" onClick={()=>delProperty(p.id)}>✕</Btn>
               </div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
               {[["Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—"],["Loan Type",p.loanType],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—"],["Utilities",p.utilities?`${fmtMoney(p.utilities)}/mo`:"—"],["Insurance Co.",p.insuranceCompany||"—"],["Ins. Premium",p.insurancePremium?`${fmtMoney(p.insurancePremium)}/yr`:"—"],["Flood Insurance",p.floodInsurance?`Yes${p.floodInsuranceCompany?` — ${p.floodInsuranceCompany}`:""}`:("No")]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                 <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}</div>
                 <div style={{fontSize:12,color:B.text,fontWeight:600}}>{v}</div>
@@ -776,7 +498,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* PORTFOLIO TAB */}
-        {activeTab==="portfolio"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
+        {activeTab==="portfolio"&&<div style={{padding:"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{accounts.length} accounts · {fmtMoney(totalAccounts)} total</div>
             <Btn onClick={()=>setModal("account")}>+ Add Account</Btn>
@@ -795,7 +517,6 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                     <div style={{fontSize:16,fontWeight:700,color:B.navy}}>{fmtMoney(a.currentBalance)}</div>
                     {pct!==null&&<div style={{fontSize:12,fontWeight:700,color:Number(pct)>=0?"#18a850":"#d43030"}}>{Number(pct)>=0?"+":""}{pct}% ({Number(gain)>=0?"+":"-"}{fmtMoney(Math.abs(gain))})</div>}
                   </div>
-                  <Btn small variant="ghost" onClick={()=>setModal({type:"editAccount",account:a})}>Edit</Btn>
                   <Btn small variant="danger" onClick={()=>delAccount(a.id)}>✕</Btn>
                 </div>
               </div>
@@ -809,11 +530,8 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
           })}
         </div>}
 
-        {/* CASH FLOW TAB */}
-        {activeTab==="cashflow"&&<CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} properties={properties} reload={reload} toast={toast}/>}
-
         {/* VALUABLES TAB */}
-        {activeTab==="valuables"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
+        {activeTab==="valuables"&&<div style={{padding:"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{valuables.length} items · {fmtMoney(totalValuables)} est. value</div>
             <Btn onClick={()=>setModal("valuable")}>+ Add Valuable</Btn>
@@ -831,7 +549,6 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <div style={{fontSize:15,fontWeight:700,color:B.navy}}>{fmtMoney(v.estimatedValue)}</div>
-                  <Btn small variant="ghost" onClick={()=>setModal({type:"editValuable",valuable:v})}>Edit</Btn>
                   <Btn small variant="danger" onClick={()=>delValuable(v.id)}>✕</Btn>
                 </div>
               </div>)}
@@ -841,7 +558,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* DEALS TAB */}
-        {activeTab==="deals"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
+        {activeTab==="deals"&&<div style={{padding:"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{openDeals.length} open deals · {fmtMoney(openDeals.reduce((s,d)=>s+(Number(d.value)||0),0))} pipeline</div>
             <Btn onClick={()=>setModal("deal")}>+ Add Deal</Btn>
@@ -872,7 +589,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
         {/* NOTES TAB */}
         {activeTab==="notes"&&<div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
-          <div style={{padding:isMobile?"14px 14px":"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
+          <div style={{padding:"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
             <div style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:12,overflow:"hidden",boxShadow:B.shadow}}>
               <textarea value={noteBody} onChange={e=>setNoteBody(e.target.value)} placeholder="Write a note or activity log entry…" style={{width:"100%",minHeight:80,background:"transparent",border:"none",padding:"14px 16px",color:B.text,fontSize:14,outline:"none",resize:"none",fontFamily:"inherit",lineHeight:1.65,boxSizing:"border-box"}}/>
               <div style={{padding:"10px 14px",borderTop:`1px solid ${B.borderLight}`,background:B.white,display:"flex",justifyContent:"flex-end"}}>
@@ -880,7 +597,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
               </div>
             </div>
           </div>
-          <div style={{flex:1,overflowY:"auto",padding:isMobile?"14px 14px":"20px 28px"}}>
+          <div style={{flex:1,overflowY:"auto",padding:"20px 28px"}}>
             {famNotes.length===0?<Empty text="No notes yet."/>:[...famNotes].sort((a,b)=>b.createdAt>a.createdAt?1:-1).map(n=><div key={n.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,marginBottom:12,boxShadow:B.shadow,overflow:"hidden"}}>
               <div style={{height:3,background:`linear-gradient(90deg,${B.gold},${B.goldLight})`}}/>
               <div style={{padding:"16px 20px"}}>
@@ -895,7 +612,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* TASKS TAB */}
-        {activeTab==="tasks"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
+        {activeTab==="tasks"&&<div style={{padding:"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{display:"flex",gap:8}}>
               {overdueTasks.length>0&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>{overdueTasks.length} overdue</Badge>}
@@ -933,12 +650,9 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       </Modal>}
       {modal==="task"&&<Modal title="New Task" onClose={()=>setModal(null)}><TaskForm contacts={contacts} onSave={async f=>{await addTask(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="property"&&<Modal title="Add Property" onClose={()=>setModal(null)} wide><PropertyForm onSave={async f=>{await addProperty(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
-      {modal&&modal.type==="editProperty"&&<Modal title="Edit Property" onClose={()=>setModal(null)} wide><PropertyForm initial={modal.property} onSave={async f=>{await editProperty(modal.property.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="valuable"&&<Modal title="Add Valuable" onClose={()=>setModal(null)}><ValuableForm onSave={async f=>{await addValuable(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
-      {modal&&modal.type==="editValuable"&&<Modal title="Edit Valuable" onClose={()=>setModal(null)}><ValuableForm initial={modal.valuable} onSave={async f=>{await editValuable(modal.valuable.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="deal"&&<Modal title="Add Deal" onClose={()=>setModal(null)}><SimpleDealForm contacts={contacts} onSave={async f=>{await addDeal(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="account"&&<Modal title="Add Portfolio Account" onClose={()=>setModal(null)}><AccountForm onSave={async f=>{await addAccount(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
-      {modal&&modal.type==="editAccount"&&<Modal title="Edit Portfolio Account" onClose={()=>setModal(null)}><AccountForm initial={modal.account} onSave={async f=>{await editAccount(modal.account.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {reportOpen&&<FamilyReport family={family} data={data} onClose={()=>setReportOpen(false)}/>}
     </div>
   );
@@ -998,66 +712,24 @@ function TaskForm({initial,contacts=[],onSave,onClose}){
 
 // ── PROPERTY FORM ─────────────────────────────────────────────────────────────
 function PropertyForm({initial,onSave,onClose}){
-  const blank={ownerName:"",address:"",propertyType:"Residential",purchasePrice:"",purchaseDate:"",currentValue:"",lender:"",loanBalance:"",interestRate:"",loanPayment:"",loanMaturityDate:"",loanType:"Fixed",rentalIncome:"",propertyTaxes:"",utilities:"",insuranceCompany:"",insurancePremium:"",floodInsurance:false,floodInsuranceCompany:"",floodInsurancePremium:"",hoaFee:"",propertyManagementFeePct:"",includeMortgageInCashflow:true,notes:""};
-  const[f,setF]=useState(()=>{
-    // Merge initial with defaults to ensure new fields have sensible values
-    return initial?{...blank,...initial,includeMortgageInCashflow:initial.includeMortgageInCashflow!==false}:blank;
-  });
+  const blank={ownerName:"",address:"",propertyType:"Residential",purchasePrice:"",purchaseDate:"",currentValue:"",lender:"",loanBalance:"",interestRate:"",loanPayment:"",loanMaturityDate:"",loanType:"Fixed",rentalIncome:"",propertyTaxes:"",utilities:"",insuranceCompany:"",insurancePremium:"",floodInsurance:false,floodInsuranceCompany:"",floodInsurancePremium:"",notes:""};
+  const[f,setF]=useState(initial||blank);
   const[saving,setSaving]=useState(false);
   const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const setChk=k=>e=>setF(p=>({...p,[k]:e.target.checked}));
   const save=async()=>{if(!f.address.trim())return;setSaving(true);await onSave(f);onClose();};
-  // Calculate net rental for preview
-  const grossRental=Number(f.rentalIncome)||0;
-  const taxesM=(Number(f.propertyTaxes)||0)/12;
-  const insM=(Number(f.insurancePremium)||0)/12;
-  const floodM=(Number(f.floodInsurancePremium)||0)/12;
-  const hoaM=Number(f.hoaFee)||0;
-  const pmM=grossRental*((Number(f.propertyManagementFeePct)||0)/100);
-  const mortgageM=f.includeMortgageInCashflow?(Number(f.loanPayment)||0):0;
-  const netRental=grossRental-taxesM-insM-floodM-hoaM-pmM-mortgageM;
   return <div style={{maxHeight:"70vh",overflowY:"auto",paddingRight:4}}>
     <Grid2><Field label="Owner / LLC"><Inp placeholder="Smith Holdings LLC" value={f.ownerName||""} onChange={set("ownerName")}/></Field><Field label="Property Type"><Sel value={f.propertyType} onChange={set("propertyType")}>{PROP_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field></Grid2>
     <Field label="Address"><Inp placeholder="123 Main St, Tampa FL" value={f.address} onChange={set("address")}/></Field>
-    <Grid2><Field label="Purchase Price"><MoneyInput value={f.purchasePrice||""} onChange={set("purchasePrice")}/></Field><Field label="Current Value"><MoneyInput value={f.currentValue||""} onChange={set("currentValue")}/></Field></Grid2>
+    <Grid2><Field label="Purchase Price"><Inp type="number" value={f.purchasePrice||""} onChange={set("purchasePrice")}/></Field><Field label="Current Value"><Inp type="number" value={f.currentValue||""} onChange={set("currentValue")}/></Field></Grid2>
     <Grid2><Field label="Purchase Date"><Inp type="date" value={f.purchaseDate||""} onChange={set("purchaseDate")}/></Field><Field label="Loan Type"><Sel value={f.loanType} onChange={set("loanType")}>{LOAN_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field></Grid2>
-    <Grid2><Field label="Lender"><Inp value={f.lender||""} onChange={set("lender")}/></Field><Field label="Loan Balance"><MoneyInput value={f.loanBalance||""} onChange={set("loanBalance")}/></Field></Grid2>
-    <Grid2><Field label="Interest Rate (%)"><Inp type="number" step="0.01" value={f.interestRate||""} onChange={set("interestRate")}/></Field><Field label="Monthly Payment"><MoneyInput value={f.loanPayment||""} onChange={set("loanPayment")}/></Field></Grid2>
-    <Grid2><Field label="Loan Maturity Date"><Inp type="date" value={f.loanMaturityDate||""} onChange={set("loanMaturityDate")}/></Field><Field label="Rental Income/mo"><MoneyInput value={f.rentalIncome||""} onChange={set("rentalIncome")}/></Field></Grid2>
-    <Grid2><Field label="Property Taxes/yr"><MoneyInput value={f.propertyTaxes||""} onChange={set("propertyTaxes")}/></Field><Field label="Utilities/mo"><MoneyInput value={f.utilities||""} onChange={set("utilities")}/></Field></Grid2>
-    <Grid2><Field label="Insurance Company"><Inp value={f.insuranceCompany||""} onChange={set("insuranceCompany")}/></Field><Field label="Insurance Premium/yr"><MoneyInput value={f.insurancePremium||""} onChange={set("insurancePremium")}/></Field></Grid2>
+    <Grid2><Field label="Lender"><Inp value={f.lender||""} onChange={set("lender")}/></Field><Field label="Loan Balance"><Inp type="number" value={f.loanBalance||""} onChange={set("loanBalance")}/></Field></Grid2>
+    <Grid2><Field label="Interest Rate (%)"><Inp type="number" step="0.01" value={f.interestRate||""} onChange={set("interestRate")}/></Field><Field label="Monthly Payment"><Inp type="number" value={f.loanPayment||""} onChange={set("loanPayment")}/></Field></Grid2>
+    <Grid2><Field label="Loan Maturity Date"><Inp type="date" value={f.loanMaturityDate||""} onChange={set("loanMaturityDate")}/></Field><Field label="Rental Income/mo"><Inp type="number" value={f.rentalIncome||""} onChange={set("rentalIncome")}/></Field></Grid2>
+    <Grid2><Field label="Property Taxes/yr"><Inp type="number" value={f.propertyTaxes||""} onChange={set("propertyTaxes")}/></Field><Field label="Utilities/mo"><Inp type="number" value={f.utilities||""} onChange={set("utilities")}/></Field></Grid2>
+    <Grid2><Field label="Insurance Company"><Inp value={f.insuranceCompany||""} onChange={set("insuranceCompany")}/></Field><Field label="Insurance Premium/yr"><Inp type="number" value={f.insurancePremium||""} onChange={set("insurancePremium")}/></Field></Grid2>
     <div style={{marginBottom:14}}><label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.floodInsurance?"#e8f0f8":B.bg,borderRadius:8,border:`1px solid ${f.floodInsurance?B.navyMid:B.border}`}}><input type="checkbox" checked={!!f.floodInsurance} onChange={setChk("floodInsurance")} style={{width:16,height:16,accentColor:B.navy}}/><span style={{fontSize:13,color:B.navy,fontWeight:600}}>Flood Insurance</span></label></div>
-    {f.floodInsurance&&<Grid2><Field label="Flood Insurance Co."><Inp value={f.floodInsuranceCompany||""} onChange={set("floodInsuranceCompany")}/></Field><Field label="Flood Premium/yr"><MoneyInput value={f.floodInsurancePremium||""} onChange={set("floodInsurancePremium")}/></Field></Grid2>}
-
-    {/* Rental Expenses section */}
-    <div style={{marginTop:18,marginBottom:8,paddingTop:14,borderTop:`1px solid ${B.borderLight}`}}>
-      <div style={{fontSize:11,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>Rental Expenses (used in Cash Flow projections)</div>
-    </div>
-    <Grid2>
-      <Field label="HOA / Monthly Fee ($)"><MoneyInput placeholder="350" value={f.hoaFee||""} onChange={set("hoaFee")}/></Field>
-      <Field label="Property Management Fee (%)"><Inp type="number" step="0.1" placeholder="e.g., 8" value={f.propertyManagementFeePct||""} onChange={set("propertyManagementFeePct")}/></Field>
-    </Grid2>
-    <div style={{marginBottom:14}}>
-      <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.includeMortgageInCashflow?"#e8f0f8":B.bg,borderRadius:8,border:`1px solid ${f.includeMortgageInCashflow?B.navyMid:B.border}`}}>
-        <input type="checkbox" checked={!!f.includeMortgageInCashflow} onChange={setChk("includeMortgageInCashflow")} style={{width:16,height:16,accentColor:B.navy}}/>
-        <span style={{fontSize:13,color:B.navy,fontWeight:600}}>Subtract mortgage payment from rental cash flow</span>
-      </label>
-    </div>
-    {grossRental>0&&<div style={{background:netRental>=0?"#e0f5e9":"#fde8e8",border:`1px solid ${netRental>=0?"#2e9e57":"#d43030"}`,borderRadius:8,padding:"12px 14px",marginBottom:14,fontSize:12}}>
-      <div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:6}}>Estimated Monthly Net Rental</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:4,color:B.textMid,fontFamily:"inherit"}}>
-        <span>Gross rental</span><span style={{fontWeight:600,textAlign:"right"}}>{fmtMoney(grossRental)}</span>
-        <span>– Property taxes (1/12)</span><span style={{textAlign:"right"}}>−{fmtMoney(taxesM)}</span>
-        <span>– Insurance (1/12)</span><span style={{textAlign:"right"}}>−{fmtMoney(insM)}</span>
-        {floodM>0&&<><span>– Flood insurance (1/12)</span><span style={{textAlign:"right"}}>−{fmtMoney(floodM)}</span></>}
-        <span>– HOA</span><span style={{textAlign:"right"}}>−{fmtMoney(hoaM)}</span>
-        <span>– Property mgmt ({Number(f.propertyManagementFeePct)||0}%)</span><span style={{textAlign:"right"}}>−{fmtMoney(pmM)}</span>
-        {f.includeMortgageInCashflow&&<><span>– Mortgage payment</span><span style={{textAlign:"right"}}>−{fmtMoney(mortgageM)}</span></>}
-        <span style={{fontWeight:700,paddingTop:4,borderTop:`1px solid ${netRental>=0?"#2e9e57":"#d43030"}`,color:netRental>=0?"#0d5c2b":"#8b1a1a"}}>Net per month</span>
-        <span style={{fontWeight:700,paddingTop:4,borderTop:`1px solid ${netRental>=0?"#2e9e57":"#d43030"}`,textAlign:"right",color:netRental>=0?"#0d5c2b":"#8b1a1a"}}>{netRental<0?"−":""}{fmtMoney(Math.abs(netRental))}</span>
-      </div>
-    </div>}
-
+    {f.floodInsurance&&<Grid2><Field label="Flood Insurance Co."><Inp value={f.floodInsuranceCompany||""} onChange={set("floodInsuranceCompany")}/></Field><Field label="Flood Premium/yr"><Inp type="number" value={f.floodInsurancePremium||""} onChange={set("floodInsurancePremium")}/></Field></Grid2>}
     <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Property"}</Btn></div>
   </div>;
@@ -1072,7 +744,7 @@ function ValuableForm({initial,onSave,onClose}){
   return <div>
     <Grid2><Field label="Category"><Sel value={f.category} onChange={set("category")}>{VALUABLE_CATS.map(c=><option key={c}>{c}</option>)}</Sel></Field><Field label="Year"><Inp type="number" placeholder="2023" value={f.year||""} onChange={set("year")}/></Field></Grid2>
     <Field label="Description"><Inp placeholder="2023 Ferrari Roma" value={f.description} onChange={set("description")}/></Field>
-    <Grid2><Field label="Make / Model"><Inp value={f.makeModel||""} onChange={set("makeModel")}/></Field><Field label="Estimated Value"><MoneyInput value={f.estimatedValue||""} onChange={set("estimatedValue")}/></Field></Grid2>
+    <Grid2><Field label="Make / Model"><Inp value={f.makeModel||""} onChange={set("makeModel")}/></Field><Field label="Estimated Value"><Inp type="number" value={f.estimatedValue||""} onChange={set("estimatedValue")}/></Field></Grid2>
     <div style={{marginBottom:14}}><label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.insured?"#e8f0f8":B.bg,borderRadius:8,border:`1px solid ${f.insured?B.navyMid:B.border}`}}><input type="checkbox" checked={!!f.insured} onChange={e=>setF(p=>({...p,insured:e.target.checked}))} style={{width:16,height:16,accentColor:B.navy}}/><span style={{fontSize:13,color:B.navy,fontWeight:600}}>Insured</span></label></div>
     {f.insured&&<Field label="Insurance Company"><Inp value={f.insuranceCompany||""} onChange={set("insuranceCompany")}/></Field>}
     <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
@@ -1089,7 +761,7 @@ function SimpleDealForm({contacts=[],onSave,onClose}){
   return <div>
     <Field label="Deal Title"><Inp placeholder="Estate planning engagement" value={f.title} onChange={set("title")}/></Field>
     {contacts.length>0&&<Field label="Contact"><Sel value={f.contactId||""} onChange={set("contactId")}><option value="">— None —</option>{contacts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Sel></Field>}
-    <Grid2><Field label="Value ($)"><MoneyInput value={f.value||""} onChange={set("value")}/></Field><Field label="Close Date"><Inp type="date" value={f.closeDate||""} onChange={set("closeDate")}/></Field></Grid2>
+    <Grid2><Field label="Value ($)"><Inp type="number" value={f.value||""} onChange={set("value")}/></Field><Field label="Close Date"><Inp type="date" value={f.closeDate||""} onChange={set("closeDate")}/></Field></Grid2>
     <Field label="Stage"><Sel value={f.stage} onChange={set("stage")}>{STAGES.map(s=><option key={s}>{s}</option>)}</Sel></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Deal"}</Btn></div>
   </div>;
@@ -1105,615 +777,13 @@ function AccountForm({initial,onSave,onClose}){
   return <div>
     <Grid2><Field label="Institution"><Inp placeholder="Merrill Lynch" value={f.institution} onChange={set("institution")}/></Field><Field label="Banker Name"><Inp value={f.bankerName||""} onChange={set("bankerName")}/></Field></Grid2>
     <Field label="Account Type"><Sel value={f.accountType} onChange={set("accountType")}>{ACCT_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field>
-    <Grid2><Field label="Starting Balance"><MoneyInput value={f.startingBalance||""} onChange={set("startingBalance")}/></Field><Field label="Current Balance"><MoneyInput value={f.currentBalance||""} onChange={set("currentBalance")}/></Field></Grid2>
+    <Grid2><Field label="Starting Balance"><Inp type="number" value={f.startingBalance||""} onChange={set("startingBalance")}/></Field><Field label="Current Balance"><Inp type="number" value={f.currentBalance||""} onChange={set("currentBalance")}/></Field></Grid2>
     {pct!==null&&<div style={{background:Number(pct)>=0?"#e0f5e9":"#fde8e8",border:`1px solid ${Number(pct)>=0?"#2e9e57":"#d43030"}`,borderRadius:8,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
       <span style={{fontSize:20}}>{Number(pct)>=0?"📈":"📉"}</span>
       <div style={{fontSize:18,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:Number(pct)>=0?"#0d5c2b":"#8b1a1a"}}>{Number(pct)>=0?"+":""}{pct}% performance</div>
     </div>}
     <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Account"}</Btn></div>
-  </div>;
-}
-
-// ── CASH FLOW EVENT FORM ──────────────────────────────────────────────────────
-function CashFlowEventForm({initial,onSave,onClose}){
-  const blank={direction:"income",eventType:"Salary",description:"",amount:"",frequency:"once",startDate:new Date().toISOString().slice(0,10),endDate:"",taxTreatment:"ordinary",notes:""};
-  const[f,setF]=useState(()=>{
-    if(!initial)return blank;
-    return{...blank,...initial,direction:initial.direction||"income"};
-  });
-  const[saving,setSaving]=useState(false);
-  const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
-  // When user switches direction, swap default eventType to a sensible value
-  const setDirection=(dir)=>{
-    setF(p=>{
-      const next={...p,direction:dir};
-      // If the eventType doesn't fit the new direction, switch to a default
-      if(dir==="expense"&&!CF_EXPENSE_CATEGORIES.includes(p.eventType))next.eventType="Rent/Mortgage";
-      if(dir==="income"&&!CF_EVENT_TYPES.includes(p.eventType))next.eventType="Salary";
-      return next;
-    });
-  };
-  const save=async()=>{if(!f.amount||!f.startDate)return;setSaving(true);await onSave(f);onClose();};
-  const isExpense=f.direction==="expense";
-  const typeOptions=isExpense?CF_EXPENSE_CATEGORIES:CF_EVENT_TYPES;
-  return <div>
-    {/* Direction toggle */}
-    <Field label="Type">
-      <div style={{display:"flex",gap:8,background:B.bg,borderRadius:8,padding:4}}>
-        <button type="button" onClick={()=>setDirection("income")} style={{flex:1,background:!isExpense?B.white:"transparent",border:!isExpense?`1px solid ${B.border}`:"1px solid transparent",borderRadius:6,padding:"8px 12px",fontSize:13,fontWeight:!isExpense?700:500,color:!isExpense?"#0d5c2b":B.textSoft,cursor:"pointer",fontFamily:"inherit",boxShadow:!isExpense?B.shadow:"none"}}>📈 Income</button>
-        <button type="button" onClick={()=>setDirection("expense")} style={{flex:1,background:isExpense?B.white:"transparent",border:isExpense?`1px solid ${B.border}`:"1px solid transparent",borderRadius:6,padding:"8px 12px",fontSize:13,fontWeight:isExpense?700:500,color:isExpense?"#8b1a1a":B.textSoft,cursor:"pointer",fontFamily:"inherit",boxShadow:isExpense?B.shadow:"none"}}>📉 Expense</button>
-      </div>
-    </Field>
-    <Grid2>
-      <Field label={isExpense?"Category":"Event Type"}><Sel value={f.eventType} onChange={set("eventType")}>{typeOptions.map(t=><option key={t}>{t}</option>)}</Sel></Field>
-      <Field label="Frequency"><Sel value={f.frequency} onChange={set("frequency")}>{CF_FREQUENCIES.map(fr=><option key={fr.value} value={fr.value}>{fr.label}</option>)}</Sel></Field>
-    </Grid2>
-    <Field label="Description"><Inp placeholder={isExpense?"e.g., Monthly grocery budget":"e.g., Acme Corp Q4 Bonus"} value={f.description||""} onChange={set("description")}/></Field>
-    {isExpense?
-      <Field label="Amount ($)"><MoneyInput value={f.amount||""} onChange={set("amount")}/></Field>
-    :<Grid2>
-      <Field label="Gross Amount ($)"><MoneyInput value={f.amount||""} onChange={set("amount")}/></Field>
-      <Field label="Tax Treatment"><Sel value={f.taxTreatment} onChange={set("taxTreatment")}>{CF_TAX_TREATMENTS.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</Sel></Field>
-    </Grid2>}
-    <Grid2>
-      <Field label={f.frequency==="once"?"Date":"Start Date"}><Inp type="date" value={f.startDate||""} onChange={set("startDate")}/></Field>
-      {f.frequency!=="once"&&<Field label="End Date (optional)"><Inp type="date" value={f.endDate||""} onChange={set("endDate")}/></Field>}
-    </Grid2>
-    <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
-    <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
-      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-      <Btn onClick={save} disabled={saving||!f.amount||!f.startDate}>{saving?"Saving…":"Save"}</Btn>
-    </div>
-  </div>;
-}
-
-// ── CASH FLOW REPORT (printable) ──────────────────────────────────────────────
-function CashFlowReport({family,projectionMonths,filingStatus,baseIncome,stateRate,stateName,localRate,monthlyData,events,onClose}){
-  const totalIncome=monthlyData.reduce((s,m)=>s+(m.income||0),0);
-  const totalGross=monthlyData.reduce((s,m)=>s+m.gross,0);
-  const totalTax=monthlyData.reduce((s,m)=>s+m.tax,0);
-  const totalExpense=monthlyData.reduce((s,m)=>s+(m.expense||0),0);
-  const totalNet=monthlyData.reduce((s,m)=>s+m.net,0);
-  const incomeEvents=events.filter(e=>e.direction!=="expense");
-  const expenseEvents=events.filter(e=>e.direction==="expense");
-  const projOption=CF_PROJECTION_OPTIONS.find(o=>o.value===projectionMonths);
-  const projectionLabel=projOption?projOption.label:projectionMonths+" months";
-  const filingLabel=filingStatus==="mfj"?"Married Filing Jointly":"Single";
-  const print=()=>{
-    const w=window.open("","_blank");
-    // Build SVG bar chart (stacked: income gold positive; expenses red negative)
-    const chartW=700,chartH=200,padL=50,padR=10,padT=20,padB=40;
-    const innerW=chartW-padL-padR;
-    const innerH=chartH-padT-padB;
-    const barW=innerW/monthlyData.length;
-    const incomeNet=monthlyData.map(m=>(m.income||0)-(m.tax||0));
-    const expenseArr=monthlyData.map(m=>m.expense||0);
-    const maxPos=Math.max(...incomeNet,0);
-    const maxNeg=Math.max(...expenseArr,0)+Math.max(...incomeNet.map(v=>v<0?Math.abs(v):0),0);
-    const range=maxPos+maxNeg;
-    const zeroY=range>0?padT+innerH-(maxNeg/range)*innerH:padT+innerH;
-    const cumulative=[];
-    let runTotal=0;
-    monthlyData.forEach(m=>{runTotal+=m.net;cumulative.push(runTotal);});
-    const minCum=Math.min(...cumulative,0);
-    const maxCum2=Math.max(...cumulative,0);
-    const cumRange=maxCum2-minCum||1;
-    const cumPath=cumulative.map((v,i)=>{
-      const x=padL+barW*i+barW/2;
-      const y=padT+innerH-((v-minCum)/cumRange)*innerH;
-      return(i===0?"M":"L")+x.toFixed(1)+","+y.toFixed(1);
-    }).join(" ");
-    const bars=monthlyData.map((m,i)=>{
-      if(range<=0)return"";
-      const x=padL+barW*i+1;
-      const w=barW-2;
-      const inc=incomeNet[i];
-      const exp=expenseArr[i];
-      let svg="";
-      if(inc>=0){
-        const h=(inc/range)*innerH;
-        svg+=`<rect x="${x}" y="${zeroY-h}" width="${w}" height="${h}" fill="#ceb684" opacity="0.78"/>`;
-      }else{
-        const h=(Math.abs(inc)/range)*innerH;
-        svg+=`<rect x="${x}" y="${zeroY}" width="${w}" height="${h}" fill="#d43030" opacity="0.55"/>`;
-      }
-      if(exp>0){
-        const h=(exp/range)*innerH;
-        const yStart=inc<0?zeroY+(Math.abs(inc)/range)*innerH:zeroY;
-        svg+=`<rect x="${x}" y="${yStart}" width="${w}" height="${h}" fill="#d43030" opacity="0.78"/>`;
-      }
-      return svg;
-    }).join("");
-    const yLabels=`<text x="${padL-6}" y="${padT+10}" font-size="9" fill="#8fa0b2" text-anchor="end">${fmtMoneyShort(maxPos)}</text>
-      <text x="${padL-6}" y="${zeroY+3}" font-size="9" fill="#8fa0b2" text-anchor="end">$0</text>
-      ${maxNeg>0?`<text x="${padL-6}" y="${padT+innerH-3}" font-size="9" fill="#8fa0b2" text-anchor="end">−${fmtMoneyShort(maxNeg)}</text>`:""}`;
-    const xLabels=monthlyData.filter((_,i)=>i%Math.max(1,Math.floor(monthlyData.length/8))===0).map((m,idx,arr)=>{
-      const realIdx=monthlyData.findIndex(x=>x.label===m.label);
-      const x=padL+barW*realIdx+barW/2;
-      return`<text x="${x}" y="${padT+innerH+15}" font-size="8" fill="#8fa0b2" text-anchor="middle">${m.label}</text>`;
-    }).join("");
-    const zeroLine=maxNeg>0?`<line x1="${padL}" x2="${chartW-padR}" y1="${zeroY}" y2="${zeroY}" stroke="#5a6e84" stroke-width="0.5" stroke-dasharray="2,2"/>`:"";
-    w.document.write(`<!DOCTYPE html><html><head><title> </title>
-    <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:#092b49;background:#fff;padding:40px;font-size:12px;line-height:1.6;}
-    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #ceb684;}
-    .logo-img{height:120px;width:auto;display:block;}
-    h1{font-size:22px;font-weight:700;margin-bottom:2px;}
-    .sub{font-size:12px;color:#5a6e84;margin-top:4px;}
-    .date{font-size:11px;color:#8fa0b2;margin-top:2px;}
-    h2{font-size:13px;font-weight:800;color:#092b49;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #ceb684;letter-spacing:.06em;text-transform:uppercase;}
-    .assumptions{background:#f9f7f3;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
-    .a-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:3px;}
-    .a-v{font-size:13px;font-weight:700;color:#092b49;}
-    .stats{display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap;}
-    .stat{background:#f9f7f3;border-radius:8px;padding:12px 16px;flex:1;min-width:120px;border-top:2px solid #ceb684;}
-    .stat-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:4px;}
-    .stat-v{font-size:18px;font-weight:700;color:#092b49;}
-    .stat-red{border-top-color:#d43030;}
-    table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11px;}
-    th{background:#092b49;color:#ceb684;padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
-    td{padding:5px 10px;border-bottom:1px solid #ede8de;color:#293d5c;vertical-align:top;}
-    tr:nth-child(even) td{background:#f9f7f3;}
-    .num{text-align:right;font-variant-numeric:tabular-nums;}
-    .neg{color:#8b1a1a;}
-    .legend{display:flex;gap:14px;font-size:9px;color:#5a6e84;margin-top:6px;}
-    .legend span{display:flex;align-items:center;gap:4px;}
-    .legend i{display:inline-block;width:8px;height:8px;border-radius:1px;}
-    .chart-box{background:#f9f7f3;border-radius:8px;padding:14px;margin-bottom:14px;}
-    .disclaimer{margin-top:24px;padding:12px 14px;background:#fef3e2;border:1px solid #fcd97d;border-radius:6px;font-size:10px;color:#8a5c00;line-height:1.5;}
-    @media print{body{padding:20px;}}
-    </style></head><body>
-    <div class="header">
-      <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/></div>
-      <div style="text-align:right"><h1>Cash Flow Projection</h1><div class="sub">${family.name}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
-    </div>
-    <div class="assumptions">
-      <div><div class="a-l">Projection</div><div class="a-v">${projectionLabel}</div></div>
-      <div><div class="a-l">Filing Status</div><div class="a-v">${filingLabel}</div></div>
-      <div><div class="a-l">Base Income</div><div class="a-v">${fmtMoney(baseIncome)}</div></div>
-      <div><div class="a-l">State (${stateName||"—"})</div><div class="a-v">${(Number(stateRate)||0).toFixed(2)}%</div></div>
-      <div><div class="a-l">Local / City</div><div class="a-v">${(Number(localRate)||0).toFixed(2)}%</div></div>
-    </div>
-    <div class="stats">
-      <div class="stat"><div class="stat-l">Total Gross Income</div><div class="stat-v">${fmtMoney(totalGross)}</div></div>
-      <div class="stat stat-red"><div class="stat-l">Total Tax</div><div class="stat-v">${fmtMoney(totalTax)}</div></div>
-      <div class="stat stat-red"><div class="stat-l">Total Expenses</div><div class="stat-v">${fmtMoney(totalExpense)}</div></div>
-      <div class="stat"><div class="stat-l">Total Net</div><div class="stat-v ${totalNet<0?"neg":""}">${totalNet<0?"−":""}${fmtMoney(Math.abs(totalNet))}</div></div>
-      <div class="stat"><div class="stat-l">Effective Rate</div><div class="stat-v">${totalGross>0?((totalTax/totalGross)*100).toFixed(1):"0.0"}%</div></div>
-    </div>
-    <h2>Cash Flow by Month</h2>
-    <div class="chart-box">
-      <svg viewBox="0 0 ${chartW} ${chartH}" width="100%" style="display:block">
-        ${bars}
-        ${zeroLine}
-        <path d="${cumPath}" fill="none" stroke="#092b49" stroke-width="1.5"/>
-        ${yLabels}
-        ${xLabels}
-      </svg>
-      <div class="legend"><span><i style="background:#ceb684"></i>Income (net)</span><span><i style="background:#d43030"></i>Expenses</span><span><i style="background:#092b49;width:14px;height:2px;border-radius:0"></i>Cumulative</span></div>
-    </div>
-    ${incomeEvents.length>0?`<h2>Income Events</h2>
-    <table><thead><tr><th>Type</th><th>Description</th><th>Frequency</th><th>Start</th><th class="num">Gross</th><th>Tax</th><th class="num">Net (proj.)</th></tr></thead><tbody>
-    ${incomeEvents.map(e=>{
-      const treatLabel=CF_TAX_TREATMENTS.find(t=>t.value===e.taxTreatment)?.label.split(" (")[0]||e.taxTreatment;
-      const freqLabel=CF_FREQUENCIES.find(fr=>fr.value===e.frequency)?.label||e.frequency;
-      return`<tr><td>${e.eventType}</td><td>${e.description||"—"}</td><td>${freqLabel}</td><td>${fmt(e.startDate)}</td><td class="num">${fmtMoney(e.amount)}</td><td>${treatLabel}</td><td class="num">${fmtMoney(e.projectedNet||0)}</td></tr>`;
-    }).join("")}
-    </tbody></table>`:""}
-    ${expenseEvents.length>0?`<h2>Expense Items</h2>
-    <table><thead><tr><th>Category</th><th>Description</th><th>Frequency</th><th>Start</th><th class="num">Amount</th><th class="num">Total (proj.)</th></tr></thead><tbody>
-    ${expenseEvents.map(e=>{
-      const freqLabel=CF_FREQUENCIES.find(fr=>fr.value===e.frequency)?.label||e.frequency;
-      return`<tr><td>${e.eventType}</td><td>${e.description||"—"}</td><td>${freqLabel}</td><td>${fmt(e.startDate)}</td><td class="num neg">−${fmtMoney(e.amount)}</td><td class="num neg">−${fmtMoney(Math.abs(e.projectedNet||0))}</td></tr>`;
-    }).join("")}
-    </tbody></table>`:""}
-    <h2>Monthly Breakdown</h2>
-    <table><thead><tr><th>Month</th><th class="num">Income</th><th class="num">Tax</th><th class="num">Expenses</th><th class="num">Net</th><th class="num">Cumulative</th></tr></thead><tbody>
-    ${(()=>{let cum=0;return monthlyData.map(m=>{cum+=m.net;const negNet=m.net<0;const negCum=cum<0;return`<tr><td>${m.label}</td><td class="num">${fmtMoney(m.income||0)}</td><td class="num">${fmtMoney(m.tax)}</td><td class="num neg">${m.expense?"−"+fmtMoney(m.expense):"$0"}</td><td class="num ${negNet?"neg":""}">${negNet?"−":""}${fmtMoney(Math.abs(m.net))}</td><td class="num ${negCum?"neg":""}"><strong>${negCum?"−":""}${fmtMoney(Math.abs(cum))}</strong></td></tr>`;}).join("");})()}
-    </tbody></table>
-    <div class="disclaimer">
-      <strong>Disclaimer:</strong> This cash flow projection is a planning estimate only and is not tax advice. Tax calculations use 2026 federal brackets applied marginally on top of base income. Expenses are treated as after-tax outflows. Actual taxes vary based on deductions, credits, AMT, phase-outs, additional Medicare tax, state-specific rules, and other factors. Consult a qualified tax professional before making decisions based on these figures.
-    </div>
-    </body></html>`);
-    w.document.close();w.focus();setTimeout(()=>w.print(),400);
-  };
-
-  return <Modal title="Cash Flow Report" onClose={onClose} wide>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:24}}>
-      <StatBox label="Total Gross" value={fmtMoney(totalGross)} accent={B.gold}/>
-      <StatBox label="Total Tax" value={fmtMoney(totalTax)} accent="#d43030"/>
-      <StatBox label="Total Expenses" value={fmtMoney(totalExpense)} accent="#d43030"/>
-      <StatBox label="Total Net" value={(totalNet<0?"−":"")+fmtMoney(Math.abs(totalNet))} accent={B.navy}/>
-    </div>
-    <div style={{display:"flex",gap:12,justifyContent:"flex-end"}}>
-      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-      <Btn variant="gold" onClick={print}>🖨 Print Report</Btn>
-    </div>
-  </Modal>;
-}
-
-// ── CASH FLOW VIEW (the tab content) ──────────────────────────────────────────
-function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
-  const isMobile=useIsMobile();
-  const[modal,setModal]=useState(null);
-  const[reportOpen,setReportOpen]=useState(false);
-  const[expandedBreakdowns,setExpandedBreakdowns]=useState({});
-  const toggleBreakdown=(id)=>setExpandedBreakdowns(p=>({...p,[id]:!p[id]}));
-  // Settings: DB (family.cashFlowSettings) is source of truth, localStorage is fallback
-  const settingsKey=`cf_settings_${family.id}`;
-  const defaults={projectionMonths:60,filingStatus:"mfj",baseIncome:0,stateCode:"FL",stateTaxRate:0,localTaxRate:0,localTaxLabel:"",includeRental:false};
-  const loadSettings=()=>{
-    // 1) Try DB
-    if(family.cashFlowSettings&&typeof family.cashFlowSettings==="object"){
-      return{...defaults,...family.cashFlowSettings};
-    }
-    // 2) Fallback to localStorage
-    try{const s=JSON.parse(localStorage.getItem(settingsKey)||"{}");return{...defaults,...s};}
-    catch{return defaults;}
-  };
-  const[settings,setSettings]=useState(loadSettings);
-  // Reload settings when family.cashFlowSettings changes (e.g., after advisor saves and client reloads)
-  useEffect(()=>{setSettings(loadSettings());// eslint-disable-next-line
-  },[family.id,family.cashFlowSettings]);
-  const updateSetting=async(k,v)=>{
-    if(readOnly)return;
-    const next={...settings,[k]:v};
-    setSettings(next);
-    // Save to localStorage (immediate UX) and DB (so client view sees same)
-    try{localStorage.setItem(settingsKey,JSON.stringify(next));}catch{}
-    const{error}=await sb.from("families").update({cash_flow_settings:next}).eq("id",family.id);
-    if(error){toast&&toast("Could not save settings: "+error.message,"error");return;}
-    if(reload)reload("families");
-  };
-  const updateSettings=async(patch)=>{
-    if(readOnly)return;
-    const next={...settings,...patch};
-    setSettings(next);
-    try{localStorage.setItem(settingsKey,JSON.stringify(next));}catch{}
-    const{error}=await sb.from("families").update({cash_flow_settings:next}).eq("id",family.id);
-    if(error){toast&&toast("Could not save settings: "+error.message,"error");return;}
-    if(reload)reload("families");
-  };
-
-  // Add synthetic rental events if toggled (with full expense math)
-  const allEvents=useMemo(()=>{
-    // Backfill direction='income' for any legacy events without it; sort by sortOrder asc
-    const e=events.map(ev=>({...ev,direction:ev.direction||"income"}));
-    if(settings.includeRental){
-      properties.filter(p=>Number(p.rentalIncome)>0).forEach(p=>{
-        const grossRental=Number(p.rentalIncome)||0;
-        const taxesM=(Number(p.propertyTaxes)||0)/12;
-        const insM=(Number(p.insurancePremium)||0)/12;
-        const floodM=(Number(p.floodInsurancePremium)||0)/12;
-        const hoaM=Number(p.hoaFee)||0;
-        const pmPct=Number(p.propertyManagementFeePct)||0;
-        const pmM=grossRental*(pmPct/100);
-        const includesMortgage=p.includeMortgageInCashflow!==false;
-        const mortgageM=includesMortgage?(Number(p.loanPayment)||0):0;
-        const netRental=grossRental-taxesM-insM-floodM-hoaM-pmM-mortgageM;
-        e.push({
-          id:`rental_${p.id}`,
-          _synthetic:true,
-          direction:"income",
-          _breakdown:{
-            grossRental,propertyTaxesMonthly:taxesM,insuranceMonthly:insM,floodInsuranceMonthly:floodM,
-            hoaMonthly:hoaM,pmFeeMonthly:pmM,pmFeePct:pmPct,mortgageMonthly:mortgageM,includesMortgage,netRental,
-          },
-          eventType:"Rental Income (Net)",
-          description:p.address,
-          amount:netRental,
-          frequency:"monthly",
-          startDate:new Date().toISOString().slice(0,10),
-          endDate:null,
-          taxTreatment:netRental>0?"ordinary":"none",
-          notes:`From property: ${p.address}`,
-          sortOrder:999999, // synthetic always at the end of income list
-        });
-      });
-    }
-    // Sort: synthetic events go after manual events by their sortOrder
-    return e.sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0));
-  },[events,settings.includeRental,properties]);
-
-  // Build month-by-month projection
-  const{monthlyData,enrichedEvents}=useMemo(()=>{
-    const start=new Date();start.setDate(1);start.setHours(0,0,0,0);
-    const months=[];
-    for(let i=0;i<settings.projectionMonths;i++){
-      const d=new Date(start);d.setMonth(d.getMonth()+i);
-      months.push({date:new Date(d),label:d.toLocaleDateString("en-US",{month:"short",year:"2-digit"}),income:0,tax:0,expense:0,gross:0,net:0});
-    }
-    const enriched=allEvents.map(ev=>{
-      const occurrences=expandEvent(ev,start,settings.projectionMonths);
-      const isExpense=ev.direction==="expense";
-      let projGross=0;let projTax=0;let projExpense=0;
-      occurrences.forEach(occ=>{
-        const monthIdx=(occ.date.getFullYear()-start.getFullYear())*12+(occ.date.getMonth()-start.getMonth());
-        if(monthIdx<0||monthIdx>=months.length)return;
-        if(isExpense){
-          // Expenses: amount is already after-tax, just subtract from net
-          const amt=Math.abs(Number(occ.amount)||0);
-          projExpense+=amt;
-          months[monthIdx].expense+=amt;
-          months[monthIdx].net-=amt;
-        }else{
-          // Income event: calculate tax on top of base income
-          const{tax,net}=calcEventTax(occ.amount,ev.taxTreatment,Number(settings.baseIncome)||0,settings.filingStatus,settings.stateTaxRate,settings.localTaxRate);
-          projGross+=occ.amount;projTax+=tax;
-          months[monthIdx].gross+=occ.amount;
-          months[monthIdx].income+=occ.amount;
-          months[monthIdx].tax+=tax;
-          months[monthIdx].net+=net;
-        }
-      });
-      if(isExpense){
-        return{...ev,projectedGross:0,projectedTax:0,projectedExpense:projExpense,projectedNet:-projExpense};
-      }
-      return{...ev,projectedGross:projGross,projectedTax:projTax,projectedNet:projGross-projTax};
-    });
-    return{monthlyData:months,enrichedEvents:enriched};
-  },[allEvents,settings]);
-
-  const totalIncome=monthlyData.reduce((s,m)=>s+m.income,0);
-  const totalGross=monthlyData.reduce((s,m)=>s+m.gross,0);
-  const totalTax=monthlyData.reduce((s,m)=>s+m.tax,0);
-  const totalExpense=monthlyData.reduce((s,m)=>s+m.expense,0);
-  const totalNet=monthlyData.reduce((s,m)=>s+m.net,0);
-  const effRate=totalGross>0?(totalTax/totalGross)*100:0;
-  // For chart scaling: max positive (income net), min (expenses + negative net rentals)
-  const cumulative=[];let run=0;monthlyData.forEach(m=>{run+=m.net;cumulative.push(run);});
-
-  // Add/edit/delete/reorder event
-  const addEvent=async(f)=>{
-    // New events go to the end of the list
-    const maxSort=Math.max(0,...events.map(e=>Number(e.sortOrder)||0));
-    const{error}=await sb.from("cash_flow_events").insert({family_id:family.id,direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null,sort_order:maxSort+10});
-    if(error)toast(error.message,"error");else{toast("Event added");reload("cash_flow_events");}
-  };
-  const editEvent=async(id,f)=>{
-    const{error}=await sb.from("cash_flow_events").update({direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null}).eq("id",id);
-    if(error)toast(error.message,"error");else{toast("Event updated");reload("cash_flow_events");}
-  };
-  const delEvent=async(id)=>{
-    const{error}=await sb.from("cash_flow_events").delete().eq("id",id);
-    if(error)toast(error.message,"error");else{toast("Event deleted");reload("cash_flow_events");}
-  };
-  // Reorder: swap sort_order with neighbor (within same direction list, in user-visible order)
-  const moveEvent=async(eventId,direction)=>{
-    // Build sorted list per direction so up/down only moves within income or within expenses
-    const list=[...events].sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0));
-    const idx=list.findIndex(e=>e.id===eventId);
-    if(idx===-1)return;
-    const target=direction==="up"?idx-1:idx+1;
-    if(target<0||target>=list.length)return;
-    // Swap sort_order values
-    const a=list[idx];
-    const b=list[target];
-    const aSort=Number(a.sortOrder)||0;
-    const bSort=Number(b.sortOrder)||0;
-    const{error:e1}=await sb.from("cash_flow_events").update({sort_order:bSort}).eq("id",a.id);
-    const{error:e2}=await sb.from("cash_flow_events").update({sort_order:aSort}).eq("id",b.id);
-    if(e1||e2){toast((e1||e2).message,"error");return;}
-    reload("cash_flow_events");
-  };
-
-  return <div style={{padding:readOnly?0:(isMobile?"16px 14px":"24px 28px")}}>
-    {/* Settings Bar */}
-    <div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:isMobile?14:18,marginBottom:18,boxShadow:B.shadow}}>
-      <div style={{fontSize:11,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Projection Settings{readOnly?" (read-only)":""}</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12}}>
-        <Field label="Projection Window">
-          <Sel value={settings.projectionMonths} disabled={readOnly} onChange={e=>updateSetting("projectionMonths",Number(e.target.value))}>
-            {CF_PROJECTION_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-          </Sel>
-        </Field>
-        <Field label="Filing Status">
-          <Sel value={settings.filingStatus} disabled={readOnly} onChange={e=>updateSetting("filingStatus",e.target.value)}>
-            <option value="mfj">Married Filing Jointly</option>
-            <option value="single">Single</option>
-          </Sel>
-        </Field>
-        <Field label="Base Annual Income">
-          <MoneyInput disabled={readOnly} value={settings.baseIncome||""} onChange={e=>updateSetting("baseIncome",Number(e.target.value)||0)} placeholder="0"/>
-        </Field>
-        <Field label="State">
-          <Sel value={settings.stateCode} disabled={readOnly} onChange={e=>{
-            const code=e.target.value;
-            const st=STATE_TAX_RATES.find(s=>s.code===code);
-            updateSettings({stateCode:code,stateTaxRate:st?st.rate:0});
-          }}>
-            {STATE_TAX_RATES.map(s=><option key={s.code} value={s.code}>{s.name} ({s.rate.toFixed(2)}%)</option>)}
-          </Sel>
-        </Field>
-        <Field label="Local / City Tax (%)">
-          <Inp type="number" step="0.01" disabled={readOnly} value={settings.localTaxRate||""} onChange={e=>updateSetting("localTaxRate",Number(e.target.value)||0)} placeholder="e.g., NYC 3.876"/>
-        </Field>
-      </div>
-      <div style={{marginTop:12,display:"flex",gap:14,flexWrap:"wrap",alignItems:"center"}}>
-        <label style={{display:"flex",alignItems:"center",gap:8,cursor:readOnly?"not-allowed":"pointer",fontSize:13,color:B.text,opacity:readOnly?0.7:1}}>
-          <input type="checkbox" disabled={readOnly} checked={!!settings.includeRental} onChange={e=>updateSetting("includeRental",e.target.checked)} style={{width:16,height:16,accentColor:B.navy}}/>
-          <span>Include rental income from properties</span>
-        </label>
-        {!readOnly&&<div style={{fontSize:11,color:B.textSoft,marginLeft:"auto"}}>State rate auto-fills from selection. Common local rates: NYC 3.876% · Philadelphia 3.75% · Detroit 2.4%</div>}
-      </div>
-    </div>
-
-    {/* Stats */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:18}}>
-      <StatBox label="Projected Gross" value={fmtMoney(totalGross)} accent={B.gold}/>
-      <StatBox label="Projected Tax" value={fmtMoney(totalTax)} accent="#d43030"/>
-      <StatBox label="Projected Net" value={fmtMoney(totalNet)} accent={B.navy}/>
-      <StatBox label="Effective Rate" value={effRate.toFixed(1)+"%"} accent={B.navyMid}/>
-    </div>
-
-    {/* Chart */}
-    {monthlyData.length>0&&<div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:18,marginBottom:18,boxShadow:B.shadow}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Cash Flow by Month</div>
-        <div style={{display:"flex",gap:14,fontSize:11,color:B.textSoft,alignItems:"center",flexWrap:"wrap"}}>
-          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:B.gold,borderRadius:2,display:"inline-block"}}/>Income (net)</span>
-          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:"#d43030",borderRadius:2,display:"inline-block"}}/>Expenses</span>
-          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:14,height:2,background:B.navy,display:"inline-block"}}/>Cumulative</span>
-        </div>
-      </div>
-      <GoldLine/>
-      <svg viewBox={`0 0 ${Math.max(700,monthlyData.length*18)} 240`} style={{width:"100%",height:isMobile?180:240,display:"block"}}>
-        {(() => {
-          const W=Math.max(700,monthlyData.length*18);const H=240;const padL=50,padR=15,padT=15,padB=35;
-          const innerW=W-padL-padR;const innerH=H-padT-padB;
-          const barW=innerW/monthlyData.length;
-          // Income net (after tax) goes up positive; expenses go down negative — stacked
-          const incomeNetByMonth=monthlyData.map(m=>m.income-m.tax);
-          const maxPos=Math.max(...incomeNetByMonth,0);
-          const minNeg=-Math.max(...monthlyData.map(m=>m.expense),0);
-          // Also account for net rentals that may be negative themselves
-          const rentalNegativeFloor=Math.min(...monthlyData.map(m=>Math.min(0,m.income-m.tax)),0);
-          const minOverall=Math.min(minNeg,rentalNegativeFloor);
-          const range=maxPos-minOverall;
-          const zeroY=range>0?padT+innerH-(Math.abs(minOverall)/range)*innerH:padT+innerH;
-          // Cumulative
-          const minCum=Math.min(...cumulative,0);
-          const maxCum2=Math.max(...cumulative,0);
-          const cumRange=maxCum2-minCum;
-          const cumZeroY=cumRange>0?padT+innerH-(Math.abs(minCum)/cumRange)*innerH:padT+innerH;
-          const cumPath=cumulative.map((v,i)=>{
-            const x=padL+barW*i+barW/2;
-            const y=cumRange>0?(padT+innerH-((v-minCum)/cumRange)*innerH):cumZeroY;
-            return(i===0?"M":"L")+x.toFixed(1)+","+y.toFixed(1);
-          }).join(" ");
-          const stepLabel=Math.max(1,Math.floor(monthlyData.length/(isMobile?6:12)));
-          return <>
-            {/* Grid lines */}
-            {[0.25,0.5,0.75,1].map(p=><line key={p} x1={padL} x2={W-padR} y1={padT+innerH-p*innerH} y2={padT+innerH-p*innerH} stroke={B.borderLight} strokeWidth="0.5"/>)}
-            {/* Stacked bars: income net above zero, expenses below */}
-            {monthlyData.map((m,i)=>{
-              if(range<=0)return null;
-              const x=padL+barW*i+1;
-              const w=barW-2;
-              const incomeNet=m.income-m.tax;
-              const expense=m.expense;
-              const elements=[];
-              if(incomeNet>=0){
-                const h=(incomeNet/range)*innerH;
-                elements.push(<rect key={`ig-${i}`} x={x} y={zeroY-h} width={w} height={h} fill={B.gold} opacity="0.78"/>);
-              }else{
-                // negative net rental: draw as red below zero (income side itself went negative)
-                const h=(Math.abs(incomeNet)/range)*innerH;
-                elements.push(<rect key={`in-${i}`} x={x} y={zeroY} width={w} height={h} fill="#d43030" opacity="0.55"/>);
-              }
-              if(expense>0){
-                const h=(expense/range)*innerH;
-                // If income was already negative, expense stacks below it
-                const yStart=incomeNet<0?zeroY+(Math.abs(incomeNet)/range)*innerH:zeroY;
-                elements.push(<rect key={`ex-${i}`} x={x} y={yStart} width={w} height={h} fill="#d43030" opacity="0.78"/>);
-              }
-              return elements;
-            })}
-            {/* Zero baseline */}
-            {minOverall<0&&<line x1={padL} x2={W-padR} y1={zeroY} y2={zeroY} stroke={B.navyMid} strokeWidth="0.7" strokeDasharray="2,2"/>}
-            {/* Cumulative line */}
-            <path d={cumPath} fill="none" stroke={B.navy} strokeWidth="1.8"/>
-            {/* Y axis labels */}
-            {[maxPos,0,minOverall].filter((v,i,arr)=>arr.indexOf(v)===i).map((v,i)=>{
-              const y=range>0?(padT+innerH-((v-minOverall)/range)*innerH):padT+innerH;
-              return<text key={i} x={padL-6} y={y+3} fontSize="9" fill={B.textMute} textAnchor="end">{fmtMoneyShort(v)}</text>;
-            })}
-            {/* X axis labels */}
-            {monthlyData.map((m,i)=>i%stepLabel!==0?null:<text key={i} x={padL+barW*i+barW/2} y={padT+innerH+14} fontSize="9" fill={B.textMute} textAnchor="middle">{m.label}</text>)}
-            {/* Bottom axis */}
-            <line x1={padL} x2={W-padR} y1={padT+innerH} y2={padT+innerH} stroke={B.border} strokeWidth="1"/>
-          </>;
-        })()}
-      </svg>
-    </div>}
-
-    {/* Events Table */}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,gap:10,flexWrap:"wrap"}}>
-      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Events ({events.length})</div>
-      {!readOnly&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        <Btn variant="gold" onClick={()=>setReportOpen(true)}>🖨 Print Report</Btn>
-        <Btn onClick={()=>setModal({type:"add"})}>+ New Event</Btn>
-      </div>}
-    </div>
-
-    {enrichedEvents.length===0?<Empty text={readOnly?"No cash flow events yet.":"No cash flow events yet. Add your first event."}/>:enrichedEvents.map((e,idx)=>{
-      const freqLabel=CF_FREQUENCIES.find(fr=>fr.value===e.frequency)?.label||e.frequency;
-      const treatLabel=CF_TAX_TREATMENTS.find(t=>t.value===e.taxTreatment)?.label.split(" (")[0]||e.taxTreatment;
-      const isExpense=e.direction==="expense";
-      const isNegative=Number(e.amount)<0;
-      const isExpanded=!!expandedBreakdowns[e.id];
-      const bd=e._breakdown;
-      // Real (non-synthetic) events that can be reordered
-      const reorderable=!e._synthetic&&!readOnly;
-      // Find prev/next reorderable event in the visible list
-      const reorderableEvents=enrichedEvents.filter(ev=>!ev._synthetic);
-      const myReorderIdx=reorderableEvents.findIndex(ev=>ev.id===e.id);
-      const canMoveUp=reorderable&&myReorderIdx>0;
-      const canMoveDown=reorderable&&myReorderIdx<reorderableEvents.length-1;
-      const accentColor=isExpense?"#d43030":(e._synthetic?(isNegative?"#d43030":B.navyMid):B.gold);
-      return <div key={e.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${accentColor}`,borderRadius:10,padding:isMobile?14:16,marginBottom:8,boxShadow:B.shadow}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
-              <span style={{fontWeight:700,color:B.navy,fontSize:14}}>{e.eventType}</span>
-              <Badge scheme={isExpense?{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}:{bg:"#e0f5e9",text:"#0d5c2b",dot:"#18a850"}}>{isExpense?"Expense":"Income"}</Badge>
-              <Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{freqLabel}</Badge>
-              {e._synthetic&&<Badge scheme={{bg:"#fef3e2",text:"#8a5c00",dot:"#d4900a"}}>Auto</Badge>}
-              {e._synthetic&&isNegative&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>Net Outflow</Badge>}
-            </div>
-            {e.description&&<div style={{fontSize:13,color:B.textMid,marginBottom:4}}>{e.description}</div>}
-            <div style={{fontSize:11,color:B.textSoft}}>{fmt(e.startDate)}{e.endDate?` → ${fmt(e.endDate)}`:""}{!isExpense?` · ${treatLabel}`:""}</div>
-          </div>
-          <div style={{textAlign:"right",flexShrink:0}}>
-            <div style={{fontSize:12,color:B.textSoft}}>{e.frequency==="once"?"Amount":"Per occurrence"}</div>
-            <div style={{fontSize:16,fontWeight:700,color:isExpense||isNegative?"#8b1a1a":B.navy}}>{isExpense?"−":(isNegative?"−":"")}{fmtMoney(Math.abs(e.amount))}</div>
-            <div style={{fontSize:11,color:B.textSoft,marginTop:6}}>Projected ({CF_PROJECTION_OPTIONS.find(o=>o.value===settings.projectionMonths)?.label||""})</div>
-            <div style={{fontSize:13,fontWeight:700,color:e.projectedNet>=0?"#0d5c2b":"#8b1a1a"}}>{e.projectedNet<0?"−":""}{fmtMoney(Math.abs(e.projectedNet||0))} <span style={{fontSize:10,color:B.textSoft,fontWeight:400}}>{isExpense?"total":"net"}</span></div>
-          </div>
-        </div>
-        {/* Breakdown for synthetic rental events */}
-        {e._synthetic&&bd&&<div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`}}>
-          <button onClick={()=>toggleBreakdown(e.id)} style={{background:"none",border:"none",color:B.navyMid,fontSize:12,fontWeight:600,cursor:"pointer",padding:0,fontFamily:"inherit"}}>
-            {isExpanded?"▼ Hide calculation":"▶ Show calculation"}
-          </button>
-          {isExpanded&&<div style={{marginTop:8,background:B.bg,borderRadius:8,padding:"10px 14px",fontSize:12}}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:4,color:B.textMid}}>
-              <span>Gross rental</span><span style={{fontWeight:600,textAlign:"right"}}>{fmtMoney(bd.grossRental)}</span>
-              <span>– Property taxes (1/12)</span><span style={{textAlign:"right"}}>−{fmtMoney(bd.propertyTaxesMonthly)}</span>
-              <span>– Insurance (1/12)</span><span style={{textAlign:"right"}}>−{fmtMoney(bd.insuranceMonthly)}</span>
-              {bd.floodInsuranceMonthly>0&&<><span>– Flood insurance (1/12)</span><span style={{textAlign:"right"}}>−{fmtMoney(bd.floodInsuranceMonthly)}</span></>}
-              <span>– HOA</span><span style={{textAlign:"right"}}>−{fmtMoney(bd.hoaMonthly)}</span>
-              <span>– Property mgmt ({bd.pmFeePct}%)</span><span style={{textAlign:"right"}}>−{fmtMoney(bd.pmFeeMonthly)}</span>
-              {bd.includesMortgage&&<><span>– Mortgage payment</span><span style={{textAlign:"right"}}>−{fmtMoney(bd.mortgageMonthly)}</span></>}
-              <span style={{fontWeight:700,paddingTop:4,borderTop:`1px solid ${B.border}`,color:bd.netRental>=0?"#0d5c2b":"#8b1a1a"}}>Net per month</span>
-              <span style={{fontWeight:700,paddingTop:4,borderTop:`1px solid ${B.border}`,textAlign:"right",color:bd.netRental>=0?"#0d5c2b":"#8b1a1a"}}>{bd.netRental<0?"−":""}{fmtMoney(Math.abs(bd.netRental))}</span>
-            </div>
-            <div style={{marginTop:8,fontSize:10,color:B.textMute,fontStyle:"italic"}}>To change these, edit the property in the Properties tab.</div>
-          </div>}
-        </div>}
-        {/* Action row: reorder + edit + delete (only for non-synthetic, non-readOnly) */}
-        {reorderable&&<div style={{display:"flex",gap:6,marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`,justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{display:"flex",gap:4}}>
-            <button onClick={()=>moveEvent(e.id,"up")} disabled={!canMoveUp} title="Move up" style={{background:"none",border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 10px",cursor:canMoveUp?"pointer":"not-allowed",color:canMoveUp?B.navy:B.textMute,fontSize:13,fontFamily:"inherit",opacity:canMoveUp?1:0.4}}>↑</button>
-            <button onClick={()=>moveEvent(e.id,"down")} disabled={!canMoveDown} title="Move down" style={{background:"none",border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 10px",cursor:canMoveDown?"pointer":"not-allowed",color:canMoveDown?B.navy:B.textMute,fontSize:13,fontFamily:"inherit",opacity:canMoveDown?1:0.4}}>↓</button>
-          </div>
-          <div style={{display:"flex",gap:6}}>
-            <Btn small variant="ghost" onClick={()=>setModal({type:"edit",event:e})}>Edit</Btn>
-            <Btn small variant="danger" onClick={()=>{if(confirm("Delete this event?"))delEvent(e.id);}}>Delete</Btn>
-          </div>
-        </div>}
-      </div>;
-    })}
-
-    {/* Disclaimer */}
-    <div style={{background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"10px 14px",marginTop:18,fontSize:11,color:"#8a5c00",lineHeight:1.5}}>
-      <strong>Planning estimate only.</strong> Tax calculations use 2026 federal brackets applied marginally on top of base income. Actual taxes vary based on deductions, credits, AMT, phase-outs, additional Medicare tax, and other factors. Not tax advice — consult a qualified tax professional.
-    </div>
-
-    {/* Modals */}
-    {modal&&modal.type==="add"&&<Modal title="New Cash Flow Event" onClose={()=>setModal(null)} wide><CashFlowEventForm onSave={async f=>{await addEvent(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
-    {modal&&modal.type==="edit"&&<Modal title={modal.event.direction==="expense"?"Edit Expense":"Edit Income Event"} onClose={()=>setModal(null)} wide><CashFlowEventForm initial={modal.event} onSave={async f=>{await editEvent(modal.event.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
-    {reportOpen&&<CashFlowReport family={family} projectionMonths={settings.projectionMonths} filingStatus={settings.filingStatus} baseIncome={settings.baseIncome} stateRate={settings.stateTaxRate} stateName={STATE_TAX_RATES.find(s=>s.code===settings.stateCode)?.name||settings.stateCode} localRate={settings.localTaxRate} monthlyData={monthlyData} events={enrichedEvents} onClose={()=>setReportOpen(false)}/>}
   </div>;
 }
 
@@ -1779,7 +849,7 @@ function FamiliesView({data,reload,toast}){
               </div>
             </div>
             <div style={{height:1,background:`linear-gradient(90deg,${B.gold},transparent)`,marginBottom:12}}/>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:8,marginBottom:12}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
               {[{l:"Est. Value",v:fmtMoney(s.value)},{l:"Properties",v:s.properties},{l:"Accounts",v:s.accounts},{l:"Open Tasks",v:s.tasks}].map(item=><div key={item.l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                 <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{item.l}</div>
                 <div style={{fontSize:15,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:600}}>{item.v}</div>
@@ -1807,7 +877,7 @@ function PortfolioAccountForm({initial,families=[],onSave,onClose}){
     {families.length>0&&<Field label="Family"><Sel value={f.familyId||""} onChange={set("familyId")}><option value="">— No family —</option>{families.map(fm=><option key={fm.id} value={fm.id}>{fm.name}</option>)}</Sel></Field>}
     <Grid2><Field label="Institution"><Inp placeholder="Merrill Lynch" value={f.institution} onChange={set("institution")}/></Field><Field label="Banker Name"><Inp value={f.bankerName||""} onChange={set("bankerName")}/></Field></Grid2>
     <Field label="Account Type"><Sel value={f.accountType} onChange={set("accountType")}>{ACCT_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field>
-    <Grid2><Field label="Starting Balance"><MoneyInput value={f.startingBalance||""} onChange={set("startingBalance")}/></Field><Field label="Current Balance"><MoneyInput value={f.currentBalance||""} onChange={set("currentBalance")}/></Field></Grid2>
+    <Grid2><Field label="Starting Balance"><Inp type="number" value={f.startingBalance||""} onChange={set("startingBalance")}/></Field><Field label="Current Balance"><Inp type="number" value={f.currentBalance||""} onChange={set("currentBalance")}/></Field></Grid2>
     {pct!==null&&<div style={{background:Number(pct)>=0?"#e0f5e9":"#fde8e8",border:`1px solid ${Number(pct)>=0?"#2e9e57":"#d43030"}`,borderRadius:8,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>{Number(pct)>=0?"📈":"📉"}</span><div style={{fontSize:18,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:Number(pct)>=0?"#0d5c2b":"#8b1a1a"}}>{Number(pct)>=0?"+":""}{pct}% performance</div></div>}
     <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save"}</Btn></div>
@@ -1816,11 +886,15 @@ function PortfolioAccountForm({initial,families=[],onSave,onClose}){
 
 // ── PORTFOLIO VIEW (global) ───────────────────────────────────────────────────
 function PortfolioView({data,reload,toast}){
-  const isMobile=useIsMobile();
   const{families,portfolio_accounts=[]}=data;
   const[modal,setModal]=useState(null);
   const[filterFamily,setFilterFamily]=useState("all");
   const[selected,setSelected]=useState(null);
+  const[csvModal,setCsvModal]=useState(false);
+  const[csvFamily,setCsvFamily]=useState("");
+  const[csvRows,setCsvRows]=useState([]);
+  const[csvFile,setCsvFile]=useState(null);
+  const[csvImporting,setCsvImporting]=useState(false);
   const gf=id=>families.find(f=>f.id===id);
   const accounts=portfolio_accounts.filter(a=>filterFamily==="all"||a.familyId===filterFamily);
   const totalValue=accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
@@ -1828,44 +902,151 @@ function PortfolioView({data,reload,toast}){
   const totalPct=totalStart>0?(((totalValue-totalStart)/totalStart)*100).toFixed(2):null;
 
   const add=async f=>{const{error}=await sb.from("portfolio_accounts").insert({family_id:f.familyId||null,institution:f.institution,banker_name:f.bankerName||null,account_type:f.accountType,starting_balance:f.startingBalance||null,current_balance:f.currentBalance||null,notes:f.notes||null});if(error)toast(error.message,"error");else{toast("Account added");reload("portfolio_accounts");}};
-  const edit=async f=>{const{error}=await sb.from("portfolio_accounts").update({family_id:f.familyId||null,institution:f.institution,banker_name:f.bankerName||null,account_type:f.accountType,starting_balance:f.startingBalance||null,current_balance:f.currentBalance||null,notes:f.notes||null}).eq("id",modal.id);if(error)toast(error.message,"error");else{toast("Updated");reload("portfolio_accounts");setSelected({...selected,...f});}};
   const del=async id=>{const{error}=await sb.from("portfolio_accounts").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("portfolio_accounts");if(selected?.id===id)setSelected(null);}};
 
+  // ── CSV PARSER ──────────────────────────────────────────────────────────────
+  const parseCSV=text=>{
+    const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
+    if(!lines.length)return[];
+    // Detect format by headers
+    const header=lines[0].toLowerCase();
+    const rows=[];
+
+    // Generic parser - looks for account name/number and value columns
+    const parseVal=str=>{
+      if(!str)return null;
+      const n=parseFloat(str.replace(/[$,\s"]/g,''));
+      return isNaN(n)?null:n;
+    };
+
+    if(header.includes('account name')||header.includes('account number')){
+      // Schwab / Fidelity style
+      const cols=lines[0].split(',').map(c=>c.replace(/"/g,'').trim().toLowerCase());
+      const nameIdx=cols.findIndex(c=>c.includes('account name')||c.includes('description'));
+      const valueIdx=cols.findIndex(c=>c.includes('market value')||c.includes('current value')||c.includes('total value')||c.includes('balance'));
+      const typeIdx=cols.findIndex(c=>c.includes('account type')||c.includes('type'));
+      const numIdx=cols.findIndex(c=>c.includes('account number')||c.includes('number'));
+
+      for(let i=1;i<lines.length;i++){
+        const parts=lines[i].split(',').map(c=>c.replace(/"/g,'').trim());
+        if(parts.length<2)continue;
+        const name=nameIdx>=0?parts[nameIdx]:'';
+        const value=parseVal(valueIdx>=0?parts[valueIdx]:'');
+        const type=typeIdx>=0?parts[typeIdx]:'Investment';
+        const num=numIdx>=0?parts[numIdx]:'';
+        if(name&&value!==null){
+          rows.push({
+            institution: name||`Account ${num}`,
+            accountType: guessType(type||name),
+            currentBalance: value,
+            notes: num?`Account #${num}`:'',
+          });
+        }
+      }
+    } else if(header.includes('name')||header.includes('value')||header.includes('balance')){
+      // Generic format
+      const cols=lines[0].split(',').map(c=>c.replace(/"/g,'').trim().toLowerCase());
+      const nameIdx=cols.findIndex(c=>c.includes('name')||c.includes('account')||c.includes('description'));
+      const valueIdx=cols.findIndex(c=>c.includes('value')||c.includes('balance')||c.includes('amount'));
+      const typeIdx=cols.findIndex(c=>c.includes('type'));
+
+      for(let i=1;i<lines.length;i++){
+        const parts=lines[i].split(',').map(c=>c.replace(/"/g,'').trim());
+        if(parts.length<2)continue;
+        const name=nameIdx>=0?parts[nameIdx]:'';
+        const value=parseVal(valueIdx>=0?parts[valueIdx]:'');
+        const type=typeIdx>=0?parts[typeIdx]:'';
+        if(value!==null){
+          rows.push({
+            institution: name||'Imported Account',
+            accountType: guessType(type||name),
+            currentBalance: value,
+            notes:'',
+          });
+        }
+      }
+    }
+    return rows;
+  };
+
+  const guessType=str=>{
+    const s=(str||'').toLowerCase();
+    if(s.includes('ira')||s.includes('roth')||s.includes('rollover'))return'Retirement (IRA)';
+    if(s.includes('401')||s.includes('403'))return'401(k)';
+    if(s.includes('brokerage')||s.includes('individual')||s.includes('joint'))return'Brokerage';
+    if(s.includes('trust'))return'Trust';
+    if(s.includes('saving'))return'Savings';
+    return'Investment';
+  };
+
+  const handleCSVFile=e=>{
+    const file=e.target.files[0];
+    if(!file)return;
+    setCsvFile(file.name);
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const rows=parseCSV(ev.target.result);
+      setCsvRows(rows.map(r=>({...r,include:true,institution:r.institution})));
+    };
+    reader.readAsText(file);
+  };
+
+  const importCSV=async()=>{
+    const toImport=csvRows.filter(r=>r.include&&r.institution&&r.currentBalance);
+    if(!toImport.length)return;
+    setCsvImporting(true);
+    let imported=0;
+    for(const row of toImport){
+      const{error}=await sb.from("portfolio_accounts").insert({
+        family_id:csvFamily||null,
+        institution:row.institution,
+        account_type:row.accountType||'Investment',
+        current_balance:row.currentBalance||null,
+        starting_balance:row.currentBalance||null, // set starting = current on import
+        banker_name:null,
+        notes:row.notes||null,
+      });
+      if(!error)imported++;
+    }
+    setCsvImporting(false);
+    toast(`${imported} account${imported!==1?'s':''} imported`);
+    setCsvModal(false);setCsvRows([]);setCsvFile(null);setCsvFamily("");
+    reload("portfolio_accounts");
+  };
+
   return <div style={{display:"flex",height:"100%",minHeight:0}}>
-    {/* List (hidden on mobile when detail is showing) */}
-    {(!isMobile||!selected)&&<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:isMobile?"none":`1px solid ${B.borderLight}`}}>
-      <div style={{padding:isMobile?"10px 14px":"12px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-        <Sel value={filterFamily} onChange={e=>setFilterFamily(e.target.value)} style={{width:isMobile?"100%":200,order:isMobile?2:0}}><option value="all">All Families</option>{families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</Sel>
-        <div style={{flex:1,fontSize:12,color:B.textSoft,order:isMobile?1:0}}>Total: <strong style={{color:B.navy}}>{fmtMoney(totalValue)}</strong>{totalPct!==null&&<span style={{color:Number(totalPct)>=0?"#18a850":"#d43030",fontWeight:700,marginLeft:8}}>{Number(totalPct)>=0?"+":""}{totalPct}%</span>}</div>
+    <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:`1px solid ${B.borderLight}`}}>
+      <div style={{padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <Sel value={filterFamily} onChange={e=>setFilterFamily(e.target.value)} style={{width:200}}><option value="all">All Families</option>{families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</Sel>
+        <div style={{flex:1,fontSize:12,color:B.textSoft}}>Total: <strong style={{color:B.navy}}>{fmtMoney(totalValue)}</strong>{totalPct!==null&&<span style={{color:Number(totalPct)>=0?"#18a850":"#d43030",fontWeight:700,marginLeft:8}}>{Number(totalPct)>=0?"+":""}{totalPct}%</span>}</div>
+        <Btn variant="ghost" onClick={()=>setCsvModal(true)}>⬆ Import CSV</Btn>
         <Btn onClick={()=>setModal("add")}>+ New Account</Btn>
       </div>
       <div style={{overflowY:"auto",flex:1}}>
-        {accounts.length===0&&<Empty text="No portfolio accounts yet."/>}
+        {accounts.length===0&&<Empty text="No portfolio accounts yet. Add manually or import a CSV."/>}
         {ACCT_TYPES.map(type=>{
           const list=accounts.filter(a=>a.accountType===type);
           if(!list.length)return null;
           return <div key={type}>
-            <div style={{padding:isMobile?"10px 14px 4px":"10px 20px 4px",display:"flex",justifyContent:"space-between"}}>
+            <div style={{padding:"10px 20px 4px",display:"flex",justifyContent:"space-between"}}>
               <span style={{fontSize:11,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase"}}>{type}</span>
               <span style={{fontSize:11,color:B.textSoft,fontWeight:700}}>{fmtMoney(list.reduce((s,a)=>s+(Number(a.currentBalance)||0),0))}</span>
             </div>
-            {list.map(a=>{const pct=pctChange(a.startingBalance,a.currentBalance);const fam=gf(a.familyId);return <div key={a.id} onClick={()=>setSelected(a)} style={{padding:isMobile?"14px 14px":"12px 20px",cursor:"pointer",borderBottom:`1px solid ${B.borderLight}`,background:selected?.id===a.id?B.bg:B.white,borderLeft:`3px solid ${B.gold}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",gap:10}}>
-                <div style={{minWidth:0}}><div style={{fontWeight:700,color:B.navy,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.institution}</div><div style={{fontSize:12,color:B.textSoft,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.bankerName?`${a.bankerName} · `:""}{fam?fam.name:""}</div></div>
-                <div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:14,fontWeight:700,color:B.navy}}>{fmtMoney(a.currentBalance)}</div>{pct!==null&&<div style={{fontSize:11,fontWeight:700,color:Number(pct)>=0?"#18a850":"#d43030"}}>{Number(pct)>=0?"+":""}{pct}%</div>}</div>
+            {list.map(a=>{const pct=pctChange(a.startingBalance,a.currentBalance);const fam=gf(a.familyId);return <div key={a.id} onClick={()=>setSelected(a)} style={{padding:"12px 20px",cursor:"pointer",borderBottom:`1px solid ${B.borderLight}`,background:selected?.id===a.id?B.bg:B.white,borderLeft:`3px solid ${B.gold}`}}>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <div><div style={{fontWeight:700,color:B.navy}}>{a.institution}</div><div style={{fontSize:12,color:B.textSoft}}>{a.bankerName?`${a.bankerName} · `:""}{fam?fam.name:""}</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontSize:14,fontWeight:700,color:B.navy}}>{fmtMoney(a.currentBalance)}</div>{pct!==null&&<div style={{fontSize:11,fontWeight:700,color:Number(pct)>=0?"#18a850":"#d43030"}}>{Number(pct)>=0?"+":""}{pct}%</div>}</div>
               </div>
             </div>;})}
           </div>;
         })}
       </div>
-    </div>}
-    {/* Detail panel — full width on mobile, fixed sidebar on desktop */}
+    </div>
     {selected?(
-      <div style={{width:isMobile?"100%":360,overflowY:"auto",flexShrink:0,background:B.bg,padding:isMobile?16:22}}>
-        {isMobile&&<button onClick={()=>setSelected(null)} style={{background:"none",border:`1px solid ${B.border}`,color:B.textSoft,cursor:"pointer",fontSize:13,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:6,marginBottom:14}}>← Back</button>}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,gap:10}}>
-          <div style={{minWidth:0}}><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selected.institution}</div><div style={{fontSize:12,color:B.textSoft}}>{selected.accountType}</div></div>
-          <div style={{display:"flex",gap:6,flexShrink:0}}><Btn small variant="ghost" onClick={()=>setModal(selected)}>Edit</Btn><Btn small variant="danger" onClick={()=>del(selected.id)}>Delete</Btn></div>
+      <div style={{width:360,overflowY:"auto",flexShrink:0,background:B.bg,padding:22}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+          <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600}}>{selected.institution}</div><div style={{fontSize:12,color:B.textSoft}}>{selected.accountType}</div></div>
+          <Btn small variant="danger" onClick={()=>del(selected.id)}>Delete</Btn>
         </div>
         <div style={{height:2,background:`linear-gradient(90deg,${B.gold},transparent)`,marginBottom:14}}/>
         {(()=>{const pct=pctChange(selected.startingBalance,selected.currentBalance);const gain=(Number(selected.currentBalance)||0)-(Number(selected.startingBalance)||0);return pct!==null&&<div style={{background:Number(pct)>=0?"#e0f5e9":"#fde8e8",border:`1px solid ${Number(pct)>=0?"#2e9e57":"#d43030"}`,borderRadius:10,padding:"14px 18px",marginBottom:16,display:"flex",gap:14,alignItems:"center"}}><div style={{fontSize:28}}>{Number(pct)>=0?"📈":"📉"}</div><div><div style={{fontSize:24,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:Number(pct)>=0?"#0d5c2b":"#8b1a1a"}}>{Number(pct)>=0?"+":""}{pct}%</div><div style={{fontSize:12,color:Number(pct)>=0?"#18a850":"#d43030",fontWeight:700}}>{Number(gain)>=0?"+":"-"}{fmtMoney(Math.abs(gain))}</div></div></div>;})()}
@@ -1875,15 +1056,63 @@ function PortfolioView({data,reload,toast}){
         <IRow label="Current Balance" value={fmtMoney(selected.currentBalance)}/>
         {selected.notes&&<><SectionLabel>Notes</SectionLabel><div style={{fontSize:13,color:B.textMid,lineHeight:1.6}}>{selected.notes}</div></>}
       </div>
-    ):(!isMobile&&<div style={{width:360,display:"flex",alignItems:"center",justifyContent:"center",color:B.textMute,fontSize:13,background:B.bg}}>Select an account</div>)}
+    ):<div style={{width:360,display:"flex",alignItems:"center",justifyContent:"center",color:B.textMute,fontSize:13,background:B.bg}}>Select an account</div>}
+
     {modal==="add"&&<Modal title="New Portfolio Account" onClose={()=>setModal(null)}><PortfolioAccountForm families={families} onSave={add} onClose={()=>setModal(null)}/></Modal>}
-    {modal&&modal!=="add"&&<Modal title="Edit Portfolio Account" onClose={()=>setModal(null)}><PortfolioAccountForm initial={modal} families={families} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
+
+    {/* CSV Import Modal */}
+    {csvModal&&<Modal title="Import Portfolio from CSV" onClose={()=>{setCsvModal(false);setCsvRows([]);setCsvFile(null);}} wide>
+      <div style={{marginBottom:16}}>
+        <Field label="Assign to Family">
+          <Sel value={csvFamily} onChange={e=>setCsvFamily(e.target.value)}>
+            <option value="">— Select family —</option>
+            {families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+          </Sel>
+        </Field>
+        <Field label="Upload CSV File">
+          <div style={{border:`2px dashed ${csvFile?B.gold:B.border}`,borderRadius:10,padding:"20px",textAlign:"center",cursor:"pointer",background:csvFile?"#fef9f0":B.bg}} onClick={()=>document.getElementById("csv-upload").click()}>
+            <input id="csv-upload" type="file" accept=".csv" style={{display:"none"}} onChange={handleCSVFile}/>
+            {csvFile?<><div style={{fontSize:24,marginBottom:6}}>✅</div><div style={{fontSize:13,color:B.navy,fontWeight:600}}>{csvFile}</div><div style={{fontSize:11,color:B.textSoft,marginTop:4}}>{csvRows.length} accounts detected</div></>:<><div style={{fontSize:32,marginBottom:8}}>📊</div><div style={{fontSize:13,color:B.textSoft}}>Click to select a CSV file</div><div style={{fontSize:11,color:B.textMute,marginTop:4}}>Works with Schwab, Fidelity, Merrill Lynch, and most institutions</div></>}
+          </div>
+        </Field>
+      </div>
+
+      {csvRows.length>0&&<>
+        <div style={{fontSize:12,fontWeight:700,color:B.textSoft,marginBottom:8,letterSpacing:"0.08em",textTransform:"uppercase"}}>Review Accounts to Import</div>
+        <div style={{maxHeight:300,overflowY:"auto",border:`1px solid ${B.borderLight}`,borderRadius:8,marginBottom:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"32px 1fr 140px 120px",padding:"8px 12px",background:B.bg,borderBottom:`1px solid ${B.borderLight}`}}>
+            {["","Account Name","Type","Balance"].map(h=><div key={h} style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.08em",textTransform:"uppercase"}}>{h}</div>)}
+          </div>
+          {csvRows.map((row,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"32px 1fr 140px 120px",padding:"10px 12px",borderBottom:`1px solid ${B.borderLight}`,alignItems:"center",opacity:row.include?1:0.4}}>
+            <input type="checkbox" checked={!!row.include} onChange={e=>setCsvRows(prev=>prev.map((r,j)=>j===i?{...r,include:e.target.checked}:r))} style={{accentColor:B.navy}}/>
+            <input value={row.institution} onChange={e=>setCsvRows(prev=>prev.map((r,j)=>j===i?{...r,institution:e.target.value}:r))} style={{...inp,padding:"4px 8px",fontSize:12}}/>
+            <select value={row.accountType} onChange={e=>setCsvRows(prev=>prev.map((r,j)=>j===i?{...r,accountType:e.target.value}:r))} style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 8px",fontSize:12,fontFamily:"inherit",color:B.text,outline:"none"}}>
+              {ACCT_TYPES.map(t=><option key={t}>{t}</option>)}
+            </select>
+            <div style={{fontSize:13,fontWeight:700,color:B.navy,textAlign:"right",paddingRight:8}}>{fmtMoney(row.currentBalance)}</div>
+          </div>)}
+        </div>
+        <div style={{background:"#e8f0f8",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:12,color:B.navyMid}}>
+          💡 Starting balance will be set to current balance on import. Update it manually if needed for performance tracking.
+        </div>
+      </>}
+
+      {csvRows.length===0&&csvFile&&<div style={{background:"#fde8e8",borderRadius:8,padding:"12px 16px",marginBottom:16,fontSize:13,color:"#8b1a1a"}}>
+        ⚠️ Could not detect accounts in this CSV. Make sure it has columns for account name and balance/value. Try exporting from your institution's website as CSV.
+      </div>}
+
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <Btn variant="ghost" onClick={()=>{setCsvModal(false);setCsvRows([]);setCsvFile(null);}}>Cancel</Btn>
+        <Btn onClick={importCSV} disabled={csvImporting||!csvRows.filter(r=>r.include).length||!csvFamily}>
+          {csvImporting?`Importing…`:`Import ${csvRows.filter(r=>r.include).length} Account${csvRows.filter(r=>r.include).length!==1?'s':''}`}
+        </Btn>
+      </div>
+    </Modal>}
   </div>;
 }
 
 // ── NOTES VIEW ────────────────────────────────────────────────────────────────
 function NotesView({data,reload,toast}){
-  const isMobile=useIsMobile();
   const{contacts,families,notes}=data;
   const[body,setBody]=useState("");const[cid,setCid]=useState("");const[fid,setFid]=useState("");const[search,setSearch]=useState("");const[saving,setSaving]=useState(false);
   const gc=id=>contacts.find(c=>c.id===id);const gf=id=>families.find(f=>f.id===id);
@@ -1891,7 +1120,7 @@ function NotesView({data,reload,toast}){
   const del=async id=>{const{error}=await sb.from("notes").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("notes");}};
   const filtered=notes.filter(n=>n.body.toLowerCase().includes(search.toLowerCase())||(gc(n.contactId)?.name||"").toLowerCase().includes(search.toLowerCase())||(gf(n.familyId)?.name||"").toLowerCase().includes(search.toLowerCase()));
   return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
-    <div style={{padding:isMobile?"14px 14px":"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
+    <div style={{padding:"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
       <div style={{maxWidth:800,margin:"0 auto"}}>
         <div style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:12,overflow:"hidden",boxShadow:B.shadow}}>
           <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Write a note or activity log entry…" style={{width:"100%",minHeight:88,background:"transparent",border:"none",padding:"14px 16px",color:B.text,fontSize:14,outline:"none",resize:"none",fontFamily:"inherit",lineHeight:1.65,boxSizing:"border-box"}}/>
@@ -1903,7 +1132,7 @@ function NotesView({data,reload,toast}){
         </div>
       </div>
     </div>
-    <div style={{flex:1,overflowY:"auto",padding:isMobile?"14px 14px":"20px 28px"}}>
+    <div style={{flex:1,overflowY:"auto",padding:"20px 28px"}}>
       <div style={{maxWidth:800,margin:"0 auto"}}>
         <div style={{marginBottom:14,position:"relative"}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search notes…" style={{...inp,padding:"9px 14px",boxShadow:B.shadow}}/>
@@ -2008,7 +1237,6 @@ function ProspectContactForm({initial,onSave,onClose}){
 }
 
 function ProspectContactsView({data,reload,toast}){
-  const isMobile=useIsMobile();
   const prospects=data.contacts.filter(c=>!c.familyId);
   const[modal,setModal]=useState(null);const[search,setSearch]=useState("");const[selected,setSelected]=useState(null);
   const filtered=useMemo(()=>prospects.filter(c=>[c.name,c.company,c.email,c.tags].join(" ").toLowerCase().includes(search.toLowerCase())),[prospects,search]);
@@ -2018,26 +1246,25 @@ function ProspectContactsView({data,reload,toast}){
   const cDeals=selected?data.deals.filter(d=>d.contactId===selected.id):[];
   const cNotes=selected?data.notes.filter(n=>n.contactId===selected.id):[];
   return <div style={{display:"flex",height:"100%",minHeight:0}}>
-    {(!isMobile||!selected)&&<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:isMobile?"none":`1px solid ${B.borderLight}`}}>
-      <div style={{padding:isMobile?"12px 14px":"14px 20px",display:"flex",gap:10,alignItems:"center",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
+    <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:`1px solid ${B.borderLight}`}}>
+      <div style={{padding:"14px 20px",display:"flex",gap:10,alignItems:"center",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
         <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search prospects…" style={{flex:1}}/>
-        <Btn onClick={()=>setModal("add")}>+ New</Btn>
+        <Btn onClick={()=>setModal("add")}>+ New Contact</Btn>
       </div>
       <div style={{overflowY:"auto",flex:1}}>
         {filtered.length===0&&<Empty text="No prospect contacts yet."/>}
-        {filtered.map(c=><div key={c.id} onClick={()=>setSelected(c)} style={{padding:isMobile?"14px 14px":"13px 20px",cursor:"pointer",borderBottom:`1px solid ${B.borderLight}`,background:selected?.id===c.id?B.bg:B.white}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
-            <div style={{minWidth:0}}><div style={{fontWeight:700,color:B.navy,marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</div><div style={{fontSize:12,color:B.textSoft,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.company||c.email||"—"}</div></div>
+        {filtered.map(c=><div key={c.id} onClick={()=>setSelected(c)} style={{padding:"13px 20px",cursor:"pointer",borderBottom:`1px solid ${B.borderLight}`,background:selected?.id===c.id?B.bg:B.white}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div><div style={{fontWeight:700,color:B.navy,marginBottom:2}}>{c.name}</div><div style={{fontSize:12,color:B.textSoft}}>{c.company||c.email||"—"}</div></div>
             <Badge scheme={c.type==="Business"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{c.type}</Badge>
           </div>
         </div>)}
       </div>
-    </div>}
-    {selected?<div style={{width:isMobile?"100%":360,padding:isMobile?16:22,overflowY:"auto",flexShrink:0,background:B.bg}}>
-      {isMobile&&<button onClick={()=>setSelected(null)} style={{background:"none",border:`1px solid ${B.border}`,color:B.textSoft,cursor:"pointer",fontSize:13,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:6,marginBottom:14}}>← Back</button>}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,gap:10}}>
-        <div style={{minWidth:0}}><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selected.name}</div><div style={{fontSize:12,color:B.textSoft}}>{selected.company}</div></div>
-        <div style={{display:"flex",gap:6,flexShrink:0}}><Btn small variant="ghost" onClick={()=>setModal(selected)}>Edit</Btn><Btn small variant="danger" onClick={()=>del(selected.id)}>Delete</Btn></div>
+    </div>
+    {selected?<div style={{width:360,padding:22,overflowY:"auto",flexShrink:0,background:B.bg}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+        <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600}}>{selected.name}</div><div style={{fontSize:12,color:B.textSoft}}>{selected.company}</div></div>
+        <div style={{display:"flex",gap:6}}><Btn small variant="ghost" onClick={()=>setModal(selected)}>Edit</Btn><Btn small variant="danger" onClick={()=>del(selected.id)}>Delete</Btn></div>
       </div>
       <div style={{height:2,background:`linear-gradient(90deg,${B.gold},transparent)`,marginBottom:12}}/>
       {selected.email&&<IRow label="Email" value={selected.email}/>}
@@ -2047,7 +1274,7 @@ function ProspectContactsView({data,reload,toast}){
       {cDeals.length===0?<Empty text="No deals"/>:cDeals.map(d=><div key={d.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${B.borderLight}`}}><span style={{fontSize:13}}>{d.title}</span><Badge scheme={STAGE_COLORS[d.stage]}>{d.stage}</Badge></div>)}
       <SectionLabel>Notes ({cNotes.length})</SectionLabel>
       {cNotes.length===0?<Empty text="No notes"/>:cNotes.slice(0,3).map(n=><div key={n.id} style={{padding:"6px 0",borderBottom:`1px solid ${B.borderLight}`}}><div style={{fontSize:13,color:B.textMid}}>{n.body}</div><div style={{fontSize:11,color:B.textMute,marginTop:2}}>{fmt(n.createdAt)}</div></div>)}
-    </div>:(!isMobile&&<div style={{width:360,display:"flex",alignItems:"center",justifyContent:"center",color:B.textMute,fontSize:13,background:B.bg}}>Select a contact</div>)}
+    </div>:<div style={{width:360,display:"flex",alignItems:"center",justifyContent:"center",color:B.textMute,fontSize:13,background:B.bg}}>Select a contact</div>}
     {modal==="add"&&<Modal title="New Prospect" onClose={()=>setModal(null)}><ProspectContactForm onSave={add} onClose={()=>setModal(null)}/></Modal>}
     {modal&&modal!=="add"&&<Modal title="Edit Contact" onClose={()=>setModal(null)}><ProspectContactForm initial={modal} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
   </div>;
@@ -2061,7 +1288,7 @@ function ProspectDealForm({initial,contacts=[],onSave,onClose}){
   return <div>
     <Field label="Deal Title"><Inp value={f.title} onChange={set("title")}/></Field>
     <Field label="Contact"><Sel value={f.contactId||""} onChange={set("contactId")}><option value="">— None —</option>{contacts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Sel></Field>
-    <Grid2><Field label="Value ($)"><MoneyInput value={f.value||""} onChange={set("value")}/></Field><Field label="Close Date"><Inp type="date" value={f.closeDate||""} onChange={set("closeDate")}/></Field></Grid2>
+    <Grid2><Field label="Value ($)"><Inp type="number" value={f.value||""} onChange={set("value")}/></Field><Field label="Close Date"><Inp type="date" value={f.closeDate||""} onChange={set("closeDate")}/></Field></Grid2>
     <Field label="Stage"><Sel value={f.stage} onChange={set("stage")}>{STAGES.map(s=><option key={s}>{s}</option>)}</Sel></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save"}</Btn></div>
   </div>;
@@ -2110,13 +1337,12 @@ function ProspectPipelineView({data,reload,toast}){
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 function Dashboard({data}){
-  const isMobile=useIsMobile();
   const{families,contacts,properties,deals,notes,tasks,portfolio_accounts=[]}=data;
   const openDeals=deals.filter(d=>d.stage!=="Closed Lost"&&d.stage!=="Closed Won");
   const pipeline=openDeals.reduce((s,d)=>s+(Number(d.value)||0),0);
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
-  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0)+portfolio_accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
-  const totalPortfolio=portfolio_accounts.filter(a=>a.accountType!=="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0);
+  const totalPortfolio=portfolio_accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const pending=tasks.filter(t=>!t.done);
   const overdue=pending.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
   const dueSoon=pending.filter(t=>t.dueDate&&!overdue.includes(t)&&(new Date(t.dueDate)-new Date())/(86400000)<=30);
@@ -2125,21 +1351,21 @@ function Dashboard({data}){
   const gf=id=>families.find(f=>f.id===id);
   const hr=new Date().getHours();
 
-  return <div style={{overflowY:"auto",height:"100%",padding:isMobile?"18px 14px 32px":"26px 30px 48px"}}>
+  return <div style={{overflowY:"auto",height:"100%",padding:"26px 30px 48px"}}>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-    <div style={{marginBottom:isMobile?16:24}}>
-      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?22:28,color:B.navy,fontWeight:600,marginBottom:4}}>Good {hr<12?"Morning":hr<17?"Afternoon":"Evening"}</div>
-      <div style={{color:B.textSoft,fontSize:isMobile?12:14}}>PCM Family Office — Portfolio & Client Overview</div>
+    <div style={{marginBottom:24}}>
+      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,color:B.navy,fontWeight:600,marginBottom:4}}>Good {hr<12?"Morning":hr<17?"Afternoon":"Evening"}</div>
+      <div style={{color:B.textSoft,fontSize:14}}>PCM Family Office — Portfolio & Client Overview</div>
       <div style={{height:2,width:56,background:B.gold,marginTop:10,borderRadius:2}}/>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:14,marginBottom:24}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
       {[{label:"Families",value:families.length,sub:`${contacts.length} contacts`,accent:B.navy},{label:"Real Estate",value:fmtMoney(totalRE),sub:`${properties.length} properties`,accent:B.gold},{label:"Portfolio",value:fmtMoney(totalPortfolio),sub:`${portfolio_accounts.length} accounts`,accent:B.navyMid},{label:"Open Tasks",value:pending.length,sub:overdue.length>0?`${overdue.length} overdue`:dueSoon.length>0?`${dueSoon.length} due soon`:"All on track",accent:overdue.length>0?"#d43030":dueSoon.length>0?"#d4900a":B.navyMid}].map(s=><div key={s.label} style={{background:B.bgCard,borderRadius:12,padding:"20px 22px",border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,borderTop:`3px solid ${s.accent}`}}>
         <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>{s.label}</div>
         <div style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:600,lineHeight:1}}>{s.value}</div>
         <div style={{fontSize:11,color:B.textSoft,marginTop:5}}>{s.sub}</div>
       </div>)}
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:18,marginBottom:18}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
       <div style={{background:B.bgCard,borderRadius:12,padding:24,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Pipeline by Stage</div>
         <GoldLine/>
@@ -2162,7 +1388,7 @@ function Dashboard({data}){
         </div>;})}
       </div>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:18}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
       <div style={{background:B.bgCard,borderRadius:12,padding:24,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Portfolio by Family</div>
         <GoldLine/>
@@ -2380,11 +1606,7 @@ function UserManagementView({userProfile,data={},toast}){
 // ── DOCUMENTS VIEW ────────────────────────────────────────────────────────────
 const DOC_CATEGORIES = ["General","Tax","Legal","Insurance","Investment","Real Estate","Estate Planning","Other"];
 
-function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
-  // Backward compat: if readOnly passed, default canUpload=false canDelete=false
-  // If canUpload/canDelete passed explicitly, use those
-  const allowUpload=canUpload!==undefined?canUpload:!readOnly;
-  const allowDelete=canDelete!==undefined?canDelete:!readOnly;
+function DocumentsView({familyId,readOnly=false,toast}){
   const[docs,setDocs]=useState([]);
   const[loading,setLoading]=useState(true);
   const[uploading,setUploading]=useState(false);
@@ -2424,19 +1646,9 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
   };
 
   const download=async(doc)=>{
-    try{
-      const{data,error}=await sb.storage.from("documents").createSignedUrl(doc.filePath,300,{download:doc.name||true});
-      if(error||!data?.signedUrl){toast("Could not get download link","error");return;}
-      // Use anchor element to bypass popup blockers
-      const a=document.createElement("a");
-      a.href=data.signedUrl;
-      a.download=doc.name||"document";
-      a.target="_blank";
-      a.rel="noopener noreferrer";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }catch(e){toast("Download failed: "+e.message,"error");}
+    const{data,error}=await sb.storage.from("documents").createSignedUrl(doc.filePath,300);
+    if(error)return toast("Could not get download link","error");
+    window.open(data.signedUrl,"_blank");
   };
 
   const del=async(doc)=>{
@@ -2455,7 +1667,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
       <div style={{flex:1,display:"flex",gap:6,flexWrap:"wrap"}}>
         {["All",...DOC_CATEGORIES].map(c=><button key={c} onClick={()=>setFilterCat(c)} style={{background:filterCat===c?B.navy:"transparent",border:`1px solid ${filterCat===c?B.navy:B.border}`,color:filterCat===c?B.white:B.textSoft,borderRadius:20,padding:"3px 12px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{c}</button>)}
       </div>
-      {allowUpload&&<Btn onClick={()=>setModal("upload")}>⬆ Upload Document</Btn>}
+      {!readOnly&&<Btn onClick={()=>setModal("upload")}>⬆ Upload Document</Btn>}
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
       {loading?<Spinner/>:filtered.length===0?<div style={{padding:"60px 0",textAlign:"center",color:B.textMute}}><div style={{fontSize:40,marginBottom:12}}>📁</div>No documents yet.</div>:
@@ -2475,7 +1687,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
           <div style={{fontSize:11,color:B.textMute}}>{fmt(doc.createdAt)}</div>
           <div style={{display:"flex",gap:8,marginTop:4}}>
             <Btn small onClick={()=>download(doc)} style={{flex:1}}>⬇ Download</Btn>
-            {allowDelete&&<Btn small variant="danger" onClick={()=>del(doc)}>✕</Btn>}
+            {!readOnly&&<Btn small variant="danger" onClick={()=>del(doc)}>✕</Btn>}
           </div>
         </div>)}
       </div>}
@@ -2503,16 +1715,15 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
 }
 
 // ── CLIENT DASHBOARD ──────────────────────────────────────────────────────────
-function ClientDashboard({family,data,userProfile,logout,toast}){
-  const isMobile=useIsMobile();
+function ClientDashboard({family,data,userProfile,logout}){
   const[activeTab,setActiveTab]=useState("summary");
   const properties=(data.properties||[]).filter(p=>p.familyId===family.id);
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
   const tasks=(data.tasks||[]).filter(t=>t.familyId===family.id&&!t.done);
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
-  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0)+accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
-  const totalAccounts=accounts.filter(a=>a.accountType!=="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0);
+  const totalAccounts=accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalValuables=valuables.reduce((s,v)=>s+(Number(v.estimatedValue)||0),0);
   const netWorth=totalRE-totalDebt+totalAccounts+totalValuables;
   const overdue=tasks.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
@@ -2522,46 +1733,36 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
     {id:"summary",   label:"Summary",    icon:"◈"},
     {id:"portfolio", label:"Portfolio",  icon:"◇"},
     {id:"properties",label:"Properties", icon:"⌂"},
-    {id:"cashflow",  label:"Cash Flow",  icon:"$"},
     {id:"valuables", label:"Valuables",  icon:"◆"},
     {id:"tasks",     label:"Tasks",      icon:"◻"},
     {id:"documents", label:"Documents",  icon:"📁"},
   ];
 
-  return <div style={{minHeight:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",paddingBottom:isMobile?70:0}}>
+  return <div style={{minHeight:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
-    {/* Header (navy banner with logo, family name, sign out) */}
-    <div style={{background:B.navy,padding:isMobile?"0 16px":"0 32px"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:isMobile?"12px 0":"16px 0",gap:10,flexWrap:isMobile?"wrap":"nowrap"}}>
+    {/* Header */}
+    <div style={{background:B.navy,padding:"0 32px"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 0",borderBottom:"1px solid rgba(255,255,255,0.1)"}}>
         <PCMLogo dark/>
-        <div style={{display:"flex",alignItems:"center",gap:isMobile?8:16,flex:isMobile?"1 1 auto":"none",justifyContent:isMobile?"flex-end":"flex-start"}}>
-          <div style={{textAlign:"right",minWidth:0}}>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?16:22,color:B.white,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.name}</div>
-            <div style={{fontSize:isMobile?10:11,color:"rgba(206,182,132,0.7)",marginTop:2}}>{isMobile?"Client Portal":`Client Portal · ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`}</div>
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.white,fontWeight:600}}>{family.name}</div>
+            <div style={{fontSize:11,color:"rgba(206,182,132,0.7)",marginTop:2}}>Client Portal · {new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}</div>
           </div>
-          <button onClick={logout} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.7)",borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Sign Out</button>
+          <button onClick={logout} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.7)",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Sign Out</button>
         </div>
+      </div>
+      {/* Tabs */}
+      <div style={{display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        {TABS.map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} style={{background:"none",border:"none",borderBottom:activeTab===t.id?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.id?B.gold:"rgba(255,255,255,0.6)",fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.id?700:400,padding:"12px 18px",cursor:"pointer",display:"flex",alignItems:"center",gap:6,marginBottom:-1}}>
+          <span>{t.icon}</span>{t.label}
+        </button>)}
       </div>
     </div>
 
-    {/* Gold accent line */}
-    <div style={{height:2,background:`linear-gradient(90deg,${B.gold},${B.goldLight}55,transparent)`}}/>
-
-    {/* Top Tabs (desktop only) — white bar matching advisor view */}
-    {!isMobile&&<div style={{borderBottom:`1px solid ${B.borderLight}`,background:B.white,padding:"0 32px",display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-      {TABS.map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} style={{background:"none",border:"none",borderBottom:activeTab===t.id?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.id?B.navy:B.textSoft,fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.id?700:400,padding:"12px 18px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>{t.label}</button>)}
-    </div>}
-
-    {/* Bottom Tab Bar (mobile only) */}
-    {isMobile&&<div style={{position:"fixed",bottom:0,left:0,right:0,background:B.white,borderTop:`1px solid ${B.borderLight}`,display:"flex",justifyContent:"space-around",padding:"8px 4px 10px",zIndex:50,boxShadow:"0 -2px 12px rgba(0,0,0,0.08)",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-      {TABS.map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} style={{background:"none",border:"none",borderTop:activeTab===t.id?`2px solid ${B.gold}`:"2px solid transparent",cursor:"pointer",padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"center",flex:1,minWidth:0,color:activeTab===t.id?B.navy:B.textSoft,fontFamily:"inherit",marginTop:-2}}>
-        <span style={{fontSize:11,fontWeight:activeTab===t.id?800:600,letterSpacing:"0.02em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100%"}}>{t.label}</span>
-      </button>)}
-    </div>}
-
     {/* Content */}
-    <div style={{maxWidth:1100,margin:"0 auto",padding:isMobile?"16px 14px":"28px 24px"}}>
+    <div style={{maxWidth:1100,margin:"0 auto",padding:"28px 24px"}}>
 
       {/* SUMMARY */}
       {activeTab==="summary"&&<div>
@@ -2571,12 +1772,12 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
         <div style={{color:B.textSoft,fontSize:14,marginBottom:24}}>Here is your financial overview as of {new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div>
 
         {/* Net Worth Hero */}
-        <div style={{background:`linear-gradient(135deg,${B.navy},${B.navyMid})`,borderRadius:16,padding:isMobile?"22px 20px":"32px 36px",marginBottom:isMobile?16:24,position:"relative",overflow:"hidden"}}>
+        <div style={{background:`linear-gradient(135deg,${B.navy},${B.navyMid})`,borderRadius:16,padding:"32px 36px",marginBottom:24,position:"relative",overflow:"hidden"}}>
           <div style={{position:"absolute",right:-20,top:-20,width:200,height:200,borderRadius:"50%",background:"rgba(206,182,132,0.08)"}}/>
-          <div style={{fontSize:isMobile?11:12,color:"rgba(206,182,132,0.8)",fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:8}}>Estimated Net Worth</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?36:52,color:B.white,fontWeight:600,lineHeight:1,marginBottom:8}}>{fmtMoney(netWorth)}</div>
+          <div style={{fontSize:12,color:"rgba(206,182,132,0.8)",fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:8}}>Estimated Net Worth</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:52,color:B.white,fontWeight:600,lineHeight:1,marginBottom:8}}>{fmtMoney(netWorth)}</div>
           <div style={{height:1,background:"rgba(206,182,132,0.3)",margin:"16px 0"}}/>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:20,marginTop:4}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:20,marginTop:4}}>
             {[{l:"Real Estate",v:fmtMoney(totalRE)},{l:"Total Debt",v:fmtMoney(totalDebt),neg:true},{l:"Portfolio",v:fmtMoney(totalAccounts)},{l:"Valuables",v:fmtMoney(totalValuables)}].map(s=><div key={s.l}>
               <div style={{fontSize:10,color:"rgba(206,182,132,0.6)",fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}}>{s.l}</div>
               <div style={{fontSize:20,fontFamily:"'Cormorant Garamond',serif",color:s.neg?"#f87171":B.white,fontWeight:600}}>{s.v}</div>
@@ -2595,7 +1796,7 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
         </div>}
 
         {/* Quick stats grid */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
           {[{l:"Properties",v:properties.length,icon:"🏠"},{l:"Portfolio Accounts",v:accounts.length,icon:"📈"},{l:"Valuables",v:valuables.length,icon:"💎"},{l:"Pending Tasks",v:tasks.length,icon:"✅"}].map(s=><div key={s.l} style={{background:B.white,borderRadius:12,padding:"20px",border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,textAlign:"center"}}>
             <div style={{fontSize:28,marginBottom:8}}>{s.icon}</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,color:B.navy,fontWeight:600,lineHeight:1}}>{s.v}</div>
@@ -2645,20 +1846,13 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
               <div style={{fontSize:12,color:B.textSoft}}>Current Value</div>
             </div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
             {[["Property Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—"],["Loan Balance",fmtMoney(p.loanBalance)],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—"],["Insurance",p.insuranceCompany||"—"],["Flood Insurance",p.floodInsurance?"Yes":"No"]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:8,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>{l}</div>
               <div style={{fontSize:13,color:B.text,fontWeight:600}}>{v}</div>
             </div>)}
           </div>
         </div>)}
-      </div>}
-
-      {/* CASH FLOW (read-only) */}
-      {activeTab==="cashflow"&&<div>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:8}}>Cash Flow Projection</div>
-        <div style={{fontSize:14,color:B.textSoft,marginBottom:20}}>Projection of expected cash flow events configured by your advisor.</div>
-        <CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} properties={properties} reload={()=>{}} toast={toast||(()=>{})} readOnly={true}/>
       </div>}
 
       {/* VALUABLES */}
@@ -2703,15 +1897,15 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
       {/* DOCUMENTS */}
       {activeTab==="documents"&&<div style={{height:"calc(100vh - 200px)"}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:20}}>Documents</div>
-        <DocumentsView familyId={family.id} canUpload={true} canDelete={false} toast={toast||(()=>{})}/>
+        <DocumentsView familyId={family.id} readOnly={true} toast={()=>{}}/>
       </div>}
 
     </div>
 
     {/* Footer */}
-    <div style={{background:B.navy,padding:isMobile?"12px 16px":"16px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:isMobile?20:40,gap:8,flexDirection:isMobile?"column":"row",textAlign:"center"}}>
-      <div style={{fontSize:isMobile?10:11,color:"rgba(255,255,255,0.4)"}}>PCM Family Office · info@pcmfamilyoffice.com</div>
-      <div style={{fontSize:isMobile?9:10,color:"rgba(206,182,132,0.5)",letterSpacing:"0.1em"}}>CONFIDENTIAL · FOR AUTHORIZED RECIPIENTS ONLY</div>
+    <div style={{background:B.navy,padding:"16px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:40}}>
+      <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>PCM Family Office · info@pcmfamilyoffice.com</div>
+      <div style={{fontSize:10,color:"rgba(206,182,132,0.5)",letterSpacing:"0.1em"}}>CONFIDENTIAL · FOR AUTHORIZED RECIPIENTS ONLY</div>
     </div>
   </div>;
 }
@@ -2741,14 +1935,12 @@ const ALL_NAV=NAV_SECTIONS.flatMap(s=>s.items);
 // ── APP ────────────────────────────────────────────────────────────────────────
 export default function App(){
   const[tab,setTab]=useState("dashboard");
-  const[data,setData]=useState({families:[],contacts:[],properties:[],deals:[],notes:[],tasks:[],portfolio_accounts:[],valuables:[],documents:[],cash_flow_events:[]});
+  const[data,setData]=useState({families:[],contacts:[],properties:[],deals:[],notes:[],tasks:[],portfolio_accounts:[],valuables:[],documents:[]});
   const[loading,setLoading]=useState(true);
   const[toastState,setToastState]=useState(null);
   const[authed,setAuthed]=useState(false);
   const[userProfile,setUserProfile]=useState(null);
   const[authLoading,setAuthLoading]=useState(true);
-  const[sidebarOpen,setSidebarOpen]=useState(false);
-  const isMobile=useIsMobile();
   const logout=async()=>{await sb.auth.signOut();setAuthed(false);setUserProfile(null);};
   const showToast=useCallback((msg,type="success")=>{setToastState({msg,type});setTimeout(()=>setToastState(null),3500);},[]);
 
@@ -2804,7 +1996,7 @@ export default function App(){
     const clientFamily=data.families.find(f=>f.id===userProfile.familyId);
     if(loading)return <div style={{minHeight:"100vh",background:B.navy,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
     if(!clientFamily)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,flexDirection:"column",gap:12,color:B.navy,fontFamily:"'DM Sans',sans-serif"}}><PCMLogo/><div style={{marginTop:20,fontSize:16}}>No family assigned to your account. Contact your advisor.</div><button onClick={logout} style={{marginTop:12,background:"none",border:`1px solid ${B.border}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontFamily:"inherit",color:B.textSoft}}>Sign Out</button></div>;
-    return <><ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout} toast={showToast}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
+    return <ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout}/>;
   }
 
 
@@ -2814,22 +2006,16 @@ export default function App(){
   return <div style={{display:"flex",height:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:B.text,overflow:"hidden",flexDirection:"row"}}>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
-    {/* Mobile backdrop */}
-    {isMobile&&sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:99,backdropFilter:"blur(2px)"}}/>}
-
     {/* Sidebar */}
-    <div style={{width:isMobile?260:232,background:B.navy,display:"flex",flexDirection:"column",flexShrink:0,position:isMobile?"fixed":"relative",top:0,bottom:0,left:isMobile?(sidebarOpen?0:-280):0,zIndex:100,transition:isMobile?"left 0.25s ease":"none",boxShadow:isMobile&&sidebarOpen?"4px 0 24px rgba(0,0,0,0.3)":"none"}}>
-      <div style={{padding:"14px 16px 12px",borderBottom:"1px solid rgba(255,255,255,0.07)",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
-        <div style={{flex:1}}>
-          <PCMLogo dark/>
-          <div style={{fontSize:8,color:"rgba(206,182,132,0.5)",letterSpacing:"0.18em",marginTop:8}}>DISCOVER · SIMPLIFY · EXECUTE</div>
-        </div>
-        {isMobile&&<button onClick={()=>setSidebarOpen(false)} style={{background:"none",border:"none",color:"rgba(255,255,255,0.6)",fontSize:22,cursor:"pointer",padding:4,marginTop:-2}}>✕</button>}
+    <div style={{width:232,background:B.navy,display:"flex",flexDirection:"column",flexShrink:0}}>
+      <div style={{padding:"14px 16px 12px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
+        <PCMLogo dark/>
+        <div style={{fontSize:8,color:"rgba(206,182,132,0.5)",letterSpacing:"0.18em",marginTop:8}}>DISCOVER · SIMPLIFY · EXECUTE</div>
       </div>
       <nav style={{flex:1,padding:"8px",overflowY:"auto"}}>
         {NAV_SECTIONS.filter(s=>s.section!=="ADMIN"||userProfile?.role==="admin").map(({section,items})=><div key={section} style={{marginBottom:6}}>
           <div style={{fontSize:9,fontWeight:800,color:"rgba(206,182,132,0.55)",letterSpacing:"0.16em",padding:"10px 10px 4px",textTransform:"uppercase"}}>{section}</div>
-          {items.map(item=><button key={item.id} onClick={()=>{setTab(item.id);if(isMobile)setSidebarOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:isMobile?"13px 12px":"9px 10px",borderRadius:8,border:"none",cursor:"pointer",background:tab===item.id?"rgba(206,182,132,0.18)":"transparent",color:tab===item.id?B.gold:"rgba(255,255,255,0.85)",fontFamily:"inherit",fontSize:isMobile?15:13,fontWeight:tab===item.id?700:400,marginBottom:1,textAlign:"left",borderLeft:tab===item.id?`2px solid ${B.gold}`:"2px solid transparent"}}>
+          {items.map(item=><button key={item.id} onClick={()=>setTab(item.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:"9px 10px",borderRadius:8,border:"none",cursor:"pointer",background:tab===item.id?"rgba(206,182,132,0.18)":"transparent",color:tab===item.id?B.gold:"rgba(255,255,255,0.85)",fontFamily:"inherit",fontSize:13,fontWeight:tab===item.id?700:400,marginBottom:1,textAlign:"left",borderLeft:tab===item.id?`2px solid ${B.gold}`:"2px solid transparent"}}>
             <span style={{fontSize:12}}>{item.icon}</span>
             <span style={{flex:1}}>{item.label}</span>
             {item.id==="cm-tasks"&&overdue>0?<span style={{background:"#d43030",borderRadius:10,padding:"1px 6px",fontSize:9,color:"#fff",fontWeight:700}}>{overdue}</span>:allStats[item.id]>0?<span style={{background:"rgba(255,255,255,0.12)",borderRadius:10,padding:"1px 6px",fontSize:9,color:"rgba(255,255,255,0.7)"}}>{allStats[item.id]}</span>:null}
@@ -2850,28 +2036,22 @@ export default function App(){
     <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,overflow:"hidden"}}>
       {/* Only show header when NOT in families tab (family dashboard has its own header) */}
       {tab!=="families"&&<>
-        <div style={{padding:isMobile?"10px 14px":"13px 28px 11px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
-          <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0,flex:1}}>
-            {isMobile&&<button onClick={()=>setSidebarOpen(true)} style={{background:"none",border:"none",cursor:"pointer",padding:6,fontSize:22,color:B.navy,flexShrink:0,display:"flex",alignItems:"center"}} aria-label="Open menu">☰</button>}
-            <div style={{minWidth:0}}>
-              {!isMobile&&<div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:1}}>{currentSection}</div>}
-              <h1 style={{margin:0,fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?18:22,color:B.navy,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{currentLabel}</h1>
-            </div>
+        <div style={{padding:"13px 28px 11px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div>
+            <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:1}}>{currentSection}</div>
+            <h1 style={{margin:0,fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600}}>{currentLabel}</h1>
           </div>
-          {!isMobile&&<div style={{display:"flex",alignItems:"center",gap:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
             <div style={{fontSize:11,color:B.textMute}}>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div>
             {userProfile&&<div style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:20,padding:"4px 12px",display:"flex",alignItems:"center",gap:6}}>
               <div style={{width:6,height:6,borderRadius:"50%",background:"#18a850"}}/>
               <span style={{fontSize:11,color:B.textMid,fontWeight:600}}>{userProfile.fullName||userProfile.email}</span>
               <span style={{fontSize:10,color:B.textMute,background:B.borderLight,borderRadius:10,padding:"1px 6px"}}>{userProfile.role}</span>
             </div>}
-          </div>}
+          </div>
         </div>
         <div style={{height:2,background:`linear-gradient(90deg,${B.gold},${B.goldLight}55,transparent)`}}/>
       </>}
-
-      {/* Mobile-only floating hamburger when in families tab (which has its own header) */}
-      {isMobile&&tab==="families"&&<button onClick={()=>setSidebarOpen(true)} style={{position:"fixed",top:14,left:14,zIndex:50,background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:8,padding:"8px 10px",fontSize:18,color:B.navy,cursor:"pointer",boxShadow:B.shadow,display:"flex",alignItems:"center"}} aria-label="Open menu">☰</button>}
 
       <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg,paddingBottom:"0"}}>
         {loading&&tab!=="families"&&tab!=="users"?<Spinner/>:<>
