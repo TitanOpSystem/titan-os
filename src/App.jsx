@@ -2005,9 +2005,39 @@ export default function App(){
 
   return <div style={{display:"flex",height:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:B.text,overflow:"hidden",flexDirection:"row"}}>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <style>{`
+      @media (max-width: 768px) {
+        .pcm-sidebar { display: none !important; }
+        .pcm-bottom-nav { display: flex !important; }
+        .pcm-main { padding-bottom: 64px !important; }
+        .pcm-header-date { display: none !important; }
+        .pcm-header h1 { font-size: 18px !important; }
+        .pcm-header { padding: 10px 16px 9px !important; }
+      }
+      @media (min-width: 769px) {
+        .pcm-bottom-nav { display: none !important; }
+      }
+      .pcm-bottom-nav {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        background: #092b49;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        z-index: 500;
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+      .pcm-bottom-nav button {
+        flex: 1; display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        padding: 8px 4px; background: none; border: none;
+        cursor: pointer; font-family: inherit; gap: 2px;
+        color: rgba(255,255,255,0.5);
+      }
+      .pcm-bottom-nav button.active { color: #ceb684; }
+      .pcm-bottom-nav button span.icon { font-size: 20px; }
+      .pcm-bottom-nav button span.label { font-size: 9px; font-weight: 600; letter-spacing: 0.03em; }
+    `}</style>
 
-    {/* Sidebar */}
-    <div style={{width:232,background:B.navy,display:"flex",flexDirection:"column",flexShrink:0}}>
+    {/* Sidebar — hidden on mobile via CSS */}
+    <div className="pcm-sidebar" style={{width:232,background:B.navy,display:"flex",flexDirection:"column",flexShrink:0}}>
       <div style={{padding:"14px 16px 12px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
         <PCMLogo dark/>
         <div style={{fontSize:8,color:"rgba(206,182,132,0.5)",letterSpacing:"0.18em",marginTop:8}}>DISCOVER · SIMPLIFY · EXECUTE</div>
@@ -2033,27 +2063,26 @@ export default function App(){
     </div>
 
     {/* Main */}
-    <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,overflow:"hidden"}}>
-      {/* Only show header when NOT in families tab (family dashboard has its own header) */}
+    <div className="pcm-main" style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,overflow:"hidden"}}>
       {tab!=="families"&&<>
-        <div style={{padding:"13px 28px 11px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div className="pcm-header" style={{padding:"13px 28px 11px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div>
             <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:1}}>{currentSection}</div>
             <h1 style={{margin:0,fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600}}>{currentLabel}</h1>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:14}}>
-            <div style={{fontSize:11,color:B.textMute}}>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div>
+            <div className="pcm-header-date" style={{fontSize:11,color:B.textMute}}>{new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div>
             {userProfile&&<div style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:20,padding:"4px 12px",display:"flex",alignItems:"center",gap:6}}>
               <div style={{width:6,height:6,borderRadius:"50%",background:"#18a850"}}/>
               <span style={{fontSize:11,color:B.textMid,fontWeight:600}}>{userProfile.fullName||userProfile.email}</span>
-              <span style={{fontSize:10,color:B.textMute,background:B.borderLight,borderRadius:10,padding:"1px 6px"}}>{userProfile.role}</span>
+              <span className="pcm-header-date" style={{fontSize:10,color:B.textMute,background:B.borderLight,borderRadius:10,padding:"1px 6px"}}>{userProfile.role}</span>
             </div>}
           </div>
         </div>
         <div style={{height:2,background:`linear-gradient(90deg,${B.gold},${B.goldLight}55,transparent)`}}/>
       </>}
 
-      <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg,paddingBottom:"0"}}>
+      <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg}}>
         {loading&&tab!=="families"&&tab!=="users"?<Spinner/>:<>
           {tab==="dashboard"   &&<Dashboard data={data}/>}
           {tab==="families"    &&<FamiliesView data={data} reload={reload} toast={showToast}/>}
@@ -2068,6 +2097,21 @@ export default function App(){
         </>}
       </div>
     </div>
+
+    {/* Mobile Bottom Navigation — shown only on phones via CSS */}
+    <div className="pcm-bottom-nav">
+      {[
+        {id:"dashboard", label:"Home",    icon:"⬡"},
+        {id:"families",  label:"Clients", icon:"⌂"},
+        {id:"cm-tasks",  label:"Tasks",   icon:"◻"},
+        {id:"portfolio", label:"Portfolio",icon:"◇"},
+        ...(userProfile?.role==="admin"?[{id:"users",label:"Admin",icon:"⊕"}]:[]),
+      ].map(item=><button key={item.id} className={tab===item.id?"active":""} onClick={()=>setTab(item.id)}>
+        <span className="icon">{item.icon}</span>
+        <span className="label">{item.label}</span>
+      </button>)}
+    </div>
+
     {toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}
   </div>;
 }
