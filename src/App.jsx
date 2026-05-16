@@ -16,6 +16,18 @@ const B = {
   shadow:"0 2px 16px rgba(9,43,73,0.07)",shadowMd:"0 8px 40px rgba(9,43,73,0.13)",
 };
 
+// ── RESPONSIVE HOOK ───────────────────────────────────────────────────────────
+function useMobile(){
+  const[isMobile,setIsMobile]=useState(typeof window!=="undefined"&&window.innerWidth<=768);
+  useEffect(()=>{
+    const onResize=()=>setIsMobile(window.innerWidth<=768);
+    window.addEventListener("resize",onResize);
+    onResize();
+    return()=>window.removeEventListener("resize",onResize);
+  },[]);
+  return isMobile;
+}
+
 const STAGES=["Lead","Qualified","Proposal","Negotiation","Closed Won","Closed Lost"];
 const STAGE_COLORS={
   "Lead":{bg:"#e8f0f8",text:"#293d5c",dot:"#293d5c"},
@@ -1113,6 +1125,7 @@ function PortfolioView({data,reload,toast}){
 
 // ── NOTES VIEW ────────────────────────────────────────────────────────────────
 function NotesView({data,reload,toast}){
+  const isMobile=useMobile();
   const{contacts,families,notes}=data;
   const[body,setBody]=useState("");const[cid,setCid]=useState("");const[fid,setFid]=useState("");const[search,setSearch]=useState("");const[saving,setSaving]=useState(false);
   const gc=id=>contacts.find(c=>c.id===id);const gf=id=>families.find(f=>f.id===id);
@@ -1120,7 +1133,7 @@ function NotesView({data,reload,toast}){
   const del=async id=>{const{error}=await sb.from("notes").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("notes");}};
   const filtered=notes.filter(n=>n.body.toLowerCase().includes(search.toLowerCase())||(gc(n.contactId)?.name||"").toLowerCase().includes(search.toLowerCase())||(gf(n.familyId)?.name||"").toLowerCase().includes(search.toLowerCase()));
   return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
-    <div style={{padding:"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
+    <div style={{padding:isMobile?"14px 14px":"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
       <div style={{maxWidth:800,margin:"0 auto"}}>
         <div style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:12,overflow:"hidden",boxShadow:B.shadow}}>
           <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Write a note or activity log entry…" style={{width:"100%",minHeight:88,background:"transparent",border:"none",padding:"14px 16px",color:B.text,fontSize:14,outline:"none",resize:"none",fontFamily:"inherit",lineHeight:1.65,boxSizing:"border-box"}}/>
@@ -1132,7 +1145,7 @@ function NotesView({data,reload,toast}){
         </div>
       </div>
     </div>
-    <div style={{flex:1,overflowY:"auto",padding:"20px 28px"}}>
+    <div style={{flex:1,overflowY:"auto",padding:isMobile?"16px 14px 90px":"20px 28px"}}>
       <div style={{maxWidth:800,margin:"0 auto"}}>
         <div style={{marginBottom:14,position:"relative"}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search notes…" style={{...inp,padding:"9px 14px",boxShadow:B.shadow}}/>
@@ -1237,6 +1250,7 @@ function ProspectContactForm({initial,onSave,onClose}){
 }
 
 function ProspectContactsView({data,reload,toast}){
+  const isMobile=useMobile();
   const prospects=data.contacts.filter(c=>!c.familyId);
   const[modal,setModal]=useState(null);const[search,setSearch]=useState("");const[selected,setSelected]=useState(null);
   const filtered=useMemo(()=>prospects.filter(c=>[c.name,c.company,c.email,c.tags].join(" ").toLowerCase().includes(search.toLowerCase())),[prospects,search]);
@@ -1245,23 +1259,26 @@ function ProspectContactsView({data,reload,toast}){
   const del=async id=>{const{error}=await sb.from("contacts").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("contacts");if(selected?.id===id)setSelected(null);}};
   const cDeals=selected?data.deals.filter(d=>d.contactId===selected.id):[];
   const cNotes=selected?data.notes.filter(n=>n.contactId===selected.id):[];
-  return <div style={{display:"flex",height:"100%",minHeight:0}}>
-    <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:`1px solid ${B.borderLight}`}}>
-      <div style={{padding:"14px 20px",display:"flex",gap:10,alignItems:"center",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
+  const showList=!isMobile||!selected;
+  const showDetail=!isMobile||!!selected;
+  return <div style={{display:"flex",flexDirection:isMobile?"column":"row",height:"100%",minHeight:0}}>
+    {showList&&<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:isMobile?"none":`1px solid ${B.borderLight}`}}>
+      <div style={{padding:isMobile?"12px 14px":"14px 20px",display:"flex",gap:10,alignItems:"center",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
         <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search prospects…" style={{flex:1}}/>
-        <Btn onClick={()=>setModal("add")}>+ New Contact</Btn>
+        <Btn onClick={()=>setModal("add")}>+ New</Btn>
       </div>
-      <div style={{overflowY:"auto",flex:1}}>
+      <div style={{overflowY:"auto",flex:1,paddingBottom:isMobile?90:0}}>
         {filtered.length===0&&<Empty text="No prospect contacts yet."/>}
-        {filtered.map(c=><div key={c.id} onClick={()=>setSelected(c)} style={{padding:"13px 20px",cursor:"pointer",borderBottom:`1px solid ${B.borderLight}`,background:selected?.id===c.id?B.bg:B.white}}>
+        {filtered.map(c=><div key={c.id} onClick={()=>setSelected(c)} style={{padding:isMobile?"13px 14px":"13px 20px",cursor:"pointer",borderBottom:`1px solid ${B.borderLight}`,background:selected?.id===c.id?B.bg:B.white}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
             <div><div style={{fontWeight:700,color:B.navy,marginBottom:2}}>{c.name}</div><div style={{fontSize:12,color:B.textSoft}}>{c.company||c.email||"—"}</div></div>
             <Badge scheme={c.type==="Business"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{c.type}</Badge>
           </div>
         </div>)}
       </div>
-    </div>
-    {selected?<div style={{width:360,padding:22,overflowY:"auto",flexShrink:0,background:B.bg}}>
+    </div>}
+    {showDetail&&(selected?<div style={{width:isMobile?"100%":360,padding:isMobile?"16px 14px 90px":22,overflowY:"auto",flexShrink:0,background:B.bg}}>
+      {isMobile&&<button onClick={()=>setSelected(null)} style={{background:"none",border:`1px solid ${B.border}`,color:B.textSoft,cursor:"pointer",fontSize:13,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:6,marginBottom:14}}>← Back</button>}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
         <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600}}>{selected.name}</div><div style={{fontSize:12,color:B.textSoft}}>{selected.company}</div></div>
         <div style={{display:"flex",gap:6}}><Btn small variant="ghost" onClick={()=>setModal(selected)}>Edit</Btn><Btn small variant="danger" onClick={()=>del(selected.id)}>Delete</Btn></div>
@@ -1274,7 +1291,7 @@ function ProspectContactsView({data,reload,toast}){
       {cDeals.length===0?<Empty text="No deals"/>:cDeals.map(d=><div key={d.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${B.borderLight}`}}><span style={{fontSize:13}}>{d.title}</span><Badge scheme={STAGE_COLORS[d.stage]}>{d.stage}</Badge></div>)}
       <SectionLabel>Notes ({cNotes.length})</SectionLabel>
       {cNotes.length===0?<Empty text="No notes"/>:cNotes.slice(0,3).map(n=><div key={n.id} style={{padding:"6px 0",borderBottom:`1px solid ${B.borderLight}`}}><div style={{fontSize:13,color:B.textMid}}>{n.body}</div><div style={{fontSize:11,color:B.textMute,marginTop:2}}>{fmt(n.createdAt)}</div></div>)}
-    </div>:<div style={{width:360,display:"flex",alignItems:"center",justifyContent:"center",color:B.textMute,fontSize:13,background:B.bg}}>Select a contact</div>}
+    </div>:<div style={{width:360,display:"flex",alignItems:"center",justifyContent:"center",color:B.textMute,fontSize:13,background:B.bg}}>Select a contact</div>)}
     {modal==="add"&&<Modal title="New Prospect" onClose={()=>setModal(null)}><ProspectContactForm onSave={add} onClose={()=>setModal(null)}/></Modal>}
     {modal&&modal!=="add"&&<Modal title="Edit Contact" onClose={()=>setModal(null)}><ProspectContactForm initial={modal} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
   </div>;
@@ -1295,6 +1312,7 @@ function ProspectDealForm({initial,contacts=[],onSave,onClose}){
 }
 
 function ProspectPipelineView({data,reload,toast}){
+  const isMobile=useMobile();
   const deals=data.deals.filter(d=>!d.familyId);
   const contacts=data.contacts.filter(c=>!c.familyId);
   const[modal,setModal]=useState(null);const[fs,setFs]=useState("All");
@@ -1309,23 +1327,25 @@ function ProspectPipelineView({data,reload,toast}){
   const move=async(deal,dir)=>{const idx=STAGES.indexOf(deal.stage);const next=STAGES[idx+dir];if(!next)return;const{error}=await sb.from("deals").update({stage:next}).eq("id",deal.id);if(error)toast(error.message,"error");else reload("deals");};
 
   return <div style={{display:"flex",flexDirection:"column",height:"100%",minHeight:0}}>
-    <div style={{padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",background:B.white}}>
+    <div style={{padding:isMobile?"12px 14px":"12px 20px",borderBottom:`1px solid ${B.borderLight}`,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",background:B.white}}>
       <div style={{flex:1,display:"flex",gap:5,flexWrap:"wrap"}}>{["All",...STAGES].map(s=><button key={s} onClick={()=>setFs(s)} style={{background:fs===s?(STAGE_COLORS[s]?.bg||B.borderLight):"transparent",border:`1px solid ${fs===s?(STAGE_COLORS[s]?.dot||B.navy):B.border}`,color:fs===s?(STAGE_COLORS[s]?.text||B.navy):B.textSoft,borderRadius:20,padding:"3px 12px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{s}</button>)}</div>
       <div style={{fontSize:12,color:B.textSoft}}>Pipeline: <strong style={{color:B.navy}}>{fmtMoney(pipeline)}</strong></div>
       <Btn onClick={()=>setModal("add")}>+ New Deal</Btn>
     </div>
-    <div style={{flex:1,overflowY:"auto",padding:"6px 0"}}>
+    <div style={{flex:1,overflowY:"auto",padding:isMobile?"6px 0 90px":"6px 0"}}>
       {filtered.length===0&&<Empty text="No prospect deals yet."/>}
       {STAGES.map(stage=>{const list=byStage[stage];if(!list?.length)return null;return <div key={stage}>
-        <div style={{padding:"8px 20px 3px",display:"flex",alignItems:"center",gap:7}}><span style={{width:7,height:7,borderRadius:"50%",background:STAGE_COLORS[stage].dot}}/><span style={{fontSize:11,fontWeight:800,color:STAGE_COLORS[stage].dot,letterSpacing:"0.1em",textTransform:"uppercase"}}>{stage}</span></div>
-        {list.map(deal=>{const contact=gc(deal.contactId);return <div key={deal.id} style={{margin:"3px 20px",padding:"12px 15px",background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`3px solid ${STAGE_COLORS[deal.stage].dot}`,borderRadius:10,display:"flex",alignItems:"center",gap:10,boxShadow:B.shadow}}>
+        <div style={{padding:isMobile?"8px 14px 3px":"8px 20px 3px",display:"flex",alignItems:"center",gap:7}}><span style={{width:7,height:7,borderRadius:"50%",background:STAGE_COLORS[stage].dot}}/><span style={{fontSize:11,fontWeight:800,color:STAGE_COLORS[stage].dot,letterSpacing:"0.1em",textTransform:"uppercase"}}>{stage}</span></div>
+        {list.map(deal=>{const contact=gc(deal.contactId);return <div key={deal.id} style={{margin:isMobile?"3px 14px":"3px 20px",padding:isMobile?"12px 14px":"12px 15px",background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`3px solid ${STAGE_COLORS[deal.stage].dot}`,borderRadius:10,display:"flex",flexDirection:isMobile?"column":"row",alignItems:isMobile?"stretch":"center",gap:10,boxShadow:B.shadow}}>
           <div style={{flex:1,minWidth:0}}><div style={{fontWeight:700,color:B.navy,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{deal.title}</div><div style={{fontSize:12,color:B.textSoft}}>{contact?contact.name:"No contact"}{deal.closeDate?` · ${fmt(deal.closeDate)}`:""}</div></div>
-          {deal.value&&<div style={{color:B.navy,fontWeight:800,fontSize:14}}>{fmtMoney(deal.value)}</div>}
-          <div style={{display:"flex",gap:4}}>
-            <button onClick={()=>move(deal,-1)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14}}>←</button>
-            <button onClick={()=>move(deal,1)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14}}>→</button>
-            <Btn small variant="ghost" onClick={()=>setModal(deal)}>Edit</Btn>
-            <Btn small variant="danger" onClick={()=>del(deal.id)}>✕</Btn>
+          <div style={{display:"flex",alignItems:"center",justifyContent:isMobile?"space-between":"flex-end",gap:10}}>
+            {deal.value&&<div style={{color:B.navy,fontWeight:800,fontSize:14}}>{fmtMoney(deal.value)}</div>}
+            <div style={{display:"flex",gap:4,alignItems:"center"}}>
+              <button onClick={()=>move(deal,-1)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14}}>←</button>
+              <button onClick={()=>move(deal,1)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14}}>→</button>
+              <Btn small variant="ghost" onClick={()=>setModal(deal)}>Edit</Btn>
+              <Btn small variant="danger" onClick={()=>del(deal.id)}>✕</Btn>
+            </div>
           </div>
         </div>;})}
       </div>;})}
@@ -1413,6 +1433,7 @@ function Dashboard({data}){
 
 // ── USER MANAGEMENT ───────────────────────────────────────────────────────────
 function UserManagementView({userProfile,data={},toast}){
+  const isMobile=useMobile();
   const families=data.families||[];
   const[users,setUsers]=useState([]);
   const[loading,setLoading]=useState(true);
@@ -1488,19 +1509,53 @@ function UserManagementView({userProfile,data={},toast}){
     </div>
   );
 
-  return <div style={{height:"100%",overflow:"auto",padding:"28px 32px"}}>
+  return <div style={{height:"100%",overflow:"auto",padding:isMobile?"14px 14px 90px":"28px 32px"}}>
     <div style={{maxWidth:920,margin:"0 auto"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,color:B.navy,fontWeight:600}}>User Management</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:isMobile?16:24,gap:10}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?22:26,color:B.navy,fontWeight:600}}>User Management</div>
         <Btn onClick={()=>setModal("create")}>+ Add User</Btn>
       </div>
 
       {/* User table */}
       {loading?<Spinner/>:<div style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,overflow:"hidden",marginBottom:24}}>
-        <div style={{display:"grid",gridTemplateColumns:"1.2fr 1.4fr 130px 1fr 110px 130px",padding:"10px 20px",background:B.bg,borderBottom:`1px solid ${B.borderLight}`,gap:8}}>
+        {!isMobile&&<div style={{display:"grid",gridTemplateColumns:"1.2fr 1.4fr 130px 1fr 110px 130px",padding:"10px 20px",background:B.bg,borderBottom:`1px solid ${B.borderLight}`,gap:8}}>
           {["Name","Email","Role","Family (clients)","Status","Actions"].map(h=><div key={h} style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.08em",textTransform:"uppercase"}}>{h}</div>)}
-        </div>
-        {users.map(u=><div key={u.id} style={{display:"grid",gridTemplateColumns:"1.2fr 1.4fr 130px 1fr 110px 130px",padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,alignItems:"center",gap:8,opacity:u.active?1:0.6}}>
+        </div>}
+        {isMobile?users.map(u=><div key={u.id} style={{padding:"16px",borderBottom:`1px solid ${B.borderLight}`,opacity:u.active?1:0.6}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,gap:8}}>
+            <div style={{minWidth:0}}>
+              <div style={{fontWeight:700,color:B.navy,fontSize:15}}>{u.full_name||"—"}</div>
+              {u.id===userProfile?.id&&<div style={{fontSize:10,color:B.gold,fontWeight:700}}>You</div>}
+              <div style={{fontSize:12,color:B.textMid,marginTop:2,overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div>
+            </div>
+            <span style={{flexShrink:0,background:u.active?"#e0f5e9":"#fde8e8",color:u.active?"#0d5c2b":"#8b1a1a",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700}}>
+              {u.active?"Active":"Inactive"}
+            </span>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:12}}>
+            <div>
+              <div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:4}}>Role</div>
+              {u.id===userProfile?.id
+                ?<Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{u.role}</Badge>
+                :<select value={u.role||"advisor"} onChange={e=>changeRole(u,e.target.value)} style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"8px 10px",fontSize:13,color:B.text,outline:"none",fontFamily:"inherit",cursor:"pointer",width:"100%"}}>
+                  <option value="admin">Admin</option>
+                  <option value="advisor">Advisor</option>
+                  <option value="client">Client</option>
+                </select>}
+            </div>
+            {u.role==="client"&&<div>
+              <div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:4}}>Family</div>
+              <select value={u.family_id||""} onChange={e=>assignFamily(u,e.target.value)} style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"8px 10px",fontSize:13,color:B.text,outline:"none",fontFamily:"inherit",cursor:"pointer",width:"100%"}}>
+                <option value="">— Assign Family —</option>
+                {families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>}
+          </div>
+          {u.id!==userProfile?.id&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <Btn small variant={u.active?"danger":"ghost"} onClick={()=>toggleActive(u)}>{u.active?"Deactivate":"Activate"}</Btn>
+            <Btn small variant="ghost" onClick={()=>resetPass(u)}>Reset PW</Btn>
+          </div>}
+        </div>):users.map(u=><div key={u.id} style={{display:"grid",gridTemplateColumns:"1.2fr 1.4fr 130px 1fr 110px 130px",padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,alignItems:"center",gap:8,opacity:u.active?1:0.6}}>
           <div>
             <div style={{fontWeight:700,color:B.navy,fontSize:13}}>{u.full_name||"—"}</div>
             {u.id===userProfile?.id&&<div style={{fontSize:10,color:B.gold,fontWeight:700}}>You</div>}
@@ -1716,6 +1771,7 @@ function DocumentsView({familyId,readOnly=false,toast}){
 
 // ── CLIENT DASHBOARD ──────────────────────────────────────────────────────────
 function ClientDashboard({family,data,userProfile,logout}){
+  const isMobile=useMobile();
   const[activeTab,setActiveTab]=useState("summary");
   const properties=(data.properties||[]).filter(p=>p.familyId===family.id);
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
@@ -1742,27 +1798,27 @@ function ClientDashboard({family,data,userProfile,logout}){
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
     {/* Header */}
-    <div style={{background:B.navy,padding:"0 32px"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 0",borderBottom:"1px solid rgba(255,255,255,0.1)"}}>
+    <div style={{background:B.navy,padding:isMobile?"0 14px":"0 32px"}}>
+      <div style={{display:"flex",flexDirection:isMobile?"column":"row",alignItems:isMobile?"flex-start":"center",justifyContent:"space-between",gap:isMobile?12:0,padding:"16px 0",borderBottom:"1px solid rgba(255,255,255,0.1)"}}>
         <PCMLogo dark/>
-        <div style={{display:"flex",alignItems:"center",gap:16}}>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.white,fontWeight:600}}>{family.name}</div>
+        <div style={{display:"flex",alignItems:"center",gap:16,width:isMobile?"100%":"auto",justifyContent:isMobile?"space-between":"flex-end"}}>
+          <div style={{textAlign:isMobile?"left":"right"}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?18:22,color:B.white,fontWeight:600}}>{family.name}</div>
             <div style={{fontSize:11,color:"rgba(206,182,132,0.7)",marginTop:2}}>Client Portal · {new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}</div>
           </div>
-          <button onClick={logout} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.7)",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Sign Out</button>
+          <button onClick={logout} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.7)",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Sign Out</button>
         </div>
       </div>
       {/* Tabs */}
       <div style={{display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-        {TABS.map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} style={{background:"none",border:"none",borderBottom:activeTab===t.id?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.id?B.gold:"rgba(255,255,255,0.6)",fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.id?700:400,padding:"12px 18px",cursor:"pointer",display:"flex",alignItems:"center",gap:6,marginBottom:-1}}>
+        {TABS.map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} style={{background:"none",border:"none",borderBottom:activeTab===t.id?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.id?B.gold:"rgba(255,255,255,0.6)",fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.id?700:400,padding:"12px 18px",cursor:"pointer",display:"flex",alignItems:"center",gap:6,marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>
           <span>{t.icon}</span>{t.label}
         </button>)}
       </div>
     </div>
 
     {/* Content */}
-    <div style={{maxWidth:1100,margin:"0 auto",padding:"28px 24px"}}>
+    <div style={{maxWidth:1100,margin:"0 auto",padding:isMobile?"18px 14px 90px":"28px 24px"}}>
 
       {/* SUMMARY */}
       {activeTab==="summary"&&<div>
@@ -1772,15 +1828,15 @@ function ClientDashboard({family,data,userProfile,logout}){
         <div style={{color:B.textSoft,fontSize:14,marginBottom:24}}>Here is your financial overview as of {new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div>
 
         {/* Net Worth Hero */}
-        <div style={{background:`linear-gradient(135deg,${B.navy},${B.navyMid})`,borderRadius:16,padding:"32px 36px",marginBottom:24,position:"relative",overflow:"hidden"}}>
+        <div style={{background:`linear-gradient(135deg,${B.navy},${B.navyMid})`,borderRadius:16,padding:isMobile?"22px 18px":"32px 36px",marginBottom:24,position:"relative",overflow:"hidden"}}>
           <div style={{position:"absolute",right:-20,top:-20,width:200,height:200,borderRadius:"50%",background:"rgba(206,182,132,0.08)"}}/>
           <div style={{fontSize:12,color:"rgba(206,182,132,0.8)",fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:8}}>Estimated Net Worth</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:52,color:B.white,fontWeight:600,lineHeight:1,marginBottom:8}}>{fmtMoney(netWorth)}</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?38:52,color:B.white,fontWeight:600,lineHeight:1,marginBottom:8}}>{fmtMoney(netWorth)}</div>
           <div style={{height:1,background:"rgba(206,182,132,0.3)",margin:"16px 0"}}/>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:20,marginTop:4}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:isMobile?14:20,marginTop:4}}>
             {[{l:"Real Estate",v:fmtMoney(totalRE)},{l:"Total Debt",v:fmtMoney(totalDebt),neg:true},{l:"Portfolio",v:fmtMoney(totalAccounts)},{l:"Valuables",v:fmtMoney(totalValuables)}].map(s=><div key={s.l}>
               <div style={{fontSize:10,color:"rgba(206,182,132,0.6)",fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}}>{s.l}</div>
-              <div style={{fontSize:20,fontFamily:"'Cormorant Garamond',serif",color:s.neg?"#f87171":B.white,fontWeight:600}}>{s.v}</div>
+              <div style={{fontSize:isMobile?17:20,fontFamily:"'Cormorant Garamond',serif",color:s.neg?"#f87171":B.white,fontWeight:600}}>{s.v}</div>
             </div>)}
           </div>
         </div>
@@ -1796,7 +1852,7 @@ function ClientDashboard({family,data,userProfile,logout}){
         </div>}
 
         {/* Quick stats grid */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14}}>
           {[{l:"Properties",v:properties.length,icon:"🏠"},{l:"Portfolio Accounts",v:accounts.length,icon:"📈"},{l:"Valuables",v:valuables.length,icon:"💎"},{l:"Pending Tasks",v:tasks.length,icon:"✅"}].map(s=><div key={s.l} style={{background:B.white,borderRadius:12,padding:"20px",border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,textAlign:"center"}}>
             <div style={{fontSize:28,marginBottom:8}}>{s.icon}</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,color:B.navy,fontWeight:600,lineHeight:1}}>{s.v}</div>
@@ -1811,11 +1867,11 @@ function ClientDashboard({family,data,userProfile,logout}){
         {accounts.length===0?<Empty text="No portfolio accounts on file."/>:accounts.map(a=>{
           const pct=pctChange(a.startingBalance,a.currentBalance);
           const gain=(Number(a.currentBalance)||0)-(Number(a.startingBalance)||0);
-          return <div key={a.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${B.gold}`,borderRadius:12,padding:24,marginBottom:16,boxShadow:B.shadow}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
-              <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600}}>{a.institution}</div><div style={{fontSize:13,color:B.textSoft}}>{a.accountType}{a.bankerName?` · ${a.bankerName}`:""}</div></div>
-              <div style={{textAlign:"right"}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,color:B.navy,fontWeight:600}}>{fmtMoney(a.currentBalance)}</div>
+          return <div key={a.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${B.gold}`,borderRadius:12,padding:isMobile?16:24,marginBottom:16,boxShadow:B.shadow}}>
+            <div style={{display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:isMobile?"flex-start":"flex-start",gap:isMobile?6:0,marginBottom:16}}>
+              <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?19:22,color:B.navy,fontWeight:600}}>{a.institution}</div><div style={{fontSize:13,color:B.textSoft}}>{a.accountType}{a.bankerName?` · ${a.bankerName}`:""}</div></div>
+              <div style={{textAlign:isMobile?"left":"right"}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?24:28,color:B.navy,fontWeight:600}}>{fmtMoney(a.currentBalance)}</div>
                 {pct!==null&&<div style={{fontSize:13,fontWeight:700,color:Number(pct)>=0?"#18a850":"#d43030"}}>{Number(pct)>=0?"+":""}{pct}% ({Number(gain)>=0?"+":"-"}{fmtMoney(Math.abs(gain))})</div>}
               </div>
             </div>
@@ -1838,15 +1894,15 @@ function ClientDashboard({family,data,userProfile,logout}){
       {/* PROPERTIES */}
       {activeTab==="properties"&&<div>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:20}}>Property Holdings</div>
-        {properties.length===0?<Empty text="No properties on file."/>:properties.map(p=><div key={p.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${B.gold}`,borderRadius:12,padding:24,marginBottom:16,boxShadow:B.shadow}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+        {properties.length===0?<Empty text="No properties on file."/>:properties.map(p=><div key={p.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${B.gold}`,borderRadius:12,padding:isMobile?16:24,marginBottom:16,boxShadow:B.shadow}}>
+          <div style={{display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:"flex-start",gap:isMobile?6:0,marginBottom:16}}>
             <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600}}>{p.address}</div>{p.ownerName&&<div style={{fontSize:13,color:B.textSoft,marginTop:2}}>{p.ownerName}</div>}</div>
-            <div style={{textAlign:"right"}}>
+            <div style={{textAlign:isMobile?"left":"right"}}>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600}}>{fmtMoney(p.currentValue||p.purchasePrice)}</div>
               <div style={{fontSize:12,color:B.textSoft}}>Current Value</div>
             </div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)",gap:10}}>
             {[["Property Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—"],["Loan Balance",fmtMoney(p.loanBalance)],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—"],["Insurance",p.insuranceCompany||"—"],["Flood Insurance",p.floodInsurance?"Yes":"No"]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:8,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>{l}</div>
               <div style={{fontSize:13,color:B.text,fontWeight:600}}>{v}</div>
@@ -1864,7 +1920,7 @@ function ClientDashboard({family,data,userProfile,logout}){
           if(!items.length)return null;
           return <div key={cat} style={{marginBottom:20}}>
             <div style={{fontSize:12,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}}>{cat}</div>
-            {items.map(v=><div key={v.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid #8b5cf6`,borderRadius:10,padding:"16px 20px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:B.shadow}}>
+            {items.map(v=><div key={v.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid #8b5cf6`,borderRadius:10,padding:"16px 20px",marginBottom:8,display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:isMobile?"flex-start":"center",gap:isMobile?6:0,boxShadow:B.shadow}}>
               <div>
                 <div style={{fontWeight:700,color:B.navy,fontSize:14}}>{v.description}</div>
                 {v.makeModel&&<div style={{fontSize:12,color:B.textSoft}}>{v.makeModel}{v.year?` · ${v.year}`:""}</div>}
@@ -1903,7 +1959,7 @@ function ClientDashboard({family,data,userProfile,logout}){
     </div>
 
     {/* Footer */}
-    <div style={{background:B.navy,padding:"16px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:40}}>
+    <div style={{background:B.navy,padding:isMobile?"14px":"16px 32px",display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:isMobile?"flex-start":"center",gap:isMobile?6:0,marginTop:40}}>
       <div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>PCM Family Office · info@pcmfamilyoffice.com</div>
       <div style={{fontSize:10,color:"rgba(206,182,132,0.5)",letterSpacing:"0.1em"}}>CONFIDENTIAL · FOR AUTHORIZED RECIPIENTS ONLY</div>
     </div>
