@@ -271,7 +271,7 @@ function FamilyReport({family,data,onClose}){
   };
 
   return <Modal title={`Report — ${family.name}`} onClose={onClose} wide>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:24}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:12,marginBottom:24}}>
       {[{l:"Properties",v:properties.length},{l:"Real Estate",v:fmtMoney(totalPortfolio)},{l:"Portfolio",v:fmtMoney(totalAccounts)},{l:"Open Tasks",v:tasks.length}].map(s=><StatBox key={s.l} label={s.l} value={s.v}/>)}
     </div>
     <div style={{display:"flex",gap:12,justifyContent:"flex-end"}}>
@@ -283,6 +283,7 @@ function FamilyReport({family,data,onClose}){
 
 // ── FAMILY DASHBOARD ──────────────────────────────────────────────────────────
 function FamilyDashboard({family,data,reload,toast,onBack}){
+  const isMobile=useMobile();
   const[activeTab,setActiveTab]=useState("overview");
   const[reportOpen,setReportOpen]=useState(false);
   const[modal,setModal]=useState(null);
@@ -391,7 +392,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%",minHeight:0}}>
       {/* Header */}
-      <div style={{padding:"14px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+      <div style={{padding:isMobile?"12px 14px":"14px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
         <button onClick={onBack} style={{background:"none",border:`1px solid ${B.border}`,color:B.textSoft,cursor:"pointer",fontSize:13,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:6,flexShrink:0}}>← Back</button>
         <div style={{flex:1}}>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600,lineHeight:1}}>{family.name}</div>
@@ -405,7 +406,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       </div>
 
       {/* Tabs */}
-      <div style={{borderBottom:`1px solid ${B.borderLight}`,background:B.white,padding:"0 28px",display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <div style={{borderBottom:`1px solid ${B.borderLight}`,background:B.white,padding:isMobile?"0 14px":"0 28px",display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
         {TABS.map(t=><button key={t} onClick={()=>setActiveTab(t.toLowerCase())} style={{background:"none",border:"none",borderBottom:activeTab===t.toLowerCase()?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.toLowerCase()?B.navy:B.textSoft,fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.toLowerCase()?700:400,padding:"10px 14px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>{t}</button>)}
       </div>
 
@@ -413,14 +414,14 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       <div style={{flex:1,overflowY:"auto",minHeight:0}}>
 
         {/* OVERVIEW TAB */}
-        {activeTab==="overview"&&<div style={{padding:"24px 28px"}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
+        {activeTab==="overview"&&<div style={{padding:isMobile?"16px 14px 90px":"24px 28px"}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:24}}>
             <StatBox label="Net Worth Est." value={fmtMoney(netWorth)} accent={B.navy}/>
             <StatBox label="Real Estate" value={fmtMoney(totalRE)} accent={B.gold}/>
             <StatBox label="Portfolio" value={fmtMoney(totalAccounts)} accent={B.navyMid}/>
             <StatBox label="Valuables" value={fmtMoney(totalValuables)} accent="#8b5cf6"/>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?14:20,marginBottom:20}}>
             {/* Members */}
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -480,7 +481,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* PROPERTIES TAB */}
-        {activeTab==="properties"&&<div style={{padding:"24px 28px"}}>
+        {activeTab==="properties"&&<div style={{padding:isMobile?"16px 14px 90px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{properties.length} properties · {fmtMoney(totalRE)} total · {fmtMoney(totalDebt)} debt</div>
             <Btn onClick={()=>setModal("property")}>+ Add Property</Btn>
@@ -499,7 +500,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 <Btn small variant="danger" onClick={()=>delProperty(p.id)}>✕</Btn>
               </div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(3,1fr)",gap:8}}>
               {[["Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—"],["Loan Type",p.loanType],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—"],["Utilities",p.utilities?`${fmtMoney(p.utilities)}/mo`:"—"],["Insurance Co.",p.insuranceCompany||"—"],["Ins. Premium",p.insurancePremium?`${fmtMoney(p.insurancePremium)}/yr`:"—"],["Flood Insurance",p.floodInsurance?`Yes${p.floodInsuranceCompany?` — ${p.floodInsuranceCompany}`:""}`:("No")]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                 <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}</div>
                 <div style={{fontSize:12,color:B.text,fontWeight:600}}>{v}</div>
@@ -510,7 +511,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* PORTFOLIO TAB */}
-        {activeTab==="portfolio"&&<div style={{padding:"24px 28px"}}>
+        {activeTab==="portfolio"&&<div style={{padding:isMobile?"16px 14px 90px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{accounts.length} accounts · {fmtMoney(totalAccounts)} total</div>
             <Btn onClick={()=>setModal("account")}>+ Add Account</Btn>
@@ -532,7 +533,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                   <Btn small variant="danger" onClick={()=>delAccount(a.id)}>✕</Btn>
                 </div>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:8}}>
                 {[["Starting Balance",fmtMoney(a.startingBalance)],["Current Balance",fmtMoney(a.currentBalance)],["Performance",pct!==null?`${Number(pct)>=0?"+":""}${pct}%`:"—"]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                   <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}</div>
                   <div style={{fontSize:13,color:B.text,fontWeight:700}}>{v}</div>
@@ -543,7 +544,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* VALUABLES TAB */}
-        {activeTab==="valuables"&&<div style={{padding:"24px 28px"}}>
+        {activeTab==="valuables"&&<div style={{padding:isMobile?"16px 14px 90px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{valuables.length} items · {fmtMoney(totalValuables)} est. value</div>
             <Btn onClick={()=>setModal("valuable")}>+ Add Valuable</Btn>
@@ -570,7 +571,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* DEALS TAB */}
-        {activeTab==="deals"&&<div style={{padding:"24px 28px"}}>
+        {activeTab==="deals"&&<div style={{padding:isMobile?"16px 14px 90px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{openDeals.length} open deals · {fmtMoney(openDeals.reduce((s,d)=>s+(Number(d.value)||0),0))} pipeline</div>
             <Btn onClick={()=>setModal("deal")}>+ Add Deal</Btn>
@@ -624,7 +625,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* TASKS TAB */}
-        {activeTab==="tasks"&&<div style={{padding:"24px 28px"}}>
+        {activeTab==="tasks"&&<div style={{padding:isMobile?"16px 14px 90px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{display:"flex",gap:8}}>
               {overdueTasks.length>0&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>{overdueTasks.length} overdue</Badge>}
@@ -815,6 +816,7 @@ function FamilyForm({initial,onSave,onClose}){
 
 // ── FAMILIES LIST VIEW ────────────────────────────────────────────────────────
 function FamiliesView({data,reload,toast}){
+  const isMobile=useMobile();
   const{families}=data;
   const[selected,setSelected]=useState(null);
   const[modal,setModal]=useState(null);
@@ -837,13 +839,13 @@ function FamiliesView({data,reload,toast}){
   });
 
   return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
-    <div style={{padding:"14px 24px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center"}}>
+    <div style={{padding:isMobile?"12px 14px":"14px 24px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center"}}>
       <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search families…" style={{flex:1}}/>
-      <Btn onClick={()=>setModal("add")}>+ New Family</Btn>
+      <Btn onClick={()=>setModal("add")}>+ New</Btn>
     </div>
-    <div style={{flex:1,overflowY:"auto",padding:"16px 24px"}}>
+    <div style={{flex:1,overflowY:"auto",padding:isMobile?"14px 14px 90px":"16px 24px"}}>
       {filtered.length===0&&<Empty text="No families yet. Add your first one."/>}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
         {filtered.map(f=>{
           const s=getStats(f);
           const overdue=(data.tasks||[]).filter(t=>t.familyId===f.id&&!t.done&&t.dueDate&&new Date(t.dueDate)<new Date()).length;
@@ -898,6 +900,7 @@ function PortfolioAccountForm({initial,families=[],onSave,onClose}){
 
 // ── PORTFOLIO VIEW (global) ───────────────────────────────────────────────────
 function PortfolioView({data,reload,toast}){
+  const isMobile=useMobile();
   const{families,portfolio_accounts=[]}=data;
   const[modal,setModal]=useState(null);
   const[filterFamily,setFilterFamily]=useState("all");
@@ -1026,36 +1029,39 @@ function PortfolioView({data,reload,toast}){
     reload("portfolio_accounts");
   };
 
-  return <div style={{display:"flex",height:"100%",minHeight:0}}>
-    <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:`1px solid ${B.borderLight}`}}>
-      <div style={{padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-        <Sel value={filterFamily} onChange={e=>setFilterFamily(e.target.value)} style={{width:200}}><option value="all">All Families</option>{families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</Sel>
+  const showList=!isMobile||!selected;
+  const showDetail=!isMobile||!!selected;
+  return <div style={{display:"flex",flexDirection:isMobile?"column":"row",height:"100%",minHeight:0}}>
+    {showList&&<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:isMobile?"none":`1px solid ${B.borderLight}`}}>
+      <div style={{padding:isMobile?"12px 14px":"12px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <Sel value={filterFamily} onChange={e=>setFilterFamily(e.target.value)} style={{width:isMobile?"100%":200}}><option value="all">All Families</option>{families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</Sel>
         <div style={{flex:1,fontSize:12,color:B.textSoft}}>Total: <strong style={{color:B.navy}}>{fmtMoney(totalValue)}</strong>{totalPct!==null&&<span style={{color:Number(totalPct)>=0?"#18a850":"#d43030",fontWeight:700,marginLeft:8}}>{Number(totalPct)>=0?"+":""}{totalPct}%</span>}</div>
         <Btn variant="ghost" onClick={()=>setCsvModal(true)}>⬆ Import CSV</Btn>
         <Btn onClick={()=>setModal("add")}>+ New Account</Btn>
       </div>
-      <div style={{overflowY:"auto",flex:1}}>
+      <div style={{overflowY:"auto",flex:1,paddingBottom:isMobile?90:0}}>
         {accounts.length===0&&<Empty text="No portfolio accounts yet. Add manually or import a CSV."/>}
         {ACCT_TYPES.map(type=>{
           const list=accounts.filter(a=>a.accountType===type);
           if(!list.length)return null;
           return <div key={type}>
-            <div style={{padding:"10px 20px 4px",display:"flex",justifyContent:"space-between"}}>
+            <div style={{padding:isMobile?"10px 14px 4px":"10px 20px 4px",display:"flex",justifyContent:"space-between"}}>
               <span style={{fontSize:11,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase"}}>{type}</span>
               <span style={{fontSize:11,color:B.textSoft,fontWeight:700}}>{fmtMoney(list.reduce((s,a)=>s+(Number(a.currentBalance)||0),0))}</span>
             </div>
-            {list.map(a=>{const pct=pctChange(a.startingBalance,a.currentBalance);const fam=gf(a.familyId);return <div key={a.id} onClick={()=>setSelected(a)} style={{padding:"12px 20px",cursor:"pointer",borderBottom:`1px solid ${B.borderLight}`,background:selected?.id===a.id?B.bg:B.white,borderLeft:`3px solid ${B.gold}`}}>
-              <div style={{display:"flex",justifyContent:"space-between"}}>
-                <div><div style={{fontWeight:700,color:B.navy}}>{a.institution}</div><div style={{fontSize:12,color:B.textSoft}}>{a.bankerName?`${a.bankerName} · `:""}{fam?fam.name:""}</div></div>
-                <div style={{textAlign:"right"}}><div style={{fontSize:14,fontWeight:700,color:B.navy}}>{fmtMoney(a.currentBalance)}</div>{pct!==null&&<div style={{fontSize:11,fontWeight:700,color:Number(pct)>=0?"#18a850":"#d43030"}}>{Number(pct)>=0?"+":""}{pct}%</div>}</div>
+            {list.map(a=>{const pct=pctChange(a.startingBalance,a.currentBalance);const fam=gf(a.familyId);return <div key={a.id} onClick={()=>setSelected(a)} style={{padding:isMobile?"12px 14px":"12px 20px",cursor:"pointer",borderBottom:`1px solid ${B.borderLight}`,background:selected?.id===a.id?B.bg:B.white,borderLeft:`3px solid ${B.gold}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",gap:10}}>
+                <div style={{minWidth:0}}><div style={{fontWeight:700,color:B.navy}}>{a.institution}</div><div style={{fontSize:12,color:B.textSoft}}>{a.bankerName?`${a.bankerName} · `:""}{fam?fam.name:""}</div></div>
+                <div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:14,fontWeight:700,color:B.navy}}>{fmtMoney(a.currentBalance)}</div>{pct!==null&&<div style={{fontSize:11,fontWeight:700,color:Number(pct)>=0?"#18a850":"#d43030"}}>{Number(pct)>=0?"+":""}{pct}%</div>}</div>
               </div>
             </div>;})}
           </div>;
         })}
       </div>
-    </div>
-    {selected?(
-      <div style={{width:360,overflowY:"auto",flexShrink:0,background:B.bg,padding:22}}>
+    </div>}
+    {showDetail&&(selected?(
+      <div style={{width:isMobile?"100%":360,overflowY:"auto",flexShrink:0,background:B.bg,padding:isMobile?"16px 14px 90px":22}}>
+        {isMobile&&<button onClick={()=>setSelected(null)} style={{background:"none",border:`1px solid ${B.border}`,color:B.textSoft,cursor:"pointer",fontSize:13,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:6,marginBottom:14}}>← Back</button>}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
           <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600}}>{selected.institution}</div><div style={{fontSize:12,color:B.textSoft}}>{selected.accountType}</div></div>
           <Btn small variant="danger" onClick={()=>del(selected.id)}>Delete</Btn>
@@ -1068,7 +1074,7 @@ function PortfolioView({data,reload,toast}){
         <IRow label="Current Balance" value={fmtMoney(selected.currentBalance)}/>
         {selected.notes&&<><SectionLabel>Notes</SectionLabel><div style={{fontSize:13,color:B.textMid,lineHeight:1.6}}>{selected.notes}</div></>}
       </div>
-    ):<div style={{width:360,display:"flex",alignItems:"center",justifyContent:"center",color:B.textMute,fontSize:13,background:B.bg}}>Select an account</div>}
+    ):<div style={{width:360,display:"flex",alignItems:"center",justifyContent:"center",color:B.textMute,fontSize:13,background:B.bg}}>Select an account</div>)}
 
     {modal==="add"&&<Modal title="New Portfolio Account" onClose={()=>setModal(null)}><PortfolioAccountForm families={families} onSave={add} onClose={()=>setModal(null)}/></Modal>}
 
@@ -1092,16 +1098,16 @@ function PortfolioView({data,reload,toast}){
       {csvRows.length>0&&<>
         <div style={{fontSize:12,fontWeight:700,color:B.textSoft,marginBottom:8,letterSpacing:"0.08em",textTransform:"uppercase"}}>Review Accounts to Import</div>
         <div style={{maxHeight:300,overflowY:"auto",border:`1px solid ${B.borderLight}`,borderRadius:8,marginBottom:16}}>
-          <div style={{display:"grid",gridTemplateColumns:"32px 1fr 140px 120px",padding:"8px 12px",background:B.bg,borderBottom:`1px solid ${B.borderLight}`}}>
+          {!isMobile&&<div style={{display:"grid",gridTemplateColumns:"32px 1fr 140px 120px",padding:"8px 12px",background:B.bg,borderBottom:`1px solid ${B.borderLight}`}}>
             {["","Account Name","Type","Balance"].map(h=><div key={h} style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.08em",textTransform:"uppercase"}}>{h}</div>)}
-          </div>
-          {csvRows.map((row,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"32px 1fr 140px 120px",padding:"10px 12px",borderBottom:`1px solid ${B.borderLight}`,alignItems:"center",opacity:row.include?1:0.4}}>
+          </div>}
+          {csvRows.map((row,i)=><div key={i} style={{display:"grid",gridTemplateColumns:isMobile?"32px 1fr":"32px 1fr 140px 120px",gap:isMobile?8:0,padding:"10px 12px",borderBottom:`1px solid ${B.borderLight}`,alignItems:"center",opacity:row.include?1:0.4}}>
             <input type="checkbox" checked={!!row.include} onChange={e=>setCsvRows(prev=>prev.map((r,j)=>j===i?{...r,include:e.target.checked}:r))} style={{accentColor:B.navy}}/>
             <input value={row.institution} onChange={e=>setCsvRows(prev=>prev.map((r,j)=>j===i?{...r,institution:e.target.value}:r))} style={{...inp,padding:"4px 8px",fontSize:12}}/>
-            <select value={row.accountType} onChange={e=>setCsvRows(prev=>prev.map((r,j)=>j===i?{...r,accountType:e.target.value}:r))} style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 8px",fontSize:12,fontFamily:"inherit",color:B.text,outline:"none"}}>
+            <select value={row.accountType} onChange={e=>setCsvRows(prev=>prev.map((r,j)=>j===i?{...r,accountType:e.target.value}:r))} style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 8px",fontSize:12,fontFamily:"inherit",color:B.text,outline:"none",gridColumn:isMobile?"2":"auto"}}>
               {ACCT_TYPES.map(t=><option key={t}>{t}</option>)}
             </select>
-            <div style={{fontSize:13,fontWeight:700,color:B.navy,textAlign:"right",paddingRight:8}}>{fmtMoney(row.currentBalance)}</div>
+            <div style={{fontSize:13,fontWeight:700,color:B.navy,textAlign:isMobile?"left":"right",paddingRight:isMobile?0:8,gridColumn:isMobile?"2":"auto"}}>{fmtMoney(row.currentBalance)}</div>
           </div>)}
         </div>
         <div style={{background:"#e8f0f8",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:12,color:B.navyMid}}>
@@ -1169,6 +1175,7 @@ function NotesView({data,reload,toast}){
 
 // ── TASKS VIEW ────────────────────────────────────────────────────────────────
 function TasksView({data,reload,toast}){
+  const isMobile=useMobile();
   const{contacts,families,tasks}=data;
   const[modal,setModal]=useState(null);const[filter,setFilter]=useState("Pending");const[filterFamily,setFilterFamily]=useState("all");
   const gc=id=>contacts.find(c=>c.id===id);const gf=id=>families.find(f=>f.id===id);
@@ -1181,7 +1188,7 @@ function TasksView({data,reload,toast}){
   const del=async id=>{const{error}=await sb.from("tasks").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("tasks");}};
 
 
-  return <div style={{maxWidth:760,margin:"0 auto",padding:"20px",height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
+  return <div style={{maxWidth:760,margin:"0 auto",padding:isMobile?"14px":"20px",height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
     <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
       <div style={{display:"flex",gap:5}}>{["Pending","Done","All"].map(s=><button key={s} onClick={()=>setFilter(s)} style={{background:filter===s?B.navy:"transparent",border:`1px solid ${filter===s?B.navy:B.border}`,color:filter===s?B.white:B.textSoft,borderRadius:20,padding:"4px 14px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{s}</button>)}</div>
       <Sel value={filterFamily} onChange={e=>setFilterFamily(e.target.value)} style={{width:170}}><option value="all">All Families</option>{families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</Sel>
@@ -1191,7 +1198,7 @@ function TasksView({data,reload,toast}){
       </div>
       <Btn onClick={()=>setModal("add")}>+ New Task</Btn>
     </div>
-    <div style={{overflowY:"auto",flex:1}}>
+    <div style={{overflowY:"auto",flex:1,paddingBottom:isMobile?90:0}}>
       {list.length===0&&<div style={{padding:"60px 0",textAlign:"center",color:B.textMute,fontSize:14}}>No tasks here.</div>}
       {list.map(t=>{
         const contact=gc(t.contactId);const fam=gf(t.familyId);
@@ -1357,6 +1364,7 @@ function ProspectPipelineView({data,reload,toast}){
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 function Dashboard({data}){
+  const isMobile=useMobile();
   const{families,contacts,properties,deals,notes,tasks,portfolio_accounts=[]}=data;
   const openDeals=deals.filter(d=>d.stage!=="Closed Lost"&&d.stage!=="Closed Won");
   const pipeline=openDeals.reduce((s,d)=>s+(Number(d.value)||0),0);
@@ -1371,21 +1379,21 @@ function Dashboard({data}){
   const gf=id=>families.find(f=>f.id===id);
   const hr=new Date().getHours();
 
-  return <div style={{overflowY:"auto",height:"100%",padding:"26px 30px 48px"}}>
+  return <div style={{overflowY:"auto",height:"100%",padding:isMobile?"18px 14px 90px":"26px 30px 48px"}}>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
     <div style={{marginBottom:24}}>
       <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,color:B.navy,fontWeight:600,marginBottom:4}}>Good {hr<12?"Morning":hr<17?"Afternoon":"Evening"}</div>
       <div style={{color:B.textSoft,fontSize:14}}>PCM Family Office — Portfolio & Client Overview</div>
       <div style={{height:2,width:56,background:B.gold,marginTop:10,borderRadius:2}}/>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:24}}>
       {[{label:"Families",value:families.length,sub:`${contacts.length} contacts`,accent:B.navy},{label:"Real Estate",value:fmtMoney(totalRE),sub:`${properties.length} properties`,accent:B.gold},{label:"Portfolio",value:fmtMoney(totalPortfolio),sub:`${portfolio_accounts.length} accounts`,accent:B.navyMid},{label:"Open Tasks",value:pending.length,sub:overdue.length>0?`${overdue.length} overdue`:dueSoon.length>0?`${dueSoon.length} due soon`:"All on track",accent:overdue.length>0?"#d43030":dueSoon.length>0?"#d4900a":B.navyMid}].map(s=><div key={s.label} style={{background:B.bgCard,borderRadius:12,padding:"20px 22px",border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,borderTop:`3px solid ${s.accent}`}}>
         <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>{s.label}</div>
         <div style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:600,lineHeight:1}}>{s.value}</div>
         <div style={{fontSize:11,color:B.textSoft,marginTop:5}}>{s.sub}</div>
       </div>)}
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:18,marginBottom:18}}>
       <div style={{background:B.bgCard,borderRadius:12,padding:24,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Pipeline by Stage</div>
         <GoldLine/>
@@ -1408,7 +1416,7 @@ function Dashboard({data}){
         </div>;})}
       </div>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:18}}>
       <div style={{background:B.bgCard,borderRadius:12,padding:24,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Portfolio by Family</div>
         <GoldLine/>
