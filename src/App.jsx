@@ -1,3 +1,5 @@
+// PCM Family Office Platform — App.jsx
+// BUILD 2026-05-05 · Cash Flow (income+expenses+reorder) · MoneyInput commas · smart chart axis · client read-only · mobile
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { PCM_LOGO } from "./logo.js";
