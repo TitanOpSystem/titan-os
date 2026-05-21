@@ -283,11 +283,11 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
-const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events"];
+const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","note_attachments"];
 
 
 // ── UI PRIMITIVES ─────────────────────────────────────────────────────────────
@@ -543,6 +543,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   const deals=data.deals.filter(d=>d.familyId===family.id);
   const openDeals=deals.filter(d=>d.stage!=="Closed Lost"&&d.stage!=="Closed Won");
   const famNotes=data.notes.filter(n=>n.familyId===family.id);
+  const noteAttachments=data.note_attachments||[];
   const famTasks=data.tasks.filter(t=>t.familyId===family.id);
   const pendingTasks=famTasks.filter(t=>!t.done);
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
@@ -558,12 +559,55 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
   const TABS=["Overview","Properties","Portfolio","Cash Flow","Valuables","Deals","Notes","Tasks","Documents"];
 
-  // Quick add note
+  // Quick add note (with optional file attachments)
   const[noteBody,setNoteBody]=useState("");
+  // pendingNoteFiles: array of {file, category}
+  const[pendingNoteFiles,setPendingNoteFiles]=useState([]);
+  const[noteAttachingId,setNoteAttachingId]=useState(null); // existing note ID we're attaching to
+  // Upload a single file as an attachment to a given note
+  const uploadNoteAttachment=async(noteId,file,category)=>{
+    const ext=file.name.split(".").pop();
+    const path=`note-attachments/${family.id}/${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name.replace(/\s+/g,"_")}`;
+    const{error:uploadError}=await sb.storage.from("documents").upload(path,file,{upsert:false});
+    if(uploadError)throw new Error(uploadError.message);
+    const{error:dbError}=await sb.from("note_attachments").insert({note_id:noteId,name:file.name,category:category||"General",file_path:path,file_size:file.size,file_type:file.type||ext});
+    if(dbError)throw new Error(dbError.message);
+  };
   const addNote=async()=>{
     if(!noteBody.trim())return;
-    const{error}=await sb.from("notes").insert({body:noteBody,family_id:family.id,contact_id:null});
-    if(error)toast(error.message,"error");else{toast("Note added");setNoteBody("");reload("notes");}
+    const{data,error}=await sb.from("notes").insert({body:noteBody,family_id:family.id,contact_id:null}).select().single();
+    if(error){toast(error.message,"error");return;}
+    // Upload any pending attachments
+    if(pendingNoteFiles.length>0&&data){
+      try{
+        for(const pf of pendingNoteFiles){await uploadNoteAttachment(data.id,pf.file,pf.category);}
+        toast(`Note added with ${pendingNoteFiles.length} attachment${pendingNoteFiles.length>1?"s":""}`);
+      }catch(e){toast("Note saved but attachment failed: "+e.message,"error");}
+    }else{
+      toast("Note added");
+    }
+    setNoteBody("");setPendingNoteFiles([]);
+    reload("notes");reload("note_attachments");
+  };
+  // Download a note attachment via signed URL
+  const downloadNoteAttachment=async(att)=>{
+    const{data,error}=await sb.storage.from("documents").createSignedUrl(att.filePath,300,{download:att.name||true});
+    if(error){toast(error.message,"error");return;}
+    const a=document.createElement("a");a.href=data.signedUrl;a.download=att.name||"file";document.body.appendChild(a);a.click();document.body.removeChild(a);
+  };
+  // Delete a note attachment (file + DB row)
+  const delNoteAttachment=async(att)=>{
+    await sb.storage.from("documents").remove([att.filePath]);
+    const{error}=await sb.from("note_attachments").delete().eq("id",att.id);
+    if(error)toast(error.message,"error");else{toast("Attachment removed");reload("note_attachments");}
+  };
+  // Attach a file to an existing note (with category)
+  const attachToExistingNote=async(noteId,file,category)=>{
+    try{
+      await uploadNoteAttachment(noteId,file,category);
+      toast("File attached");
+      reload("note_attachments");
+    }catch(e){toast(e.message,"error");}
   };
 
   // Quick add task
@@ -877,22 +921,72 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
           <div style={{padding:isMobile?"14px 14px":"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
             <div style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:12,overflow:"hidden",boxShadow:B.shadow}}>
               <textarea value={noteBody} onChange={e=>setNoteBody(e.target.value)} placeholder="Write a note or activity log entry…" style={{width:"100%",minHeight:80,background:"transparent",border:"none",padding:"14px 16px",color:B.text,fontSize:14,outline:"none",resize:"none",fontFamily:"inherit",lineHeight:1.65,boxSizing:"border-box"}}/>
-              <div style={{padding:"10px 14px",borderTop:`1px solid ${B.borderLight}`,background:B.white,display:"flex",justifyContent:"flex-end"}}>
-                <Btn onClick={addNote} disabled={!noteBody.trim()}>Log Note</Btn>
+              {/* Pending files preview */}
+              {pendingNoteFiles.length>0&&<div style={{padding:"8px 14px",borderTop:`1px solid ${B.borderLight}`,background:"#f9f7f3"}}>
+                <div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:6}}>Attachments ({pendingNoteFiles.length})</div>
+                {pendingNoteFiles.map((pf,idx)=><div key={idx} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:idx===pendingNoteFiles.length-1?"none":`1px solid ${B.borderLight}`,flexWrap:"wrap"}}>
+                  <span style={{fontSize:13,color:B.navy,fontWeight:600,flex:"1 1 200px",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📎 {pf.file.name}</span>
+                  <span style={{fontSize:11,color:B.textSoft}}>{(pf.file.size/1024).toFixed(1)}KB</span>
+                  <select value={pf.category} onChange={e=>{const next=[...pendingNoteFiles];next[idx]={...next[idx],category:e.target.value};setPendingNoteFiles(next);}} style={{...inp,padding:"4px 8px",fontSize:12,width:"auto",height:"auto"}}>
+                    {DOC_CATEGORIES.map(c=><option key={c}>{c}</option>)}
+                  </select>
+                  <button onClick={()=>setPendingNoteFiles(pendingNoteFiles.filter((_,i)=>i!==idx))} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14}}>✕</button>
+                </div>)}
+              </div>}
+              <div style={{padding:"10px 14px",borderTop:`1px solid ${B.borderLight}`,background:B.white,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <label style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 12px",background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,cursor:"pointer",fontSize:12,color:B.navy,fontWeight:600}}>
+                  📎 Attach file(s)
+                  <input type="file" multiple onChange={e=>{
+                    const files=Array.from(e.target.files||[]);
+                    if(files.length===0)return;
+                    setPendingNoteFiles([...pendingNoteFiles,...files.map(f=>({file:f,category:"General"}))]);
+                    e.target.value="";
+                  }} style={{display:"none"}}/>
+                </label>
+                <Btn onClick={addNote} disabled={!noteBody.trim()}>Log Note{pendingNoteFiles.length>0?` + ${pendingNoteFiles.length} file${pendingNoteFiles.length>1?"s":""}`:""}</Btn>
               </div>
             </div>
           </div>
           <div style={{flex:1,overflowY:"auto",padding:isMobile?"14px 14px":"20px 28px"}}>
-            {famNotes.length===0?<Empty text="No notes yet."/>:[...famNotes].sort((a,b)=>b.createdAt>a.createdAt?1:-1).map(n=><div key={n.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,marginBottom:12,boxShadow:B.shadow,overflow:"hidden"}}>
-              <div style={{height:3,background:`linear-gradient(90deg,${B.gold},${B.goldLight})`}}/>
-              <div style={{padding:"16px 20px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:8}}>
-                  <p style={{margin:0,color:B.text,fontSize:14,lineHeight:1.7,flex:1}}>{n.body}</p>
-                  <button onClick={()=>delNote(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button>
+            {famNotes.length===0?<Empty text="No notes yet."/>:[...famNotes].sort((a,b)=>b.createdAt>a.createdAt?1:-1).map(n=>{
+              const atts=noteAttachments.filter(a=>a.noteId===n.id);
+              return <div key={n.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,marginBottom:12,boxShadow:B.shadow,overflow:"hidden"}}>
+                <div style={{height:3,background:`linear-gradient(90deg,${B.gold},${B.goldLight})`}}/>
+                <div style={{padding:"16px 20px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:8}}>
+                    <p style={{margin:0,color:B.text,fontSize:14,lineHeight:1.7,flex:1,whiteSpace:"pre-wrap"}}>{n.body}</p>
+                    <button onClick={()=>delNote(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button>
+                  </div>
+                  {/* Attachments list */}
+                  {atts.length>0&&<div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`}}>
+                    {atts.map(a=><div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",flexWrap:"wrap"}}>
+                      <span style={{fontSize:13,color:B.navy,fontWeight:600,flex:"1 1 200px",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📎 {a.name}</span>
+                      <Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{a.category}</Badge>
+                      {a.fileSize&&<span style={{fontSize:10,color:B.textSoft}}>{(a.fileSize/1024).toFixed(1)}KB</span>}
+                      <button onClick={()=>downloadNoteAttachment(a)} style={{background:"none",border:`1px solid ${B.border}`,color:B.navy,cursor:"pointer",fontSize:11,padding:"3px 10px",borderRadius:6,fontFamily:"inherit"}}>↓ Download</button>
+                      <button onClick={()=>{if(confirm("Remove this attachment?"))delNoteAttachment(a);}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
+                    </div>)}
+                  </div>}
+                  {/* Meta row + add-attachment button */}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,flexWrap:"wrap",gap:8}}>
+                    <div style={{fontSize:11,color:B.textMute}}>🕐 {fmt(n.createdAt)}</div>
+                    <label style={{display:"inline-flex",alignItems:"center",gap:5,padding:"4px 10px",background:"transparent",border:`1px dashed ${B.border}`,borderRadius:6,cursor:"pointer",fontSize:11,color:B.textSoft}}>
+                      📎 Add file
+                      <input type="file" onChange={e=>{
+                        const file=e.target.files&&e.target.files[0];
+                        if(!file)return;
+                        const category=prompt("Category for this file?\n\nOptions: "+DOC_CATEGORIES.join(", "),"General");
+                        if(!category){e.target.value="";return;}
+                        // Sanitize: ensure it's a known category, else default to "General"
+                        const cat=DOC_CATEGORIES.includes(category)?category:"General";
+                        attachToExistingNote(n.id,file,cat);
+                        e.target.value="";
+                      }} style={{display:"none"}}/>
+                    </label>
+                  </div>
                 </div>
-                <div style={{fontSize:11,color:B.textMute}}>🕐 {fmt(n.createdAt)}</div>
-              </div>
-            </div>)}
+              </div>;
+            })}
           </div>
         </div>}
 
@@ -2743,7 +2837,7 @@ const ALL_NAV=NAV_SECTIONS.flatMap(s=>s.items);
 // ── APP ────────────────────────────────────────────────────────────────────────
 export default function App(){
   const[tab,setTab]=useState("dashboard");
-  const[data,setData]=useState({families:[],contacts:[],properties:[],deals:[],notes:[],tasks:[],portfolio_accounts:[],valuables:[],documents:[],cash_flow_events:[]});
+  const[data,setData]=useState({families:[],contacts:[],properties:[],deals:[],notes:[],tasks:[],portfolio_accounts:[],valuables:[],documents:[],cash_flow_events:[],note_attachments:[]});
   const[loading,setLoading]=useState(true);
   const[toastState,setToastState]=useState(null);
   const[authed,setAuthed]=useState(false);
