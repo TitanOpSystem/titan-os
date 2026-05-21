@@ -1981,20 +1981,79 @@ function PortfolioView({data,reload,toast}){
 function NotesView({data,reload,toast}){
   const isMobile=useIsMobile();
   const{contacts,families,notes}=data;
+  const noteAttachments=data.note_attachments||[];
   const[body,setBody]=useState("");const[cid,setCid]=useState("");const[fid,setFid]=useState("");const[search,setSearch]=useState("");const[saving,setSaving]=useState(false);
+  const[pendingFiles,setPendingFiles]=useState([]);
   const gc=id=>contacts.find(c=>c.id===id);const gf=id=>families.find(f=>f.id===id);
-  const add=async()=>{if(!body.trim())return;setSaving(true);const{error}=await sb.from("notes").insert({body,contact_id:cid||null,family_id:fid||null});setSaving(false);if(error)toast(error.message,"error");else{toast("Note added");setBody("");reload("notes");}};
-  const del=async id=>{const{error}=await sb.from("notes").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("notes");}};
+  const uploadAttachment=async(noteId,file,category,familyIdForPath)=>{
+    const ext=file.name.split(".").pop();
+    const path=`note-attachments/${familyIdForPath||"general"}/${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name.replace(/\s+/g,"_")}`;
+    const{error:uploadError}=await sb.storage.from("documents").upload(path,file,{upsert:false});
+    if(uploadError)throw new Error(uploadError.message);
+    const{error:dbError}=await sb.from("note_attachments").insert({note_id:noteId,name:file.name,category:category||"General",file_path:path,file_size:file.size,file_type:file.type||ext});
+    if(dbError)throw new Error(dbError.message);
+  };
+  const add=async()=>{
+    if(!body.trim())return;
+    setSaving(true);
+    const{data:noteRow,error}=await sb.from("notes").insert({body,contact_id:cid||null,family_id:fid||null}).select().single();
+    if(error){toast(error.message,"error");setSaving(false);return;}
+    if(pendingFiles.length>0&&noteRow){
+      try{
+        for(const pf of pendingFiles){await uploadAttachment(noteRow.id,pf.file,pf.category,fid);}
+        toast(`Note added with ${pendingFiles.length} attachment${pendingFiles.length>1?"s":""}`);
+      }catch(e){toast("Note saved but attachment failed: "+e.message,"error");}
+    }else{
+      toast("Note added");
+    }
+    setBody("");setPendingFiles([]);setSaving(false);
+    reload("notes");reload("note_attachments");
+  };
+  const del=async id=>{const{error}=await sb.from("notes").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("notes");reload("note_attachments");}};
+  const download=async(att)=>{
+    const{data,error}=await sb.storage.from("documents").createSignedUrl(att.filePath,300,{download:att.name||true});
+    if(error){toast(error.message,"error");return;}
+    const a=document.createElement("a");a.href=data.signedUrl;a.download=att.name||"file";document.body.appendChild(a);a.click();document.body.removeChild(a);
+  };
+  const delAtt=async(att)=>{
+    await sb.storage.from("documents").remove([att.filePath]);
+    const{error}=await sb.from("note_attachments").delete().eq("id",att.id);
+    if(error)toast(error.message,"error");else{toast("Attachment removed");reload("note_attachments");}
+  };
+  const attachToExisting=async(noteId,file,category,famId)=>{
+    try{await uploadAttachment(noteId,file,category,famId);toast("File attached");reload("note_attachments");}
+    catch(e){toast(e.message,"error");}
+  };
   const filtered=notes.filter(n=>n.body.toLowerCase().includes(search.toLowerCase())||(gc(n.contactId)?.name||"").toLowerCase().includes(search.toLowerCase())||(gf(n.familyId)?.name||"").toLowerCase().includes(search.toLowerCase()));
   return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
     <div style={{padding:isMobile?"14px 14px":"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
       <div style={{maxWidth:800,margin:"0 auto"}}>
         <div style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:12,overflow:"hidden",boxShadow:B.shadow}}>
           <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Write a note or activity log entry…" style={{width:"100%",minHeight:88,background:"transparent",border:"none",padding:"14px 16px",color:B.text,fontSize:14,outline:"none",resize:"none",fontFamily:"inherit",lineHeight:1.65,boxSizing:"border-box"}}/>
+          {pendingFiles.length>0&&<div style={{padding:"8px 14px",borderTop:`1px solid ${B.borderLight}`,background:"#f9f7f3"}}>
+            <div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:6}}>Attachments ({pendingFiles.length})</div>
+            {pendingFiles.map((pf,idx)=><div key={idx} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:idx===pendingFiles.length-1?"none":`1px solid ${B.borderLight}`,flexWrap:"wrap"}}>
+              <span style={{fontSize:13,color:B.navy,fontWeight:600,flex:"1 1 200px",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📎 {pf.file.name}</span>
+              <span style={{fontSize:11,color:B.textSoft}}>{(pf.file.size/1024).toFixed(1)}KB</span>
+              <select value={pf.category} onChange={e=>{const next=[...pendingFiles];next[idx]={...next[idx],category:e.target.value};setPendingFiles(next);}} style={{...inp,padding:"4px 8px",fontSize:12,width:"auto",height:"auto"}}>
+                {DOC_CATEGORIES.map(c=><option key={c}>{c}</option>)}
+              </select>
+              <button onClick={()=>setPendingFiles(pendingFiles.filter((_,i)=>i!==idx))} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14}}>✕</button>
+            </div>)}
+          </div>}
           <div style={{display:"flex",gap:8,alignItems:"center",padding:"10px 14px",borderTop:`1px solid ${B.borderLight}`,background:B.white,flexWrap:"wrap"}}>
             <select value={fid} onChange={e=>setFid(e.target.value)} style={{...inp,flex:1,minWidth:130,padding:"6px 10px",fontSize:13}}><option value="">🏠 Family</option>{families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</select>
             <select value={cid} onChange={e=>setCid(e.target.value)} style={{...inp,flex:1,minWidth:130,padding:"6px 10px",fontSize:13}}><option value="">👤 Contact</option>{contacts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
-            <Btn onClick={add} disabled={saving||!body.trim()}>{saving?"Saving…":"Log Note"}</Btn>
+            <label style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 12px",background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,cursor:"pointer",fontSize:12,color:B.navy,fontWeight:600,flexShrink:0}}>
+              📎 Attach
+              <input type="file" multiple onChange={e=>{
+                const files=Array.from(e.target.files||[]);
+                if(files.length===0)return;
+                setPendingFiles([...pendingFiles,...files.map(f=>({file:f,category:"General"}))]);
+                e.target.value="";
+              }} style={{display:"none"}}/>
+            </label>
+            <Btn onClick={add} disabled={saving||!body.trim()}>{saving?"Saving…":`Log Note${pendingFiles.length>0?` + ${pendingFiles.length}`:""}`}</Btn>
           </div>
         </div>
       </div>
@@ -2005,17 +2064,44 @@ function NotesView({data,reload,toast}){
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search notes…" style={{...inp,padding:"9px 14px",boxShadow:B.shadow}}/>
         </div>
         {filtered.length===0&&<div style={{padding:"60px 0",textAlign:"center",color:B.textMute}}><div style={{fontSize:32,marginBottom:12}}>📝</div>No notes yet.</div>}
-        {filtered.map(n=>{const contact=gc(n.contactId);const fam=gf(n.familyId);return <div key={n.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,marginBottom:12,boxShadow:B.shadow,overflow:"hidden"}}>
-          <div style={{height:3,background:`linear-gradient(90deg,${B.gold},${B.goldLight})`}}/>
-          <div style={{padding:"16px 20px"}}>
-            <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:8}}><p style={{margin:0,color:B.text,fontSize:14,lineHeight:1.7,flex:1}}>{n.body}</p><button onClick={()=>del(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button></div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              <span style={{fontSize:11,color:B.textMute}}>🕐 {fmt(n.createdAt)}</span>
-              {fam&&<span style={{background:"#e8f0f8",color:B.navyMid,borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:700}}>🏠 {fam.name}</span>}
-              {contact&&<span style={{background:"#fef3e2",color:"#8a5c00",borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:700}}>👤 {contact.name}</span>}
+        {filtered.map(n=>{
+          const contact=gc(n.contactId);const fam=gf(n.familyId);
+          const atts=noteAttachments.filter(a=>a.noteId===n.id);
+          return <div key={n.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,marginBottom:12,boxShadow:B.shadow,overflow:"hidden"}}>
+            <div style={{height:3,background:`linear-gradient(90deg,${B.gold},${B.goldLight})`}}/>
+            <div style={{padding:"16px 20px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:8}}><p style={{margin:0,color:B.text,fontSize:14,lineHeight:1.7,flex:1,whiteSpace:"pre-wrap"}}>{n.body}</p><button onClick={()=>del(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button></div>
+              {atts.length>0&&<div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`}}>
+                {atts.map(a=><div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",flexWrap:"wrap"}}>
+                  <span style={{fontSize:13,color:B.navy,fontWeight:600,flex:"1 1 200px",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📎 {a.name}</span>
+                  <span style={{background:"#e8f0f8",color:B.navyMid,borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:700}}>{a.category}</span>
+                  {a.fileSize&&<span style={{fontSize:10,color:B.textSoft}}>{(a.fileSize/1024).toFixed(1)}KB</span>}
+                  <button onClick={()=>download(a)} style={{background:"none",border:`1px solid ${B.border}`,color:B.navy,cursor:"pointer",fontSize:11,padding:"3px 10px",borderRadius:6,fontFamily:"inherit"}}>↓ Download</button>
+                  <button onClick={()=>{if(confirm("Remove this attachment?"))delAtt(a);}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
+                </div>)}
+              </div>}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,flexWrap:"wrap",gap:8}}>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontSize:11,color:B.textMute}}>🕐 {fmt(n.createdAt)}</span>
+                  {fam&&<span style={{background:"#e8f0f8",color:B.navyMid,borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:700}}>🏠 {fam.name}</span>}
+                  {contact&&<span style={{background:"#fef3e2",color:"#8a5c00",borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:700}}>👤 {contact.name}</span>}
+                </div>
+                <label style={{display:"inline-flex",alignItems:"center",gap:5,padding:"4px 10px",background:"transparent",border:`1px dashed ${B.border}`,borderRadius:6,cursor:"pointer",fontSize:11,color:B.textSoft}}>
+                  📎 Add file
+                  <input type="file" onChange={e=>{
+                    const file=e.target.files&&e.target.files[0];
+                    if(!file)return;
+                    const category=prompt("Category for this file?\n\nOptions: "+DOC_CATEGORIES.join(", "),"General");
+                    if(!category){e.target.value="";return;}
+                    const cat=DOC_CATEGORIES.includes(category)?category:"General";
+                    attachToExisting(n.id,file,cat,n.familyId);
+                    e.target.value="";
+                  }} style={{display:"none"}}/>
+                </label>
+              </div>
             </div>
-          </div>
-        </div>;})}
+          </div>;
+        })}
       </div>
     </div>
   </div>;
