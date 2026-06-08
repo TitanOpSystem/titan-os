@@ -2065,13 +2065,31 @@ function PortfolioView({data,reload,toast}){
 }
 
 // ── NOTES VIEW ────────────────────────────────────────────────────────────────
-function NotesView({data,reload,toast}){
+function NotesView({data,reload,toast,userProfile,prospectMode=false}){
   const isMobile=useIsMobile();
   const{contacts,families,notes}=data;
   const noteAttachments=data.note_attachments||[];
   const[body,setBody]=useState("");const[cid,setCid]=useState("");const[fid,setFid]=useState("");const[search,setSearch]=useState("");const[saving,setSaving]=useState(false);
   const[pendingFiles,setPendingFiles]=useState([]);
   const gc=id=>contacts.find(c=>c.id===id);const gf=id=>families.find(f=>f.id===id);
+  const adminProspect=prospectMode&&userProfile?.role==="admin";
+  const[viewMode,setViewMode]=useState("notes");
+  const[advisorFilter,setAdvisorFilter]=useState("");
+  const[advisors,setAdvisors]=useState([]);
+  useEffect(()=>{if(adminProspect){sb.from("user_profiles").select("id,email,full_name,role").eq("role","advisor").then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[adminProspect]);
+  const advisorOfNote=n=>{const c=contacts.find(x=>x.id===n.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
+  const advisorSummary=useMemo(()=>{
+    const groups={};
+    notes.forEach(n=>{
+      const c=contacts.find(x=>x.id===n.contactId);
+      const adv=c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;
+      const key=adv?adv.email:"__unassigned__";
+      if(!groups[key])groups[key]={email:adv?adv.email:"",name:adv?adv.name:"Unassigned",unassigned:!adv,notes:0,contacts:new Set()};
+      groups[key].notes+=1; if(n.contactId)groups[key].contacts.add(n.contactId);
+    });
+    advisors.forEach(a=>{if(!groups[a.email])groups[a.email]={email:a.email,name:a.full_name||a.email,unassigned:false,notes:0,contacts:new Set()};});
+    return Object.values(groups).map(g=>({...g,contacts:g.contacts.size})).sort((a,b)=>b.notes-a.notes);
+  },[notes,contacts,advisors]);
   const uploadAttachment=async(noteId,file,category,familyIdForPath)=>{
     const ext=file.name.split(".").pop();
     const path=`note-attachments/${familyIdForPath||"general"}/${Date.now()}_${Math.random().toString(36).slice(2,8)}_${file.name.replace(/\s+/g,"_")}`;
@@ -2111,8 +2129,54 @@ function NotesView({data,reload,toast}){
     try{await uploadAttachment(noteId,file,category,famId);toast("File attached");reload("note_attachments");}
     catch(e){toast(e.message,"error");}
   };
-  const filtered=notes.filter(n=>n.body.toLowerCase().includes(search.toLowerCase())||(gc(n.contactId)?.name||"").toLowerCase().includes(search.toLowerCase())||(gf(n.familyId)?.name||"").toLowerCase().includes(search.toLowerCase()));
+  const filtered=notes.filter(n=>{
+    if(advisorFilter&&(advisorOfNote(n)?.email||"")!==advisorFilter)return false;
+    return n.body.toLowerCase().includes(search.toLowerCase())||(gc(n.contactId)?.name||"").toLowerCase().includes(search.toLowerCase())||(gf(n.familyId)?.name||"").toLowerCase().includes(search.toLowerCase());
+  });
+  if(adminProspect&&viewMode==="advisors"){
+    return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
+      <div style={{padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
+          {[{k:"notes",l:"Notes"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+        </div>
+        <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Notes by Advisor</div>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
+          {advisorSummary.length===0&&<Empty text="No advisors or notes yet."/>}
+          {advisorSummary.map(a=>(
+            <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("notes");}}}
+              style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${a.unassigned?B.textMute:B.gold}`,padding:20,cursor:a.unassigned?"default":"pointer",boxShadow:B.shadow,transition:"box-shadow .15s"}}
+              onMouseEnter={e=>{if(!a.unassigned)e.currentTarget.style.boxShadow=B.shadowMd;}}
+              onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
+              <div style={{marginBottom:12}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:a.unassigned?B.textMute:B.navy,fontWeight:600,marginBottom:2}}>{a.name}</div>
+                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Notes not linked to an advisor's contact"}</div>
+              </div>
+              <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {[{l:"Notes",v:a.notes},{l:"Contacts",v:a.contacts}].map(item=>(
+                  <div key={item.l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
+                    <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{item.l}</div>
+                    <div style={{fontSize:15,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:600}}>{item.v}</div>
+                  </div>
+                ))}
+              </div>
+              {!a.unassigned&&<div style={{marginTop:10,fontSize:12,color:B.gold,fontWeight:600}}>View notes →</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>;
+  }
+
   return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
+    {adminProspect&&<div style={{padding:"10px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+      <div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
+        {[{k:"notes",l:"Notes"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+      </div>
+      {advisorFilter&&<button onClick={()=>setAdvisorFilter("")} style={{border:`1px solid ${B.gold}`,background:"#fbf6ec",color:B.navy,borderRadius:16,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>{(advisorSummary.find(a=>a.email===advisorFilter)?.name)||advisorFilter} ✕</button>}
+    </div>}
     <div style={{padding:isMobile?"14px 14px":"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
       <div style={{maxWidth:800,margin:"0 auto"}}>
         <div style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:12,overflow:"hidden",boxShadow:B.shadow}}>
@@ -2195,21 +2259,81 @@ function NotesView({data,reload,toast}){
 }
 
 // ── TASKS VIEW ────────────────────────────────────────────────────────────────
-function TasksView({data,reload,toast}){
+function TasksView({data,reload,toast,userProfile,prospectMode=false}){
   const{contacts,families,tasks}=data;
   const[modal,setModal]=useState(null);const[filter,setFilter]=useState("Pending");const[filterFamily,setFilterFamily]=useState("all");
+  const adminProspect=prospectMode&&userProfile?.role==="admin";
+  const[viewMode,setViewMode]=useState("tasks");
+  const[advisorFilter,setAdvisorFilter]=useState("");
+  const[advisors,setAdvisors]=useState([]);
+  useEffect(()=>{if(adminProspect){sb.from("user_profiles").select("id,email,full_name,role").eq("role","advisor").then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[adminProspect]);
+  const advisorOfTask=t=>{const c=contacts.find(x=>x.id===t.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
   const gc=id=>contacts.find(c=>c.id===id);const gf=id=>families.find(f=>f.id===id);
-  const list=tasks.filter(t=>(filter==="All"||(filter==="Pending"?!t.done:t.done))&&(filterFamily==="all"||t.familyId===filterFamily));
+  const list=tasks.filter(t=>(filter==="All"||(filter==="Pending"?!t.done:t.done))&&(filterFamily==="all"||t.familyId===filterFamily)&&(!advisorFilter||(advisorOfTask(t)?.email||"")===advisorFilter));
   const oc=tasks.filter(t=>!t.done&&t.dueDate&&new Date(t.dueDate)<new Date()).length;
   const soon=tasks.filter(t=>!t.done&&t.dueDate&&(new Date(t.dueDate)-new Date())/(86400000)<=30&&new Date(t.dueDate)>=new Date()).length;
+  const advisorSummary=useMemo(()=>{
+    const groups={};const now=new Date();
+    tasks.forEach(t=>{
+      const c=contacts.find(x=>x.id===t.contactId);
+      const adv=c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;
+      const key=adv?adv.email:"__unassigned__";
+      if(!groups[key])groups[key]={email:adv?adv.email:"",name:adv?adv.name:"Unassigned",unassigned:!adv,open:0,overdue:0,done:0};
+      if(t.done)groups[key].done+=1;
+      else{groups[key].open+=1;if(t.dueDate&&new Date(t.dueDate)<now)groups[key].overdue+=1;}
+    });
+    advisors.forEach(a=>{if(!groups[a.email])groups[a.email]={email:a.email,name:a.full_name||a.email,unassigned:false,open:0,overdue:0,done:0};});
+    return Object.values(groups).sort((a,b)=>(b.open-a.open)||(b.overdue-a.overdue));
+  },[tasks,contacts,advisors]);
 
   const add=async f=>{const{error}=await sb.from("tasks").insert({family_id:f.familyId||null,contact_id:f.contactId||null,title:f.title,due_date:f.dueDate||null,priority:f.priority,reminder_days:Number(f.reminderDays)||7,done:false});if(error)toast(error.message,"error");else{toast("Task added");reload("tasks");}};
   const tog=async t=>{const{error}=await sb.from("tasks").update({done:!t.done}).eq("id",t.id);if(error)toast(error.message,"error");else reload("tasks");};
   const del=async id=>{const{error}=await sb.from("tasks").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("tasks");}};
 
 
+  if(adminProspect&&viewMode==="advisors"){
+    return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
+      <div style={{padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
+          {[{k:"tasks",l:"Tasks"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+        </div>
+        <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Tasks by Advisor</div>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
+          {advisorSummary.length===0&&<Empty text="No advisors or tasks yet."/>}
+          {advisorSummary.map(a=>(
+            <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("tasks");}}}
+              style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${a.unassigned?B.textMute:B.gold}`,padding:20,cursor:a.unassigned?"default":"pointer",boxShadow:B.shadow,transition:"box-shadow .15s"}}
+              onMouseEnter={e=>{if(!a.unassigned)e.currentTarget.style.boxShadow=B.shadowMd;}}
+              onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
+              <div style={{marginBottom:12}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:a.unassigned?B.textMute:B.navy,fontWeight:600,marginBottom:2}}>{a.name}</div>
+                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Tasks not linked to an advisor's contact"}</div>
+              </div>
+              <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+                {[{l:"Open",v:a.open},{l:"Overdue",v:a.overdue},{l:"Done",v:a.done}].map(item=>(
+                  <div key={item.l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
+                    <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{item.l}</div>
+                    <div style={{fontSize:15,fontFamily:"'Cormorant Garamond',serif",color:item.l==="Overdue"&&a.overdue>0?"#8b1a1a":B.navy,fontWeight:600}}>{item.v}</div>
+                  </div>
+                ))}
+              </div>
+              {!a.unassigned&&<div style={{marginTop:10,fontSize:12,color:B.gold,fontWeight:600}}>View tasks →</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>;
+  }
+
   return <div style={{maxWidth:760,margin:"0 auto",padding:"20px",height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
     <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
+      {adminProspect&&<div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
+        {[{k:"tasks",l:"Tasks"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"5px 11px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+      </div>}
+      {adminProspect&&advisorFilter&&<button onClick={()=>setAdvisorFilter("")} style={{border:`1px solid ${B.gold}`,background:"#fbf6ec",color:B.navy,borderRadius:16,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>{(advisorSummary.find(a=>a.email===advisorFilter)?.name)||advisorFilter} ✕</button>}
       <div style={{display:"flex",gap:5}}>{["Pending","Done","All"].map(s=><button key={s} onClick={()=>setFilter(s)} style={{background:filter===s?B.navy:"transparent",border:`1px solid ${filter===s?B.navy:B.border}`,color:filter===s?B.white:B.textSoft,borderRadius:20,padding:"4px 14px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{s}</button>)}</div>
       <Sel value={filterFamily} onChange={e=>setFilterFamily(e.target.value)} style={{width:170}}><option value="all">All Families</option>{families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</Sel>
       <div style={{flex:1,display:"flex",gap:8}}>
@@ -2418,23 +2542,88 @@ function ProspectDealForm({initial,contacts=[],onSave,onClose}){
   </div>;
 }
 
-function ProspectPipelineView({data,reload,toast}){
-  const deals=data.deals.filter(d=>!d.familyId);
-  const contacts=data.contacts.filter(c=>!c.familyId);
+function ProspectPipelineView({data,reload,toast,userProfile}){
+  const isAdmin=userProfile?.role==="admin";
+  const allContacts=data.contacts.filter(c=>!c.familyId);
+  const contacts=allContacts;
   const[modal,setModal]=useState(null);const[fs,setFs]=useState("All");
+  const[viewMode,setViewMode]=useState("pipeline"); // admin only: "pipeline" | "advisors"
+  const[advisorFilter,setAdvisorFilter]=useState("");
+  const[advisors,setAdvisors]=useState([]);
+  useEffect(()=>{if(isAdmin){sb.from("user_profiles").select("id,email,full_name,role").eq("role","advisor").then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[isAdmin]);
+  const advisorOf=d=>{const c=allContacts.find(x=>x.id===d.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
+  const allDeals=data.deals.filter(d=>!d.familyId);
+  const deals=allDeals.filter(d=>!advisorFilter||(advisorOf(d)?.email||"")===advisorFilter);
   const filtered=useMemo(()=>deals.filter(d=>fs==="All"||d.stage===fs),[deals,fs]);
   const byStage=STAGES.reduce((acc,s)=>({...acc,[s]:filtered.filter(d=>d.stage===s)}),{});
   const pipeline=deals.filter(d=>d.stage!=="Closed Lost").reduce((s,d)=>s+(Number(d.value)||0),0);
-  const gc=id=>contacts.find(c=>c.id===id);
+  const gc=id=>allContacts.find(c=>c.id===id);
+  const advisorSummary=useMemo(()=>{
+    const groups={};
+    allDeals.forEach(d=>{
+      const c=allContacts.find(x=>x.id===d.contactId);
+      const adv=c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;
+      const key=adv?adv.email:"__unassigned__";
+      if(!groups[key])groups[key]={email:adv?adv.email:"",name:adv?adv.name:"Unassigned",unassigned:!adv,deals:0,openDeals:0,pipeline:0,won:0,lost:0};
+      groups[key].deals+=1;
+      if(d.stage==="Closed Won")groups[key].won+=1;
+      else if(d.stage==="Closed Lost")groups[key].lost+=1;
+      else{groups[key].openDeals+=1;groups[key].pipeline+=Number(d.value)||0;}
+    });
+    advisors.forEach(a=>{if(!groups[a.email])groups[a.email]={email:a.email,name:a.full_name||a.email,unassigned:false,deals:0,openDeals:0,pipeline:0,won:0,lost:0};});
+    return Object.values(groups).sort((a,b)=>(b.pipeline-a.pipeline)||(b.openDeals-a.openDeals));
+  },[allDeals,allContacts,advisors]);
 
   const add=async f=>{const{error}=await sb.from("deals").insert({family_id:null,contact_id:f.contactId||null,title:f.title,value:f.value||null,stage:f.stage,close_date:f.closeDate||null});if(error)toast(error.message,"error");else{toast("Deal added");reload("deals");}};
   const edit=async f=>{const{error}=await sb.from("deals").update({contact_id:f.contactId||null,title:f.title,value:f.value||null,stage:f.stage,close_date:f.closeDate||null}).eq("id",modal.id);if(error)toast(error.message,"error");else{toast("Updated");reload("deals");}};
   const del=async id=>{const{error}=await sb.from("deals").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("deals");}};
   const move=async(deal,dir)=>{const idx=STAGES.indexOf(deal.stage);const next=STAGES[idx+dir];if(!next)return;const{error}=await sb.from("deals").update({stage:next}).eq("id",deal.id);if(error)toast(error.message,"error");else reload("deals");};
 
+  if(isAdmin&&viewMode==="advisors"){
+    return <div style={{display:"flex",flexDirection:"column",height:"100%",minHeight:0}}>
+      <div style={{padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",background:B.white}}>
+        <div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
+          {[{k:"pipeline",l:"Pipeline"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+        </div>
+        <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Pipeline by Advisor</div>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:16}}>
+          {advisorSummary.length===0&&<Empty text="No advisors or deals yet."/>}
+          {advisorSummary.map(a=>(
+            <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("pipeline");}}}
+              style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${a.unassigned?B.textMute:B.gold}`,padding:20,cursor:a.unassigned?"default":"pointer",boxShadow:B.shadow,transition:"box-shadow .15s"}}
+              onMouseEnter={e=>{if(!a.unassigned)e.currentTarget.style.boxShadow=B.shadowMd;}}
+              onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
+              <div style={{marginBottom:12}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:a.unassigned?B.textMute:B.navy,fontWeight:600,marginBottom:2}}>{a.name}</div>
+                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Deals not linked to an advisor's contact"}</div>
+              </div>
+              <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {[{l:"Open Deals",v:a.openDeals},{l:"Pipeline $",v:fmtMoney(a.pipeline)},{l:"Won",v:a.won},{l:"Lost",v:a.lost}].map(item=>(
+                  <div key={item.l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
+                    <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{item.l}</div>
+                    <div style={{fontSize:15,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:600}}>{item.v}</div>
+                  </div>
+                ))}
+              </div>
+              {!a.unassigned&&<div style={{marginTop:10,fontSize:12,color:B.gold,fontWeight:600}}>View pipeline →</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+      {modal==="add"&&<Modal title="New Deal" onClose={()=>setModal(null)}><ProspectDealForm contacts={contacts} onSave={add} onClose={()=>setModal(null)}/></Modal>}
+    </div>;
+  }
+
   return <div style={{display:"flex",flexDirection:"column",height:"100%",minHeight:0}}>
     <div style={{padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",background:B.white}}>
+      {isAdmin&&<div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
+        {[{k:"pipeline",l:"Pipeline"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+      </div>}
       <div style={{flex:1,display:"flex",gap:5,flexWrap:"wrap"}}>{["All",...STAGES].map(s=><button key={s} onClick={()=>setFs(s)} style={{background:fs===s?(STAGE_COLORS[s]?.bg||B.borderLight):"transparent",border:`1px solid ${fs===s?(STAGE_COLORS[s]?.dot||B.navy):B.border}`,color:fs===s?(STAGE_COLORS[s]?.text||B.navy):B.textSoft,borderRadius:20,padding:"3px 12px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{s}</button>)}</div>
+      {advisorFilter&&<button onClick={()=>setAdvisorFilter("")} style={{border:`1px solid ${B.gold}`,background:"#fbf6ec",color:B.navy,borderRadius:16,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>{(advisorSummary.find(a=>a.email===advisorFilter)?.name)||advisorFilter} ✕</button>}
       <div style={{fontSize:12,color:B.textSoft}}>Pipeline: <strong style={{color:B.navy}}>{fmtMoney(pipeline)}</strong></div>
       <Btn onClick={()=>setModal("add")}>+ New Deal</Btn>
     </div>
@@ -3249,9 +3438,9 @@ export default function App(){
           {tab==="cm-tasks"    &&<TasksView data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={showToast}/>}
           {tab==="users"       &&<UserManagementView userProfile={userProfile} data={data} toast={showToast}/>}
           {tab==="p-contacts"  &&<ProspectContactsView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
-          {tab==="p-pipeline"  &&<ProspectPipelineView data={data} reload={reload} toast={showToast}/>}
-          {tab==="p-notes"     &&<NotesView data={{...data,notes:data.notes.filter(n=>!n.familyId),families:[]}} reload={reload} toast={showToast}/>}
-          {tab==="p-tasks"     &&<TasksView data={{...data,tasks:data.tasks.filter(t=>!t.familyId),families:[]}} reload={reload} toast={showToast}/>}
+          {tab==="p-pipeline"  &&<ProspectPipelineView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
+          {tab==="p-notes"     &&<NotesView data={{...data,notes:data.notes.filter(n=>!n.familyId),families:[]}} reload={reload} toast={showToast} userProfile={userProfile} prospectMode={true}/>}
+          {tab==="p-tasks"     &&<TasksView data={{...data,tasks:data.tasks.filter(t=>!t.familyId),families:[]}} reload={reload} toast={showToast} userProfile={userProfile} prospectMode={true}/>}
         </>}
       </div>
     </div>
