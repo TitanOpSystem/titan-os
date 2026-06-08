@@ -2262,34 +2262,116 @@ function GlobalTaskForm({initial,families=[],contacts=[],onSave,onClose}){
 }
 
 // ── PROSPECT VIEWS ────────────────────────────────────────────────────────────
-function ProspectContactForm({initial,onSave,onClose}){
-  const[f,setF]=useState(initial||{name:"",company:"",email:"",phone:"",type:"Individual",tags:"",source:""});
+function ProspectContactForm({initial,onSave,onClose,userProfile,advisors=[]}){
+  const isAdmin=userProfile?.role==="admin";
+  const[f,setF]=useState(initial||{name:"",company:"",email:"",phone:"",type:"Individual",tags:"",source:"",
+    advisorName:isAdmin?"":(userProfile?.fullName||""),advisorEmail:isAdmin?"":(userProfile?.email||"")});
   const[saving,setSaving]=useState(false);
   const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  const pickAdvisor=e=>{const email=e.target.value;const adv=advisors.find(a=>a.email===email);setF(p=>({...p,advisorEmail:email,advisorName:adv?(adv.full_name||""):""}));};
   const save=async()=>{if(!f.name.trim())return;setSaving(true);await onSave(f);onClose();};
   return <div>
     <Grid2><Field label="Full Name"><Inp placeholder="Jane Smith" value={f.name} onChange={set("name")}/></Field><Field label="Company"><Inp value={f.company||""} onChange={set("company")}/></Field></Grid2>
     <Grid2><Field label="Email"><Inp type="email" value={f.email||""} onChange={set("email")}/></Field><Field label="Phone"><Inp value={f.phone||""} onChange={set("phone")}/></Field></Grid2>
     <Grid2><Field label="Type"><Sel value={f.type} onChange={set("type")}><option>Individual</option><option>Business</option></Sel></Field><Field label="Lead Source"><Inp placeholder="Referral, LinkedIn…" value={f.source||""} onChange={set("source")}/></Field></Grid2>
+    {isAdmin
+      ? <Field label="Assign Advisor">
+          <select value={f.advisorEmail||""} onChange={pickAdvisor} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${B.border}`,fontSize:14,fontFamily:"'DM Sans',sans-serif",background:B.white,color:B.navy}}>
+            <option value="">— Select an advisor —</option>
+            {advisors.map(a=><option key={a.id} value={a.email}>{(a.full_name||a.email)}{a.full_name?` (${a.email})`:""}</option>)}
+          </select>
+        </Field>
+      : <Field label="Advisor"><Inp value={f.advisorName||f.advisorEmail||userProfile?.fullName||userProfile?.email||""} disabled/></Field>
+    }
     <Field label="Tags"><Inp placeholder="warm-lead, vip" value={f.tags||""} onChange={set("tags")}/></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save"}</Btn></div>
   </div>;
 }
 
-function ProspectContactsView({data,reload,toast}){
+function ProspectContactsView({data,reload,toast,userProfile}){
   const isMobile=useIsMobile();
+  const isAdmin=userProfile?.role==="admin";
   const prospects=data.contacts.filter(c=>!c.familyId);
   const[modal,setModal]=useState(null);const[search,setSearch]=useState("");const[selected,setSelected]=useState(null);
-  const filtered=useMemo(()=>prospects.filter(c=>[c.name,c.company,c.email,c.tags].join(" ").toLowerCase().includes(search.toLowerCase())),[prospects,search]);
-  const add=async f=>{const{error}=await sb.from("contacts").insert({family_id:null,name:f.name,company:f.company||null,email:f.email||null,phone:f.phone||null,type:f.type,tags:f.tags||null});if(error)toast(error.message,"error");else{toast("Contact added");reload("contacts");}};
-  const edit=async f=>{const{error}=await sb.from("contacts").update({name:f.name,company:f.company||null,email:f.email||null,phone:f.phone||null,type:f.type,tags:f.tags||null}).eq("id",modal.id);if(error)toast(error.message,"error");else{toast("Updated");reload("contacts");setSelected({...selected,...f});}};
+  const[viewMode,setViewMode]=useState("contacts"); // admin only: "contacts" | "advisors"
+  const[advisorFilter,setAdvisorFilter]=useState("");
+  const[advisors,setAdvisors]=useState([]);
+  useEffect(()=>{
+    if(isAdmin){
+      sb.from("user_profiles").select("id,email,full_name,role").eq("role","advisor").then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});
+    }
+  },[isAdmin]);
+  const filtered=useMemo(()=>prospects.filter(c=>{
+    if(advisorFilter&&(c.advisorEmail||"")!==advisorFilter)return false;
+    return [c.name,c.company,c.email,c.tags].join(" ").toLowerCase().includes(search.toLowerCase());
+  }),[prospects,search,advisorFilter]);
+  const advisorSummary=useMemo(()=>{
+    const dealsFor=id=>data.deals.filter(d=>!d.familyId&&d.contactId===id);
+    const groups={};
+    prospects.forEach(c=>{
+      const key=c.advisorEmail||"__unassigned__";
+      if(!groups[key])groups[key]={email:c.advisorEmail||"",name:c.advisorName||"Unassigned",unassigned:!c.advisorEmail,prospects:0,openDeals:0,pipeline:0,won:0};
+      groups[key].prospects+=1;
+      dealsFor(c.id).forEach(d=>{
+        if(d.stage==="Closed Won")groups[key].won+=1;
+        else if(d.stage!=="Closed Lost"){groups[key].openDeals+=1;groups[key].pipeline+=Number(d.value)||0;}
+      });
+    });
+    advisors.forEach(a=>{if(!groups[a.email])groups[a.email]={email:a.email,name:a.full_name||a.email,unassigned:false,prospects:0,openDeals:0,pipeline:0,won:0};});
+    return Object.values(groups).sort((a,b)=>(b.pipeline-a.pipeline)||(b.prospects-a.prospects));
+  },[prospects,data.deals,advisors]);
+  const add=async f=>{const{error}=await sb.from("contacts").insert({family_id:null,name:f.name,company:f.company||null,email:f.email||null,phone:f.phone||null,type:f.type,tags:f.tags||null,advisor_email:f.advisorEmail||null,advisor_name:f.advisorName||null});if(error)toast(error.message,"error");else{toast("Contact added");reload("contacts");}};
+  const edit=async f=>{const{error}=await sb.from("contacts").update({name:f.name,company:f.company||null,email:f.email||null,phone:f.phone||null,type:f.type,tags:f.tags||null,advisor_email:f.advisorEmail||null,advisor_name:f.advisorName||null}).eq("id",modal.id);if(error)toast(error.message,"error");else{toast("Updated");reload("contacts");setSelected({...selected,...f});}};
   const del=async id=>{const{error}=await sb.from("contacts").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("contacts");if(selected?.id===id)setSelected(null);}};
+
+  if(isAdmin&&viewMode==="advisors"){
+    return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
+      <div style={{padding:isMobile?"12px 14px":"14px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
+          {[{k:"contacts",l:"Contacts"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"7px 14px",fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+        </div>
+        <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Prospecting by Advisor</div>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:16}}>
+          {advisorSummary.length===0&&<Empty text="No advisors or prospects yet."/>}
+          {advisorSummary.map(a=>(
+            <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("contacts");}}}
+              style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${a.unassigned?B.textMute:B.gold}`,padding:20,cursor:a.unassigned?"default":"pointer",boxShadow:B.shadow,transition:"box-shadow .15s"}}
+              onMouseEnter={e=>{if(!a.unassigned)e.currentTarget.style.boxShadow=B.shadowMd;}}
+              onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
+              <div style={{marginBottom:12}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:a.unassigned?B.textMute:B.navy,fontWeight:600,marginBottom:2}}>{a.name}</div>
+                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Prospects with no advisor assigned"}</div>
+              </div>
+              <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {[{l:"Prospects",v:a.prospects},{l:"Open Deals",v:a.openDeals},{l:"Pipeline $",v:fmtMoney(a.pipeline)},{l:"Won",v:a.won}].map(item=>(
+                  <div key={item.l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
+                    <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{item.l}</div>
+                    <div style={{fontSize:15,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:600}}>{item.v}</div>
+                  </div>
+                ))}
+              </div>
+              {!a.unassigned&&<div style={{marginTop:10,fontSize:12,color:B.gold,fontWeight:600}}>View prospects →</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+      {modal==="add"&&<Modal title="New Prospect" onClose={()=>setModal(null)}><ProspectContactForm userProfile={userProfile} advisors={advisors} onSave={add} onClose={()=>setModal(null)}/></Modal>}
+    </div>;
+  }
+
   const cDeals=selected?data.deals.filter(d=>d.contactId===selected.id):[];
   const cNotes=selected?data.notes.filter(n=>n.contactId===selected.id):[];
   return <div style={{display:"flex",height:"100%",minHeight:0}}>
     {(!isMobile||!selected)&&<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:isMobile?"none":`1px solid ${B.borderLight}`}}>
-      <div style={{padding:isMobile?"12px 14px":"14px 20px",display:"flex",gap:10,alignItems:"center",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
-        <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search prospects…" style={{flex:1}}/>
+      <div style={{padding:isMobile?"12px 14px":"14px 20px",display:"flex",gap:10,alignItems:"center",borderBottom:`1px solid ${B.borderLight}`,background:B.white,flexWrap:"wrap"}}>
+        {isAdmin&&<div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
+          {[{k:"contacts",l:"Contacts"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+        </div>}
+        <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search prospects…" style={{flex:1,minWidth:140}}/>
+        {advisorFilter&&<button onClick={()=>setAdvisorFilter("")} style={{border:`1px solid ${B.gold}`,background:"#fbf6ec",color:B.navy,borderRadius:16,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>{(advisorSummary.find(a=>a.email===advisorFilter)?.name)||advisorFilter} ✕</button>}
         <Btn onClick={()=>setModal("add")}>+ New</Btn>
       </div>
       <div style={{overflowY:"auto",flex:1}}>
@@ -2317,8 +2399,8 @@ function ProspectContactsView({data,reload,toast}){
       <SectionLabel>Notes ({cNotes.length})</SectionLabel>
       {cNotes.length===0?<Empty text="No notes"/>:cNotes.slice(0,3).map(n=><div key={n.id} style={{padding:"6px 0",borderBottom:`1px solid ${B.borderLight}`}}><div style={{fontSize:13,color:B.textMid}}>{n.body}</div><div style={{fontSize:11,color:B.textMute,marginTop:2}}>{fmt(n.createdAt)}</div></div>)}
     </div>:(!isMobile&&<div style={{width:360,display:"flex",alignItems:"center",justifyContent:"center",color:B.textMute,fontSize:13,background:B.bg}}>Select a contact</div>)}
-    {modal==="add"&&<Modal title="New Prospect" onClose={()=>setModal(null)}><ProspectContactForm onSave={add} onClose={()=>setModal(null)}/></Modal>}
-    {modal&&modal!=="add"&&<Modal title="Edit Contact" onClose={()=>setModal(null)}><ProspectContactForm initial={modal} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
+    {modal==="add"&&<Modal title="New Prospect" onClose={()=>setModal(null)}><ProspectContactForm userProfile={userProfile} advisors={advisors} onSave={add} onClose={()=>setModal(null)}/></Modal>}
+    {modal&&modal!=="add"&&<Modal title="Edit Contact" onClose={()=>setModal(null)}><ProspectContactForm initial={modal} userProfile={userProfile} advisors={advisors} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
   </div>;
 }
 
@@ -3166,7 +3248,7 @@ export default function App(){
           {tab==="cm-notes"    &&<NotesView data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={showToast}/>}
           {tab==="cm-tasks"    &&<TasksView data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={showToast}/>}
           {tab==="users"       &&<UserManagementView userProfile={userProfile} data={data} toast={showToast}/>}
-          {tab==="p-contacts"  &&<ProspectContactsView data={data} reload={reload} toast={showToast}/>}
+          {tab==="p-contacts"  &&<ProspectContactsView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="p-pipeline"  &&<ProspectPipelineView data={data} reload={reload} toast={showToast}/>}
           {tab==="p-notes"     &&<NotesView data={{...data,notes:data.notes.filter(n=>!n.familyId),families:[]}} reload={reload} toast={showToast}/>}
           {tab==="p-tasks"     &&<TasksView data={{...data,tasks:data.tasks.filter(t=>!t.familyId),families:[]}} reload={reload} toast={showToast}/>}
