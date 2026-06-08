@@ -1815,22 +1815,47 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
 }
 
 // ── FAMILY FORM ──────────────────────────────────────────────────────────────
-function FamilyForm({initial,onSave,onClose}){
-  const[f,setF]=useState(initial||{name:"",advisorName:"",advisorEmail:"",notes:""});
+function FamilyForm({initial,onSave,onClose,userProfile,advisors=[]}){
+  const isAdmin=userProfile?.role==="admin";
+  const[f,setF]=useState(initial||{
+    name:"",
+    advisorName: isAdmin ? "" : (userProfile?.fullName||""),
+    advisorEmail: isAdmin ? "" : (userProfile?.email||""),
+    notes:""
+  });
   const[saving,setSaving]=useState(false);
   const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  const pickAdvisor=e=>{
+    const email=e.target.value;
+    const adv=advisors.find(a=>a.email===email);
+    setF(p=>({...p,advisorEmail:email,advisorName:adv?(adv.full_name||""):""}));
+  };
   const save=async()=>{if(!f.name.trim())return;setSaving(true);await onSave(f);onClose();};
   return <div>
     <Field label="Family Name"><Inp placeholder="The Smith Family" value={f.name} onChange={set("name")}/></Field>
-    <Grid2><Field label="Advisor Name"><Inp value={f.advisorName||""} onChange={set("advisorName")}/></Field><Field label="Advisor Email"><Inp type="email" value={f.advisorEmail||""} onChange={set("advisorEmail")}/></Field></Grid2>
+    {isAdmin
+      ? <Field label="Assign Advisor">
+          <select value={f.advisorEmail||""} onChange={pickAdvisor} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${B.border}`,fontSize:14,fontFamily:"'DM Sans',sans-serif",background:B.white,color:B.navy}}>
+            <option value="">— Select an advisor —</option>
+            {advisors.map(a=><option key={a.id} value={a.email}>{(a.full_name||a.email)}{a.full_name?` (${a.email})`:""}</option>)}
+          </select>
+        </Field>
+      : <Field label="Advisor"><Inp value={userProfile?.fullName||userProfile?.email||""} disabled/></Field>
+    }
     <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Family"}</Btn></div>
   </div>;
 }
 
 // ── FAMILIES LIST VIEW ────────────────────────────────────────────────────────
-function FamiliesView({data,reload,toast}){
+function FamiliesView({data,reload,toast,userProfile}){
   const{families}=data;
+  const[advisors,setAdvisors]=useState([]);
+  useEffect(()=>{
+    if(userProfile?.role==="admin"){
+      sb.from("user_profiles").select("id,email,full_name,role").eq("role","advisor").then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});
+    }
+  },[userProfile]);
   const[selected,setSelected]=useState(null);
   const[modal,setModal]=useState(null);
   const[search,setSearch]=useState("");
@@ -1888,8 +1913,8 @@ function FamiliesView({data,reload,toast}){
         })}
       </div>
     </div>
-    {modal==="add"&&<Modal title="New Family" onClose={()=>setModal(null)}><FamilyForm onSave={add} onClose={()=>setModal(null)}/></Modal>}
-    {modal&&modal!=="add"&&<Modal title="Edit Family" onClose={()=>setModal(null)}><FamilyForm initial={modal} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
+    {modal==="add"&&<Modal title="New Family" onClose={()=>setModal(null)}><FamilyForm userProfile={userProfile} advisors={advisors} onSave={add} onClose={()=>setModal(null)}/></Modal>}
+    {modal&&modal!=="add"&&<Modal title="Edit Family" onClose={()=>setModal(null)}><FamilyForm initial={modal} userProfile={userProfile} advisors={advisors} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
   </div>;
 }
 
@@ -3075,7 +3100,7 @@ export default function App(){
       <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg,paddingBottom:"0"}}>
         {loading&&tab!=="families"&&tab!=="users"?<Spinner/>:<>
           {tab==="dashboard"   &&<Dashboard data={data}/>}
-          {tab==="families"    &&<FamiliesView data={data} reload={reload} toast={showToast}/>}
+          {tab==="families"    &&<FamiliesView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="portfolio"   &&<PortfolioView data={data} reload={reload} toast={showToast}/>}
           {tab==="cm-notes"    &&<NotesView data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={showToast}/>}
           {tab==="cm-tasks"    &&<TasksView data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={showToast}/>}
