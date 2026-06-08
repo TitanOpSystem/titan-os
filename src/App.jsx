@@ -288,6 +288,7 @@ const toClient=obj=>{
 };
 
 const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","note_attachments"];
+const FAMILY_SCOPED=["contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events"];
 
 
 // ── UI PRIMITIVES ─────────────────────────────────────────────────────────────
@@ -2934,9 +2935,12 @@ export default function App(){
   const logout=async()=>{await sb.auth.signOut();setAuthed(false);setUserProfile(null);};
   const showToast=useCallback((msg,type="success")=>{setToastState({msg,type});setTimeout(()=>setToastState(null),3500);},[]);
 
+  const profileRef=useRef(null);
+  const allowedFamilyIdsRef=useRef(null); // null = unrestricted (admin)
+
   const loadProfile=useCallback(async userId=>{
     const{data:d}=await sb.from("user_profiles").select("*").eq("id",userId).single();
-    if(d)setUserProfile({id:d.id,email:d.email,role:d.role,fullName:d.full_name,active:d.active,familyId:d.family_id});
+    if(d){const p={id:d.id,email:d.email,role:d.role,fullName:d.full_name,active:d.active,familyId:d.family_id};profileRef.current=p;setUserProfile(p);}
   },[]);
 
   useEffect(()=>{
@@ -2946,14 +2950,27 @@ export default function App(){
   },[loadProfile]);
 
   const fetchTable=useCallback(async table=>{
-    const{data:rows,error}=await sb.from(table).select("*").order("created_at",{ascending:false});
+    const prof=profileRef.current;
+    let q=sb.from(table).select("*").order("created_at",{ascending:false});
+    if(prof?.role==="advisor"){
+      if(table==="families"){
+        q=q.eq("advisor_email",prof.email);
+      } else if(FAMILY_SCOPED.includes(table)){
+        const ids=allowedFamilyIdsRef.current||[];
+        const idList=ids.length?ids.join(","):"00000000-0000-0000-0000-000000000000";
+        q=q.or(`family_id.is.null,family_id.in.(${idList})`);
+      }
+    }
+    const{data:rows,error}=await q;
     if(error){showToast(`Error loading ${table}`,"error");return;}
+    if(table==="families"&&prof?.role==="advisor")allowedFamilyIdsRef.current=rows.map(r=>r.id);
     setData(p=>({...p,[table]:rows.map(toClient)}));
   },[showToast]);
 
   const reload=useCallback(async table=>{
-    if(table)await fetchTable(table);
-    else await Promise.all(TABLES.map(fetchTable));
+    if(table){await fetchTable(table);return;}
+    await fetchTable("families"); // load families first so allowed-id cache is set
+    await Promise.all(TABLES.filter(t=>t!=="families").map(fetchTable));
   },[fetchTable]);
 
   useEffect(()=>{
