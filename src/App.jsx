@@ -1853,7 +1853,7 @@ function FamiliesView({data,reload,toast,userProfile}){
   const[advisors,setAdvisors]=useState([]);
   useEffect(()=>{
     if(userProfile?.role==="admin"){
-      sb.from("user_profiles").select("id,email,full_name,role").eq("role","advisor").then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});
+      sb.from("user_profiles").select("id,email,full_name,role").in("role",["advisor","admin"]).then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});
     }
   },[userProfile]);
   const[selected,setSelected]=useState(null);
@@ -2076,7 +2076,7 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
   const[viewMode,setViewMode]=useState("notes");
   const[advisorFilter,setAdvisorFilter]=useState("");
   const[advisors,setAdvisors]=useState([]);
-  useEffect(()=>{if(adminProspect){sb.from("user_profiles").select("id,email,full_name,role").eq("role","advisor").then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[adminProspect]);
+  useEffect(()=>{if(adminProspect){sb.from("user_profiles").select("id,email,full_name,role").in("role",["advisor","admin"]).then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[adminProspect]);
   const advisorOfNote=n=>{const c=contacts.find(x=>x.id===n.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
   const advisorSummary=useMemo(()=>{
     const groups={};
@@ -2266,7 +2266,7 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
   const[viewMode,setViewMode]=useState("tasks");
   const[advisorFilter,setAdvisorFilter]=useState("");
   const[advisors,setAdvisors]=useState([]);
-  useEffect(()=>{if(adminProspect){sb.from("user_profiles").select("id,email,full_name,role").eq("role","advisor").then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[adminProspect]);
+  useEffect(()=>{if(adminProspect){sb.from("user_profiles").select("id,email,full_name,role").in("role",["advisor","admin"]).then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[adminProspect]);
   const advisorOfTask=t=>{const c=contacts.find(x=>x.id===t.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
   const gc=id=>contacts.find(c=>c.id===id);const gf=id=>families.find(f=>f.id===id);
   const list=tasks.filter(t=>(filter==="All"||(filter==="Pending"?!t.done:t.done))&&(filterFamily==="all"||t.familyId===filterFamily)&&(!advisorFilter||(advisorOfTask(t)?.email||"")===advisorFilter));
@@ -2422,7 +2422,7 @@ function ProspectContactsView({data,reload,toast,userProfile}){
   const[advisors,setAdvisors]=useState([]);
   useEffect(()=>{
     if(isAdmin){
-      sb.from("user_profiles").select("id,email,full_name,role").eq("role","advisor").then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});
+      sb.from("user_profiles").select("id,email,full_name,role").in("role",["advisor","admin"]).then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});
     }
   },[isAdmin]);
   const filtered=useMemo(()=>prospects.filter(c=>{
@@ -2550,7 +2550,7 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
   const[viewMode,setViewMode]=useState("pipeline"); // admin only: "pipeline" | "advisors"
   const[advisorFilter,setAdvisorFilter]=useState("");
   const[advisors,setAdvisors]=useState([]);
-  useEffect(()=>{if(isAdmin){sb.from("user_profiles").select("id,email,full_name,role").eq("role","advisor").then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[isAdmin]);
+  useEffect(()=>{if(isAdmin){sb.from("user_profiles").select("id,email,full_name,role").in("role",["advisor","admin"]).then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[isAdmin]);
   const advisorOf=d=>{const c=allContacts.find(x=>x.id===d.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
   const allDeals=data.deals.filter(d=>!d.familyId);
   const deals=allDeals.filter(d=>!advisorFilter||(advisorOf(d)?.email||"")===advisorFilter);
