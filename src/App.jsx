@@ -1859,7 +1859,35 @@ function FamiliesView({data,reload,toast,userProfile}){
   const[selected,setSelected]=useState(null);
   const[modal,setModal]=useState(null);
   const[search,setSearch]=useState("");
-  const filtered=useMemo(()=>families.filter(f=>[f.name,f.advisorName,f.advisorEmail].join(" ").toLowerCase().includes(search.toLowerCase())),[families,search]);
+  const isAdmin=userProfile?.role==="admin";
+  const[viewMode,setViewMode]=useState("families"); // admin only: "families" | "advisors"
+  const[advisorFilter,setAdvisorFilter]=useState(""); // when set, families list is scoped to this advisor email
+  const filtered=useMemo(()=>families.filter(f=>{
+    if(advisorFilter&&(f.advisorEmail||"")!==advisorFilter)return false;
+    return [f.name,f.advisorName,f.advisorEmail].join(" ").toLowerCase().includes(search.toLowerCase());
+  }),[families,search,advisorFilter]);
+
+  // Per-advisor roll-up (admin only)
+  const advisorSummary=useMemo(()=>{
+    const statsFor=f=>{
+      const props=(data.properties||[]).filter(p=>p.familyId===f.id);
+      const accts=(data.portfolio_accounts||[]).filter(a=>a.familyId===f.id);
+      const openTasks=(data.tasks||[]).filter(t=>t.familyId===f.id&&!t.done);
+      const overdue=openTasks.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
+      const value=props.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0)+
+                  accts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+      return{value,openTasks:openTasks.length,overdue:overdue.length};
+    };
+    const groups={};
+    families.forEach(f=>{
+      const key=f.advisorEmail||"__unassigned__";
+      if(!groups[key])groups[key]={email:f.advisorEmail||"",name:f.advisorName||"Unassigned",unassigned:!f.advisorEmail,families:0,value:0,openTasks:0,overdue:0};
+      const st=statsFor(f);
+      groups[key].families+=1;groups[key].value+=st.value;groups[key].openTasks+=st.openTasks;groups[key].overdue+=st.overdue;
+    });
+    advisors.forEach(a=>{if(!groups[a.email])groups[a.email]={email:a.email,name:a.full_name||a.email,unassigned:false,families:0,value:0,openTasks:0,overdue:0};});
+    return Object.values(groups).sort((a,b)=>(b.value-a.value)||(b.families-a.families));
+  },[families,data,advisors]);
 
   const add=async f=>{const{error}=await sb.from("families").insert({name:f.name,advisor_name:f.advisorName||null,advisor_email:f.advisorEmail||null,notes:f.notes||null});if(error)toast(error.message,"error");else{toast("Family added");reload("families");}};
   const edit=async f=>{const{error}=await sb.from("families").update({name:f.name,advisor_name:f.advisorName||null,advisor_email:f.advisorEmail||null,notes:f.notes||null}).eq("id",modal.id);if(error)toast(error.message,"error");else{toast("Updated");reload("families");}};
@@ -1877,12 +1905,44 @@ function FamiliesView({data,reload,toast,userProfile}){
   });
 
   return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
-    <div style={{padding:"14px 24px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center"}}>
-      <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search families…" style={{flex:1}}/>
-      <Btn onClick={()=>setModal("add")}>+ New Family</Btn>
+    <div style={{padding:"14px 24px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+      {isAdmin&&<div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
+        {[{k:"families",l:"Families"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"7px 14px",fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+      </div>}
+      {viewMode==="families"&&<>
+        <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search families…" style={{flex:1,minWidth:160}}/>
+        {advisorFilter&&<button onClick={()=>setAdvisorFilter("")} style={{border:`1px solid ${B.gold}`,background:"#fbf6ec",color:B.navy,borderRadius:16,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{(advisorSummary.find(a=>a.email===advisorFilter)?.name)||advisorFilter} ✕</button>}
+        <Btn onClick={()=>setModal("add")}>+ New Family</Btn>
+      </>}
+      {viewMode==="advisors"&&<div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Advisor Summary</div>}
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"16px 24px"}}>
-      {filtered.length===0&&<Empty text="No families yet. Add your first one."/>}
+      {viewMode==="advisors"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:16}}>
+        {advisorSummary.length===0&&<Empty text="No advisors or families yet."/>}
+        {advisorSummary.map(a=>(
+          <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("families");}}}
+            style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${a.unassigned?B.textMute:B.gold}`,padding:20,cursor:a.unassigned?"default":"pointer",boxShadow:B.shadow,transition:"box-shadow .15s"}}
+            onMouseEnter={e=>{if(!a.unassigned)e.currentTarget.style.boxShadow=B.shadowMd;}}
+            onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
+            <div style={{marginBottom:12}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:a.unassigned?B.textMute:B.navy,fontWeight:600,marginBottom:2}}>{a.name}</div>
+              <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Families with no advisor assigned"}</div>
+            </div>
+            <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {[{l:"AUM (Est.)",v:fmtMoney(a.value)},{l:"Families",v:a.families},{l:"Open Tasks",v:a.openTasks},{l:"Overdue",v:a.overdue}].map(item=>(
+                <div key={item.l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
+                  <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{item.l}</div>
+                  <div style={{fontSize:15,fontFamily:"'Cormorant Garamond',serif",color:item.l==="Overdue"&&a.overdue>0?"#8b1a1a":B.navy,fontWeight:600}}>{item.v}</div>
+                </div>
+              ))}
+            </div>
+            {!a.unassigned&&<div style={{marginTop:10,fontSize:12,color:B.gold,fontWeight:600}}>View families →</div>}
+          </div>
+        ))}
+      </div>}
+      {viewMode!=="advisors"&&<>
+      {filtered.length===0&&<Empty text={advisorFilter?"No families for this advisor.":"No families yet. Add your first one."}/>}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
         {filtered.map(f=>{
           const s=getStats(f);
@@ -1912,6 +1972,7 @@ function FamiliesView({data,reload,toast,userProfile}){
           </div>;
         })}
       </div>
+      </>}
     </div>
     {modal==="add"&&<Modal title="New Family" onClose={()=>setModal(null)}><FamilyForm userProfile={userProfile} advisors={advisors} onSave={add} onClose={()=>setModal(null)}/></Modal>}
     {modal&&modal!=="add"&&<Modal title="Edit Family" onClose={()=>setModal(null)}><FamilyForm initial={modal} userProfile={userProfile} advisors={advisors} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
