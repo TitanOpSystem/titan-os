@@ -1848,6 +1848,86 @@ function FamilyForm({initial,onSave,onClose,userProfile,advisors=[]}){
 }
 
 // ── FAMILIES LIST VIEW ────────────────────────────────────────────────────────
+function printAdvisorReport(adv,data){
+  const email=adv.email||"";
+  const fmtD=d=>d?new Date(d).toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"}):"—";
+  const esc=s=>String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  const families=(data.families||[]).filter(f=>(f.advisorEmail||"")===email);
+  const famIds=new Set(families.map(f=>f.id));
+  const prospects=(data.contacts||[]).filter(c=>!c.familyId&&(c.advisorEmail||"")===email);
+  const prospectIds=new Set(prospects.map(c=>c.id));
+  const cById=id=>(data.contacts||[]).find(c=>c.id===id);
+  const fById=id=>(data.families||[]).find(f=>f.id===id);
+  const mine=rec=>rec.familyId?famIds.has(rec.familyId):(rec.contactId&&prospectIds.has(rec.contactId));
+  const deals=(data.deals||[]).filter(mine);
+  const tasks=(data.tasks||[]).filter(mine);
+  const notes=(data.notes||[]).filter(mine).sort((a,b)=>(b.createdAt||"")>(a.createdAt||"")?1:-1);
+  const now=new Date();
+  const famStat=f=>{
+    const props=(data.properties||[]).filter(p=>p.familyId===f.id);
+    const accts=(data.portfolio_accounts||[]).filter(a=>a.familyId===f.id);
+    const openT=(data.tasks||[]).filter(t=>t.familyId===f.id&&!t.done).length;
+    const value=props.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0)+accts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+    return{props:props.length,accts:accts.length,openT,value};
+  };
+  const aum=families.reduce((s,f)=>s+famStat(f).value,0);
+  const openDeals=deals.filter(d=>d.stage!=="Closed Won"&&d.stage!=="Closed Lost");
+  const wonDeals=deals.filter(d=>d.stage==="Closed Won");
+  const pipelineVal=openDeals.reduce((s,d)=>s+(Number(d.value)||0),0);
+  const openTasks=tasks.filter(t=>!t.done);
+  const overdue=openTasks.filter(t=>t.dueDate&&new Date(t.dueDate)<now);
+  const relOf=rec=>rec.familyId?(fById(rec.familyId)?.name||"—"):(cById(rec.contactId)?.name||"—");
+  const stat=(l,v)=>`<div class="stat"><div class="stat-l">${l}</div><div class="stat-v">${v}</div></div>`;
+  const w=window.open("","_blank");
+  w.document.write(`<!DOCTYPE html><html><head><title> </title>
+  <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:#092b49;background:#fff;padding:40px;font-size:13px;line-height:1.6;}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #ceb684;}
+  .logo-img{height:110px;width:auto;display:block;}
+  h1{font-size:22px;font-weight:700;margin-bottom:2px;}
+  .advisor{font-size:12px;color:#5a6e84;margin-top:4px;}
+  .date{font-size:11px;color:#8fa0b2;margin-top:2px;}
+  h2{font-size:14px;font-weight:800;color:#092b49;margin:22px 0 8px;padding-bottom:4px;border-bottom:1px solid #ceb684;letter-spacing:.06em;text-transform:uppercase;}
+  table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px;}
+  th{background:#092b49;color:#ceb684;padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
+  td{padding:6px 10px;border-bottom:1px solid #ede8de;color:#293d5c;vertical-align:top;}
+  tr:nth-child(even) td{background:#f9f7f3;}
+  .stats{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px;}
+  .stat{background:#f9f7f3;border-radius:8px;padding:12px 16px;flex:1;min-width:120px;border-top:2px solid #ceb684;}
+  .stat-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:4px;}
+  .stat-v{font-size:18px;font-weight:700;color:#092b49;}
+  .note{padding:8px 0;border-bottom:1px solid #ede8de;}
+  .note-meta{font-size:10px;color:#8fa0b2;margin-top:2px;}
+  @media print{body{padding:20px;}}
+  </style></head><body>
+  <div class="header">
+    <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/></div>
+    <div style="text-align:right"><h1>Advisor Activity Report</h1><div class="advisor">${esc(adv.name||email)}${email?` | ${esc(email)}`:""}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
+  </div>
+  <div class="stats">
+    ${stat("Families",families.length)}${stat("AUM (Est.)",fmtMoney(aum))}${stat("Prospects",prospects.length)}${stat("Open Deals",openDeals.length)}${stat("Pipeline $",fmtMoney(pipelineVal))}${stat("Open Tasks",openTasks.length)}${stat("Overdue",overdue.length)}
+  </div>
+  <h2>Families (${families.length})</h2>
+  <table><thead><tr><th>Family</th><th>Properties</th><th>Accounts</th><th>Est. Value</th><th>Open Tasks</th></tr></thead><tbody>
+  ${families.map(f=>{const s=famStat(f);return`<tr><td>${esc(f.name)}</td><td>${s.props}</td><td>${s.accts}</td><td>${fmtMoney(s.value)}</td><td>${s.openT}</td></tr>`;}).join("")||"<tr><td colspan='5' style='color:#8fa0b2'>No families assigned</td></tr>"}
+  </tbody></table>
+  <h2>Prospects (${prospects.length})</h2>
+  <table><thead><tr><th>Name</th><th>Company</th><th>Type</th><th>Email</th><th>Phone</th></tr></thead><tbody>
+  ${prospects.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.company)||"—"}</td><td>${esc(c.type)||"—"}</td><td>${esc(c.email)||"—"}</td><td>${esc(c.phone)||"—"}</td></tr>`).join("")||"<tr><td colspan='5' style='color:#8fa0b2'>No prospects</td></tr>"}
+  </tbody></table>
+  <h2>Pipeline — Open Deals (${openDeals.length}) · Won (${wonDeals.length})</h2>
+  <table><thead><tr><th>Deal</th><th>Related To</th><th>Stage</th><th>Value</th><th>Close Date</th></tr></thead><tbody>
+  ${deals.sort((a,b)=>(b.value||0)-(a.value||0)).map(d=>`<tr><td>${esc(d.title)}</td><td>${esc(relOf(d))}</td><td>${esc(d.stage)}</td><td>${fmtMoney(d.value)}</td><td>${fmtD(d.closeDate)}</td></tr>`).join("")||"<tr><td colspan='5' style='color:#8fa0b2'>No deals</td></tr>"}
+  </tbody></table>
+  <h2>Open Tasks (${openTasks.length})</h2>
+  <table><thead><tr><th>Task</th><th>Related To</th><th>Priority</th><th>Due Date</th></tr></thead><tbody>
+  ${openTasks.sort((a,b)=>(a.dueDate||"")>(b.dueDate||"")?1:-1).map(t=>{const od=t.dueDate&&new Date(t.dueDate)<now;return`<tr><td>${esc(t.title)}</td><td>${esc(relOf(t))}</td><td>${esc(t.priority)||"—"}</td><td style="${od?"color:#8b1a1a;font-weight:700":""}">${fmtD(t.dueDate)}${od?" (overdue)":""}</td></tr>`;}).join("")||"<tr><td colspan='4' style='color:#8fa0b2'>No open tasks</td></tr>"}
+  </tbody></table>
+  <h2>Recent Notes (${Math.min(notes.length,15)} of ${notes.length})</h2>
+  ${notes.slice(0,15).map(n=>`<div class="note"><div>${esc(n.body)}</div><div class="note-meta">${esc(relOf(n))} · ${fmtD(n.createdAt)}</div></div>`).join("")||"<p style='color:#8fa0b2'>No notes</p>"}
+  </body></html>`);
+  w.document.close();w.focus();setTimeout(()=>w.print(),400);
+}
+
 function FamiliesView({data,reload,toast,userProfile}){
   const{families}=data;
   const[advisors,setAdvisors]=useState([]);
@@ -1937,7 +2017,10 @@ function FamiliesView({data,reload,toast,userProfile}){
                 </div>
               ))}
             </div>
-            {!a.unassigned&&<div style={{marginTop:10,fontSize:12,color:B.gold,fontWeight:600}}>View families →</div>}
+            <div style={{marginTop:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+              {!a.unassigned&&<div style={{fontSize:12,color:B.gold,fontWeight:600}}>View families →</div>}
+              <button onClick={e=>{e.stopPropagation();printAdvisorReport(a,data);}} style={{marginLeft:"auto",border:`1px solid ${B.navy}`,background:B.white,color:B.navy,borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>🖨 Print Report</button>
+            </div>
           </div>
         ))}
       </div>}
