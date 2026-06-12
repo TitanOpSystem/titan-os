@@ -538,6 +538,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   const[activeTab,setActiveTab]=useState("overview");
   const[reportOpen,setReportOpen]=useState(false);
   const[modal,setModal]=useState(null);
+  const[editM,setEditM]=useState(null);
 
   const contacts=data.contacts.filter(c=>c.familyId===family.id);
   const properties=data.properties.filter(p=>p.familyId===family.id);
@@ -638,6 +639,10 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
     const{error}=await sb.from("contacts").delete().eq("id",id);
     if(error)toast(error.message,"error");else{toast("Member removed");reload("contacts");}
   };
+  const editMember=async(f)=>{
+    const{error}=await sb.from("contacts").update({name:f.name,email:f.email||null,phone:f.phone||null,company:f.company||null,type:f.type||"Individual",dob:f.dob||null,address:f.address||null}).eq("id",editM.id);
+    if(error)toast(error.message,"error");else{toast("Member updated");reload("contacts");}
+  };
   // Add property
   const addProperty=async(f)=>{
     const row={family_id:family.id,owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,hoa_fee:Number(f.hoaFee)||0,property_management_fee_pct:Number(f.propertyManagementFeePct)||0,include_mortgage_in_cashflow:f.includeMortgageInCashflow!==false,notes:f.notes||null};
@@ -735,7 +740,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Members</div>
-                <Btn small onClick={()=>setModal("member")}>+ Add</Btn>
+                <Btn small onClick={()=>{setEditM(null);setModal("member");}}>+ Add</Btn>
               </div>
               <GoldLine/>
               {contacts.length===0?<Empty text="No members yet — add the first one"/>:contacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`}}>
@@ -749,6 +754,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <Badge scheme={c.type==="Business"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{c.type}</Badge>
+                  <button onClick={()=>{setEditM(c);setModal("member");}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit member">✎</button>
                   <button onClick={()=>delMember(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
                 </div>
               </div>)}
@@ -1025,8 +1031,8 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       </div>}
 
       {/* Modals */}
-      {modal==="member"&&<Modal title="Add Member" onClose={()=>setModal(null)}>
-        <MemberForm onSave={async f=>{await addMember(f);setModal(null);}} onClose={()=>setModal(null)}/>
+      {modal==="member"&&<Modal title={editM?"Edit Member":"Add Member"} onClose={()=>{setModal(null);setEditM(null);}}>
+        <MemberForm initial={editM?{name:editM.name||"",email:editM.email||"",phone:editM.phone||"",company:editM.company||"",type:editM.type||"Individual",dob:editM.dob||"",address:editM.address||""}:null} onSave={async f=>{editM?await editMember(f):await addMember(f);setModal(null);setEditM(null);}} onClose={()=>{setModal(null);setEditM(null);}}/>
       </Modal>}
       {modal==="task"&&<Modal title="New Task" onClose={()=>setModal(null)}><TaskForm contacts={contacts} onSave={async f=>{await addTask(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="property"&&<Modal title="Add Property" onClose={()=>setModal(null)} wide><PropertyForm onSave={async f=>{await addProperty(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
@@ -1063,7 +1069,7 @@ function MemberForm({initial,onSave,onClose}){
     </Grid2>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
       <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-      <Btn onClick={save} disabled={saving}>{saving?"Saving…":"Add Member"}</Btn>
+      <Btn onClick={save} disabled={saving}>{saving?"Saving…":initial?"Save Changes":"Add Member"}</Btn>
     </div>
   </div>;
 }
