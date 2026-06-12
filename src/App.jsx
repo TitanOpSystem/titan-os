@@ -631,7 +631,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
   // Add/remove members
   const addMember=async(f)=>{
-    const{error}=await sb.from("contacts").insert({family_id:family.id,name:f.name,email:f.email||null,phone:f.phone||null,company:f.company||null,type:f.type||"Individual",tags:null});
+    const{error}=await sb.from("contacts").insert({family_id:family.id,name:f.name,email:f.email||null,phone:f.phone||null,company:f.company||null,type:f.type||"Individual",dob:f.dob||null,address:f.address||null,tags:null});
     if(error)toast(error.message,"error");else{toast("Member added");reload("contacts");}
   };
   const delMember=async(id)=>{
@@ -1043,7 +1043,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
 // ── MEMBER FORM ───────────────────────────────────────────────────────────────
 function MemberForm({initial,onSave,onClose}){
-  const[f,setF]=useState(initial||{name:"",email:"",phone:"",company:"",type:"Individual"});
+  const[f,setF]=useState(initial||{name:"",email:"",phone:"",company:"",type:"Individual",dob:"",address:""});
   const[saving,setSaving]=useState(false);
   const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const save=async()=>{if(!f.name.trim())return;setSaving(true);await onSave(f);onClose();};
@@ -1056,6 +1056,10 @@ function MemberForm({initial,onSave,onClose}){
     <Grid2>
       <Field label="Company / LLC"><Inp placeholder="Smith Holdings LLC" value={f.company||""} onChange={set("company")}/></Field>
       <Field label="Type"><Sel value={f.type} onChange={set("type")}><option>Individual</option><option>Business</option></Sel></Field>
+    </Grid2>
+    <Grid2>
+      <Field label="Date of Birth"><Inp type="date" value={f.dob||""} onChange={set("dob")}/></Field>
+      <Field label="Address"><Inp placeholder="123 Main St, Tampa, FL" value={f.address||""} onChange={set("address")}/></Field>
     </Grid2>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
       <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
