@@ -2621,16 +2621,28 @@ function ProspectContactsView({data,reload,toast,userProfile}){
   </div>;
 }
 
-function ProspectDealForm({initial,contacts=[],onSave,onClose}){
-  const[f,setF]=useState(initial||{contactId:"",title:"",value:"",stage:"Lead",closeDate:""});
+function ProspectDealForm({initial,contacts=[],onSave,onClose,userProfile,advisors=[]}){
+  const isAdmin=userProfile?.role==="admin";
+  const[f,setF]=useState(initial||{contactId:"",title:"",value:"",stage:"Lead",closeDate:"",
+    advisorName:isAdmin?"":(userProfile?.fullName||""),advisorEmail:isAdmin?"":(userProfile?.email||"")});
   const[saving,setSaving]=useState(false);
   const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  const pickAdvisor=e=>{const email=e.target.value;const adv=advisors.find(a=>a.email===email);setF(p=>({...p,advisorEmail:email,advisorName:adv?(adv.full_name||""):""}));};
   const save=async()=>{if(!f.title.trim())return;setSaving(true);await onSave(f);onClose();};
   return <div>
-    <Field label="Deal Title"><Inp value={f.title} onChange={set("title")}/></Field>
+    <Field label="Opportunity Title"><Inp value={f.title} onChange={set("title")}/></Field>
     <Field label="Contact"><Sel value={f.contactId||""} onChange={set("contactId")}><option value="">— None —</option>{contacts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Sel></Field>
     <Grid2><Field label="Value ($)"><MoneyInput value={f.value||""} onChange={set("value")}/></Field><Field label="Close Date"><Inp type="date" value={f.closeDate||""} onChange={set("closeDate")}/></Field></Grid2>
     <Field label="Stage"><Sel value={f.stage} onChange={set("stage")}>{STAGES.map(s=><option key={s}>{s}</option>)}</Sel></Field>
+    {isAdmin
+      ? <Field label="Assign Advisor">
+          <select value={f.advisorEmail||""} onChange={pickAdvisor} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${B.border}`,fontSize:14,fontFamily:"'DM Sans',sans-serif",background:B.white,color:B.navy}}>
+            <option value="">— Select an advisor —</option>
+            {advisors.map(a=><option key={a.id} value={a.email}>{(a.full_name||a.email)}{a.full_name?` (${a.email})`:""}</option>)}
+          </select>
+        </Field>
+      : <Field label="Advisor"><Inp value={f.advisorName||f.advisorEmail||userProfile?.fullName||userProfile?.email||""} disabled/></Field>
+    }
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save"}</Btn></div>
   </div>;
 }
@@ -2644,7 +2656,7 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
   const[advisorFilter,setAdvisorFilter]=useState("");
   const[advisors,setAdvisors]=useState([]);
   useEffect(()=>{if(isAdmin){sb.from("user_profiles").select("id,email,full_name,role").in("role",["advisor","admin"]).then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[isAdmin]);
-  const advisorOf=d=>{const c=allContacts.find(x=>x.id===d.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
+  const advisorOf=d=>{if(d.advisorEmail)return{email:d.advisorEmail,name:d.advisorName||d.advisorEmail};const c=allContacts.find(x=>x.id===d.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
   const allDeals=data.deals.filter(d=>!d.familyId);
   const deals=allDeals.filter(d=>!advisorFilter||(advisorOf(d)?.email||"")===advisorFilter);
   const filtered=useMemo(()=>deals.filter(d=>fs==="All"||d.stage===fs),[deals,fs]);
@@ -2655,7 +2667,7 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
     const groups={};
     allDeals.forEach(d=>{
       const c=allContacts.find(x=>x.id===d.contactId);
-      const adv=c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;
+      const adv=d.advisorEmail?{email:d.advisorEmail,name:d.advisorName||d.advisorEmail}:(c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null);
       const key=adv?adv.email:"__unassigned__";
       if(!groups[key])groups[key]={email:adv?adv.email:"",name:adv?adv.name:"Unassigned",unassigned:!adv,deals:0,openDeals:0,pipeline:0,won:0,lost:0};
       groups[key].deals+=1;
@@ -2667,8 +2679,8 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
     return Object.values(groups).sort((a,b)=>(b.pipeline-a.pipeline)||(b.openDeals-a.openDeals));
   },[allDeals,allContacts,advisors]);
 
-  const add=async f=>{const{error}=await sb.from("deals").insert({family_id:null,contact_id:f.contactId||null,title:f.title,value:f.value||null,stage:f.stage,close_date:f.closeDate||null});if(error)toast(error.message,"error");else{toast("Deal added");reload("deals");}};
-  const edit=async f=>{const{error}=await sb.from("deals").update({contact_id:f.contactId||null,title:f.title,value:f.value||null,stage:f.stage,close_date:f.closeDate||null}).eq("id",modal.id);if(error)toast(error.message,"error");else{toast("Updated");reload("deals");}};
+  const add=async f=>{const{error}=await sb.from("deals").insert({family_id:null,contact_id:f.contactId||null,title:f.title,value:f.value||null,stage:f.stage,close_date:f.closeDate||null,advisor_email:f.advisorEmail||null,advisor_name:f.advisorName||null});if(error)toast(error.message,"error");else{toast("Opportunity added");reload("deals");}};
+  const edit=async f=>{const{error}=await sb.from("deals").update({contact_id:f.contactId||null,title:f.title,value:f.value||null,stage:f.stage,close_date:f.closeDate||null,advisor_email:f.advisorEmail||null,advisor_name:f.advisorName||null}).eq("id",modal.id);if(error)toast(error.message,"error");else{toast("Updated");reload("deals");}};
   const del=async id=>{const{error}=await sb.from("deals").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("deals");}};
   const move=async(deal,dir)=>{const idx=STAGES.indexOf(deal.stage);const next=STAGES[idx+dir];if(!next)return;const{error}=await sb.from("deals").update({stage:next}).eq("id",deal.id);if(error)toast(error.message,"error");else reload("deals");};
 
@@ -2690,11 +2702,11 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
               onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
               <div style={{marginBottom:12}}>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:a.unassigned?B.textMute:B.navy,fontWeight:600,marginBottom:2}}>{a.name}</div>
-                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Deals not linked to an advisor's contact"}</div>
+                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Opportunities not linked to an advisor's contact"}</div>
               </div>
               <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                {[{l:"Open Deals",v:a.openDeals},{l:"Pipeline $",v:fmtMoney(a.pipeline)},{l:"Won",v:a.won},{l:"Lost",v:a.lost}].map(item=>(
+                {[{l:"Open Opps",v:a.openDeals},{l:"Pipeline $",v:fmtMoney(a.pipeline)},{l:"Won",v:a.won},{l:"Lost",v:a.lost}].map(item=>(
                   <div key={item.l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                     <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{item.l}</div>
                     <div style={{fontSize:15,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:600}}>{item.v}</div>
@@ -2706,7 +2718,7 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
           ))}
         </div>
       </div>
-      {modal==="add"&&<Modal title="New Deal" onClose={()=>setModal(null)}><ProspectDealForm contacts={contacts} onSave={add} onClose={()=>setModal(null)}/></Modal>}
+      {modal==="add"&&<Modal title="New Opportunity" onClose={()=>setModal(null)}><ProspectDealForm contacts={contacts} userProfile={userProfile} advisors={advisors} onSave={add} onClose={()=>setModal(null)}/></Modal>}
     </div>;
   }
 
@@ -2718,10 +2730,10 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
       <div style={{flex:1,display:"flex",gap:5,flexWrap:"wrap"}}>{["All",...STAGES].map(s=><button key={s} onClick={()=>setFs(s)} style={{background:fs===s?(STAGE_COLORS[s]?.bg||B.borderLight):"transparent",border:`1px solid ${fs===s?(STAGE_COLORS[s]?.dot||B.navy):B.border}`,color:fs===s?(STAGE_COLORS[s]?.text||B.navy):B.textSoft,borderRadius:20,padding:"3px 12px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{s}</button>)}</div>
       {advisorFilter&&<button onClick={()=>setAdvisorFilter("")} style={{border:`1px solid ${B.gold}`,background:"#fbf6ec",color:B.navy,borderRadius:16,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>{(advisorSummary.find(a=>a.email===advisorFilter)?.name)||advisorFilter} ✕</button>}
       <div style={{fontSize:12,color:B.textSoft}}>Pipeline: <strong style={{color:B.navy}}>{fmtMoney(pipeline)}</strong></div>
-      <Btn onClick={()=>setModal("add")}>+ New Deal</Btn>
+      <Btn onClick={()=>setModal("add")}>+ New Opportunity</Btn>
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"6px 0"}}>
-      {filtered.length===0&&<Empty text="No prospect deals yet."/>}
+      {filtered.length===0&&<Empty text="No prospect opportunities yet."/>}
       {STAGES.map(stage=>{const list=byStage[stage];if(!list?.length)return null;return <div key={stage}>
         <div style={{padding:"8px 20px 3px",display:"flex",alignItems:"center",gap:7}}><span style={{width:7,height:7,borderRadius:"50%",background:STAGE_COLORS[stage].dot}}/><span style={{fontSize:11,fontWeight:800,color:STAGE_COLORS[stage].dot,letterSpacing:"0.1em",textTransform:"uppercase"}}>{stage}</span></div>
         {list.map(deal=>{const contact=gc(deal.contactId);return <div key={deal.id} style={{margin:"3px 20px",padding:"12px 15px",background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`3px solid ${STAGE_COLORS[deal.stage].dot}`,borderRadius:10,display:"flex",alignItems:"center",gap:10,boxShadow:B.shadow}}>
@@ -2736,8 +2748,8 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
         </div>;})}
       </div>;})}
     </div>
-    {modal==="add"&&<Modal title="New Deal" onClose={()=>setModal(null)}><ProspectDealForm contacts={contacts} onSave={add} onClose={()=>setModal(null)}/></Modal>}
-    {modal&&modal!=="add"&&<Modal title="Edit Deal" onClose={()=>setModal(null)}><ProspectDealForm initial={modal} contacts={contacts} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
+    {modal==="add"&&<Modal title="New Opportunity" onClose={()=>setModal(null)}><ProspectDealForm contacts={contacts} userProfile={userProfile} advisors={advisors} onSave={add} onClose={()=>setModal(null)}/></Modal>}
+    {modal&&modal!=="add"&&<Modal title="Edit Opportunity" onClose={()=>setModal(null)}><ProspectDealForm initial={modal} contacts={contacts} userProfile={userProfile} advisors={advisors} onSave={edit} onClose={()=>setModal(null)}/></Modal>}
   </div>;
 }
 
