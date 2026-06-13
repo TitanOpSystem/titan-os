@@ -745,7 +745,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
               <GoldLine/>
               {contacts.length===0?<Empty text="No members yet — add the first one"/>:contacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`}}>
                 <div>
-                  <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{c.name}</div>
+                  <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{c.name}{c.dob&&(()=>{const d=new Date(c.dob);if(isNaN(d))return null;const t=new Date();let a=t.getFullYear()-d.getFullYear();const m=t.getMonth()-d.getMonth();if(m<0||(m===0&&t.getDate()<d.getDate()))a--;return a>=0?<span style={{fontWeight:400,color:B.textSoft,fontSize:11,marginLeft:6}}>· {a} yrs</span>:null;})()}</div>
                   <div style={{fontSize:11,color:B.textSoft,marginTop:2,display:"flex",gap:10}}>
                     {c.email&&<span>✉ {c.email}</span>}
                     {c.phone&&<span>📞 {c.phone}</span>}
