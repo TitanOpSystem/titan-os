@@ -2211,6 +2211,7 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
   const{contacts,families,notes}=data;
   const noteAttachments=data.note_attachments||[];
   const[body,setBody]=useState("");const[cid,setCid]=useState("");const[fid,setFid]=useState("");const[search,setSearch]=useState("");const[saving,setSaving]=useState(false);
+  const[editId,setEditId]=useState(null);const[editBody,setEditBody]=useState("");
   const[pendingFiles,setPendingFiles]=useState([]);
   const gc=id=>contacts.find(c=>c.id===id);const gf=id=>families.find(f=>f.id===id);
   const adminProspect=prospectMode&&userProfile?.role==="admin";
@@ -2256,6 +2257,7 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
     reload("notes");reload("note_attachments");
   };
   const del=async id=>{const{error}=await sb.from("notes").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("notes");reload("note_attachments");}};
+  const saveEdit=async id=>{if(!editBody.trim())return;const{error}=await sb.from("notes").update({body:editBody}).eq("id",id);if(error)toast(error.message,"error");else{toast("Note updated");setEditId(null);setEditBody("");reload("notes");}};
   const download=async(att)=>{
     const{data,error}=await sb.storage.from("documents").createSignedUrl(att.filePath,300,{download:att.name||true});
     if(error){toast(error.message,"error");return;}
@@ -2362,7 +2364,21 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
           return <div key={n.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,marginBottom:12,boxShadow:B.shadow,overflow:"hidden"}}>
             <div style={{height:3,background:`linear-gradient(90deg,${B.gold},${B.goldLight})`}}/>
             <div style={{padding:"16px 20px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:8}}><p style={{margin:0,color:B.text,fontSize:14,lineHeight:1.7,flex:1,whiteSpace:"pre-wrap"}}>{n.body}</p><button onClick={()=>del(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button></div>
+              <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:8}}>
+                {editId===n.id
+                  ? <div style={{flex:1}}>
+                      <textarea value={editBody} onChange={e=>setEditBody(e.target.value)} autoFocus style={{width:"100%",minHeight:80,background:B.bg,border:`1px solid ${B.border}`,borderRadius:8,padding:"10px 12px",color:B.text,fontSize:14,outline:"none",resize:"vertical",fontFamily:"inherit",lineHeight:1.65,boxSizing:"border-box"}}/>
+                      <div style={{display:"flex",gap:8,marginTop:8}}>
+                        <Btn small onClick={()=>saveEdit(n.id)} disabled={!editBody.trim()}>Save</Btn>
+                        <Btn small variant="ghost" onClick={()=>{setEditId(null);setEditBody("");}}>Cancel</Btn>
+                      </div>
+                    </div>
+                  : <p style={{margin:0,color:B.text,fontSize:14,lineHeight:1.7,flex:1,whiteSpace:"pre-wrap"}}>{n.body}</p>}
+                {editId!==n.id&&<div style={{display:"flex",gap:6,flexShrink:0}}>
+                  <button onClick={()=>{setEditId(n.id);setEditBody(n.body);}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14}} title="Edit note">✎</button>
+                  <button onClick={()=>del(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14}} title="Delete note">✕</button>
+                </div>}
+              </div>
               {atts.length>0&&<div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`}}>
                 {atts.map(a=><div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",flexWrap:"wrap"}}>
                   <span style={{fontSize:13,color:B.navy,fontWeight:600,flex:"1 1 200px",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📎 {a.name}</span>
