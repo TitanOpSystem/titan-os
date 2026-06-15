@@ -3516,10 +3516,15 @@ export default function App(){
     })();
   },[authed,userProfile]);
 
+  const _isAdmin=userProfile?.role==="admin";
+  const _myEmail=(userProfile?.email||"").toLowerCase();
+  const _contactAdv=id=>{const c=data.contacts.find(x=>x.id===id);return (c?.advisorEmail||"").toLowerCase();};
+  const _dealAdv=d=>((d.advisorEmail||"").toLowerCase())||_contactAdv(d.contactId);
+  const _mine=e=>_isAdmin||(!!e&&e===_myEmail);
   const cmStats={families:data.families.length,portfolio:(data.portfolio_accounts||[]).length,"cm-notes":data.notes.filter(n=>n.familyId).length,"cm-tasks":data.tasks.filter(t=>t.familyId&&!t.done).length};
-  const pStats={"p-contacts":data.contacts.filter(c=>!c.familyId).length,"p-pipeline":data.deals.filter(d=>!d.familyId&&d.stage!=="Closed Lost").length,"p-notes":data.notes.filter(n=>!n.familyId).length,"p-tasks":data.tasks.filter(t=>!t.familyId&&!t.done).length};
+  const pStats={"p-contacts":data.contacts.filter(c=>!c.familyId&&_mine((c.advisorEmail||"").toLowerCase())).length,"p-pipeline":data.deals.filter(d=>!d.familyId&&d.stage!=="Closed Lost"&&_mine(_dealAdv(d))).length,"p-notes":data.notes.filter(n=>!n.familyId&&_mine(_contactAdv(n.contactId))).length,"p-tasks":data.tasks.filter(t=>!t.familyId&&!t.done&&_mine(_contactAdv(t.contactId))).length};
   const allStats={...cmStats,...pStats,users:0};
-  const overdue=data.tasks.filter(t=>!t.done&&t.dueDate&&new Date(t.dueDate)<new Date()).length;
+  const overdue=data.tasks.filter(t=>t.familyId&&!t.done&&t.dueDate&&new Date(t.dueDate)<new Date()).length;
   const currentLabel=ALL_NAV.find(n=>n.id===tab)?.label||"";
   const currentSection=NAV_SECTIONS.find(s=>s.items.some(i=>i.id===tab))?.section||"";
 
