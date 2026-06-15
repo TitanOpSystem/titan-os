@@ -226,11 +226,17 @@ function calcEventTax(grossAmount,treatment,baseIncome,filingStatus,stateRate,lo
   return{tax:totalTax,fedTax,stateTax,localTax,niit,net:gross-totalTax};
 }
 // Expand a recurring event into monthly occurrences within projection window
+// Parse a YYYY-MM-DD string as LOCAL midnight (not UTC) to avoid timezone day/month shifts
+function parseLocalDate(s){
+  if(!s)return new Date(NaN);
+  if(typeof s==="string"){const m=s.slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));}
+  return new Date(s);
+}
 function expandEvent(event,projectionStart,monthsOut){
   const occurrences=[];
-  const start=new Date(event.startDate);
+  const start=parseLocalDate(event.startDate);
   if(isNaN(start))return occurrences;
-  const end=event.endDate?new Date(event.endDate):null;
+  const end=event.endDate?parseLocalDate(event.endDate):null;
   const projEnd=new Date(projectionStart);projEnd.setMonth(projEnd.getMonth()+monthsOut);
   const amount=Number(event.amount)||0;
   if(event.frequency==="once"){
@@ -254,6 +260,39 @@ function expandEvent(event,projectionStart,monthsOut){
     else break;
   }
   return occurrences;
+}
+
+// Build a month-by-month cash flow projection. Tax rates are passed in so the same
+// inputs can be projected under different state/local tax scenarios (for Compare).
+function buildProjection(allEvents,settings,stateRate,localRate){
+  const start=new Date();start.setDate(1);start.setHours(0,0,0,0);
+  const months=[];
+  for(let i=0;i<settings.projectionMonths;i++){
+    const d=new Date(start);d.setMonth(d.getMonth()+i);
+    months.push({date:new Date(d),label:d.toLocaleDateString("en-US",{month:"short",year:"2-digit"}),income:0,tax:0,expense:0,gross:0,net:0});
+  }
+  const enriched=allEvents.map(ev=>{
+    const isExpense=ev.direction==="expense";
+    const excluded=isExpense?(settings.includeExpense===false):(!ev._synthetic&&settings.includeIncome===false);
+    if(excluded)return{...ev,projectedGross:0,projectedTax:0,projectedExpense:0,projectedNet:0,_excluded:true};
+    const occurrences=expandEvent(ev,start,settings.projectionMonths);
+    let projGross=0,projTax=0,projExpense=0;
+    occurrences.forEach(occ=>{
+      const monthIdx=(occ.date.getFullYear()-start.getFullYear())*12+(occ.date.getMonth()-start.getMonth());
+      if(monthIdx<0||monthIdx>=months.length)return;
+      if(isExpense){
+        const amt=Math.abs(Number(occ.amount)||0);
+        projExpense+=amt;months[monthIdx].expense+=amt;months[monthIdx].net-=amt;
+      }else{
+        const{tax,net}=calcEventTax(occ.amount,ev.taxTreatment,Number(settings.baseIncome)||0,settings.filingStatus,stateRate,localRate);
+        projGross+=occ.amount;projTax+=tax;
+        months[monthIdx].gross+=occ.amount;months[monthIdx].income+=occ.amount;months[monthIdx].tax+=tax;months[monthIdx].net+=net;
+      }
+    });
+    if(isExpense)return{...ev,projectedGross:0,projectedTax:0,projectedExpense:projExpense,projectedNet:-projExpense};
+    return{...ev,projectedGross:projGross,projectedTax:projTax,projectedNet:projGross-projTax};
+  });
+  return{monthlyData:months,enrichedEvents:enriched};
 }
 
 const REMINDER_OPTIONS=[
@@ -1513,7 +1552,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
   const toggleBreakdown=(id)=>setExpandedBreakdowns(p=>({...p,[id]:!p[id]}));
   // Settings: DB (family.cashFlowSettings) is source of truth, localStorage is fallback
   const settingsKey=`cf_settings_${family.id}`;
-  const defaults={projectionMonths:60,filingStatus:"mfj",baseIncome:0,stateCode:"FL",stateTaxRate:0,localTaxRate:0,localTaxLabel:"",includeRental:false};
+  const defaults={projectionMonths:60,filingStatus:"mfj",baseIncome:0,stateCode:"FL",stateTaxRate:0,localTaxRate:0,localTaxLabel:"",includeRental:false,includeIncome:true,includeExpense:true,compareStateCode:"",compareLocalTaxRate:0};
   const loadSettings=()=>{
     // 1) Try DB
     if(family.cashFlowSettings&&typeof family.cashFlowSettings==="object"){
@@ -1587,44 +1626,14 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
     return e.sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0));
   },[events,settings.includeRental,properties]);
 
-  // Build month-by-month projection
-  const{monthlyData,enrichedEvents}=useMemo(()=>{
-    const start=new Date();start.setDate(1);start.setHours(0,0,0,0);
-    const months=[];
-    for(let i=0;i<settings.projectionMonths;i++){
-      const d=new Date(start);d.setMonth(d.getMonth()+i);
-      months.push({date:new Date(d),label:d.toLocaleDateString("en-US",{month:"short",year:"2-digit"}),income:0,tax:0,expense:0,gross:0,net:0});
-    }
-    const enriched=allEvents.map(ev=>{
-      const occurrences=expandEvent(ev,start,settings.projectionMonths);
-      const isExpense=ev.direction==="expense";
-      let projGross=0;let projTax=0;let projExpense=0;
-      occurrences.forEach(occ=>{
-        const monthIdx=(occ.date.getFullYear()-start.getFullYear())*12+(occ.date.getMonth()-start.getMonth());
-        if(monthIdx<0||monthIdx>=months.length)return;
-        if(isExpense){
-          // Expenses: amount is already after-tax, just subtract from net
-          const amt=Math.abs(Number(occ.amount)||0);
-          projExpense+=amt;
-          months[monthIdx].expense+=amt;
-          months[monthIdx].net-=amt;
-        }else{
-          // Income event: calculate tax on top of base income
-          const{tax,net}=calcEventTax(occ.amount,ev.taxTreatment,Number(settings.baseIncome)||0,settings.filingStatus,settings.stateTaxRate,settings.localTaxRate);
-          projGross+=occ.amount;projTax+=tax;
-          months[monthIdx].gross+=occ.amount;
-          months[monthIdx].income+=occ.amount;
-          months[monthIdx].tax+=tax;
-          months[monthIdx].net+=net;
-        }
-      });
-      if(isExpense){
-        return{...ev,projectedGross:0,projectedTax:0,projectedExpense:projExpense,projectedNet:-projExpense};
-      }
-      return{...ev,projectedGross:projGross,projectedTax:projTax,projectedNet:projGross-projTax};
-    });
-    return{monthlyData:months,enrichedEvents:enriched};
-  },[allEvents,settings]);
+  // Comparison scenario: same inputs under a different state's tax (and no/explicit city tax)
+  const compareState=settings.compareStateCode?STATE_TAX_RATES.find(st=>st.code===settings.compareStateCode):null;
+  const compareActive=!!compareState;
+  const compareLocalRate=Number(settings.compareLocalTaxRate)||0;
+  // Build month-by-month projection (current state)
+  const{monthlyData,enrichedEvents}=useMemo(()=>buildProjection(allEvents,settings,Number(settings.stateTaxRate)||0,Number(settings.localTaxRate)||0),[allEvents,settings]);
+  // Comparison projection (only when a compare state is chosen)
+  const compareProj=useMemo(()=>compareActive?buildProjection(allEvents,settings,compareState.rate,compareLocalRate):null,[allEvents,settings,compareActive,compareLocalRate]);
 
   const totalIncome=monthlyData.reduce((s,m)=>s+m.income,0);
   const totalGross=monthlyData.reduce((s,m)=>s+m.gross,0);
@@ -1634,6 +1643,11 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
   const effRate=totalGross>0?(totalTax/totalGross)*100:0;
   // For chart scaling: max positive (income net), min (expenses + negative net rentals)
   const cumulative=[];let run=0;monthlyData.forEach(m=>{run+=m.net;cumulative.push(run);});
+  // Comparison scenario totals + cumulative
+  const cTotalTax=compareProj?compareProj.monthlyData.reduce((s,m)=>s+m.tax,0):0;
+  const cTotalNet=compareProj?compareProj.monthlyData.reduce((s,m)=>s+m.net,0):0;
+  const compareCumulative=[];if(compareProj){let cr=0;compareProj.monthlyData.forEach(m=>{cr+=m.net;compareCumulative.push(cr);});}
+  const netDelta=cTotalNet-totalNet; // positive = comparison state keeps more (saves)
 
   // Add/edit/delete/reorder event
   const addEvent=async(f)=>{
@@ -1706,9 +1720,57 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
           <input type="checkbox" disabled={readOnly} checked={!!settings.includeRental} onChange={e=>updateSetting("includeRental",e.target.checked)} style={{width:16,height:16,accentColor:B.navy}}/>
           <span>Include rental income from properties</span>
         </label>
+        <label style={{display:"flex",alignItems:"center",gap:8,cursor:readOnly?"not-allowed":"pointer",fontSize:13,color:B.text,opacity:readOnly?0.7:1}}>
+          <input type="checkbox" disabled={readOnly} checked={settings.includeIncome!==false} onChange={e=>updateSetting("includeIncome",e.target.checked)} style={{width:16,height:16,accentColor:B.navy}}/>
+          <span>Include income items</span>
+        </label>
+        <label style={{display:"flex",alignItems:"center",gap:8,cursor:readOnly?"not-allowed":"pointer",fontSize:13,color:B.text,opacity:readOnly?0.7:1}}>
+          <input type="checkbox" disabled={readOnly} checked={settings.includeExpense!==false} onChange={e=>updateSetting("includeExpense",e.target.checked)} style={{width:16,height:16,accentColor:B.navy}}/>
+          <span>Include expense items</span>
+        </label>
         {!readOnly&&<div style={{fontSize:11,color:B.textSoft,marginLeft:"auto"}}>State rate auto-fills from selection. Common local rates: NYC 3.876% · Philadelphia 3.75% · Detroit 2.4%</div>}
       </div>
+      <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${B.borderLight}`,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,alignItems:"end"}}>
+        <Field label="Compare To (relocation)">
+          <Sel value={settings.compareStateCode||""} disabled={readOnly} onChange={e=>{
+            const code=e.target.value;const st=STATE_TAX_RATES.find(s=>s.code===code);
+            updateSettings({compareStateCode:code,compareStateRate:st?st.rate:0});
+          }}>
+            <option value="">— Off —</option>
+            {STATE_TAX_RATES.map(s=><option key={s.code} value={s.code}>{s.name} ({s.rate.toFixed(2)}%)</option>)}
+          </Sel>
+        </Field>
+        {compareActive&&<Field label="Compare Local / City Tax (%)">
+          <Inp type="number" step="0.01" disabled={readOnly} value={settings.compareLocalTaxRate||""} onChange={e=>updateSetting("compareLocalTaxRate",Number(e.target.value)||0)} placeholder="0 (no city tax)"/>
+        </Field>}
+        {compareActive&&<div style={{fontSize:11,color:B.textSoft}}>Models the identical inputs as if the client were taxed in {compareState.name}{compareLocalRate>0?` + ${compareLocalRate}% local`:" with no city tax"}.</div>}
+      </div>
     </div>
+
+    {/* Comparison summary */}
+    {compareActive&&<div style={{background:"linear-gradient(135deg,#f9f7f3,#f2ede3)",border:`1px solid ${B.gold}`,borderRadius:12,padding:isMobile?16:20,marginBottom:18,boxShadow:B.shadow}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",flexWrap:"wrap",gap:8,marginBottom:14}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?17:20,color:B.navy,fontWeight:600}}>Relocation Comparison</div>
+        <div style={{fontSize:12,color:B.textSoft}}>over {settings.projectionMonths}-month projection</div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12}}>
+        <div style={{background:B.white,borderRadius:10,padding:"14px 16px",border:`1px solid ${B.borderLight}`}}>
+          <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:6}}>{STATE_TAX_RATES.find(s=>s.code===settings.stateCode)?.name||settings.stateCode} · Current</div>
+          <div style={{fontSize:13,color:B.textSoft}}>Tax <strong style={{color:"#8b1a1a"}}>{fmtMoney(totalTax)}</strong></div>
+          <div style={{fontSize:20,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:700,marginTop:4}}>{fmtMoney(totalNet)} <span style={{fontSize:11,color:B.textSoft,fontWeight:400}}>net</span></div>
+        </div>
+        <div style={{background:B.white,borderRadius:10,padding:"14px 16px",border:`1px solid ${B.gold}`}}>
+          <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:6}}>{compareState.name} · Compare</div>
+          <div style={{fontSize:13,color:B.textSoft}}>Tax <strong style={{color:"#8b1a1a"}}>{fmtMoney(cTotalTax)}</strong></div>
+          <div style={{fontSize:20,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:700,marginTop:4}}>{fmtMoney(cTotalNet)} <span style={{fontSize:11,color:B.textSoft,fontWeight:400}}>net</span></div>
+        </div>
+        <div style={{background:netDelta>=0?"#e0f5e9":"#fde8e8",borderRadius:10,padding:"14px 16px",border:`1px solid ${netDelta>=0?"#18a850":"#d43030"}`,display:"flex",flexDirection:"column",justifyContent:"center"}}>
+          <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:6}}>{netDelta>=0?"Potential Savings":"Additional Cost"}</div>
+          <div style={{fontSize:24,fontFamily:"'Cormorant Garamond',serif",color:netDelta>=0?"#0d5c2b":"#8b1a1a",fontWeight:700}}>{netDelta>=0?"+":"−"}{fmtMoney(Math.abs(netDelta))}</div>
+          <div style={{fontSize:11,color:B.textSoft,marginTop:2}}>{Math.abs(totalTax-cTotalTax)>0?`${fmtMoney(Math.abs(totalTax-cTotalTax))} ${cTotalTax<totalTax?"less":"more"} tax`:"Same tax"}</div>
+        </div>
+      </div>
+    </div>}
 
     {/* Stats */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:18}}>
@@ -1719,80 +1781,74 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
     </div>
 
     {/* Chart */}
-    {monthlyData.length>0&&<div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:18,marginBottom:18,boxShadow:B.shadow}}>
+    {monthlyData.length>0&&<div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:isMobile?14:20,marginBottom:18,boxShadow:B.shadow}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Cash Flow by Month</div>
         <div style={{display:"flex",gap:14,fontSize:11,color:B.textSoft,alignItems:"center",flexWrap:"wrap"}}>
           <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:B.gold,borderRadius:2,display:"inline-block"}}/>Income (net)</span>
           <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:"#d43030",borderRadius:2,display:"inline-block"}}/>Expenses</span>
-          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:14,height:2,background:B.navy,display:"inline-block"}}/>Cumulative</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:2.5,background:B.navy,display:"inline-block",borderRadius:2}}/>Cumulative net</span>
+          {compareActive&&<span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:0,borderTop:`2.5px dashed ${B.gold}`,display:"inline-block"}}/>{compareState.name}</span>}
         </div>
       </div>
       <GoldLine/>
-      <svg viewBox={`0 0 ${Math.max(700,monthlyData.length*18)} 240`} style={{width:"100%",height:isMobile?180:240,display:"block"}}>
+      <svg viewBox={`0 0 ${Math.max(720,monthlyData.length*18)} 260`} style={{width:"100%",height:isMobile?200:270,display:"block"}}>
         {(() => {
-          const W=Math.max(700,monthlyData.length*18);const H=240;const padL=50,padR=15,padT=15,padB=35;
+          const W=Math.max(720,monthlyData.length*18);const H=260;const padL=60,padR=compareActive?64:54,padT=18,padB=34;
           const innerW=W-padL-padR;const innerH=H-padT-padB;
           const barW=innerW/monthlyData.length;
-          // Income net (after tax) goes up positive; expenses go down negative — stacked
           const incomeNetByMonth=monthlyData.map(m=>m.income-m.tax);
           const maxPos=Math.max(...incomeNetByMonth,0);
           const minNeg=-Math.max(...monthlyData.map(m=>m.expense),0);
-          // Also account for net rentals that may be negative themselves
           const rentalNegativeFloor=Math.min(...monthlyData.map(m=>Math.min(0,m.income-m.tax)),0);
           const minOverall=Math.min(minNeg,rentalNegativeFloor);
-          const range=maxPos-minOverall;
-          const zeroY=range>0?padT+innerH-(Math.abs(minOverall)/range)*innerH:padT+innerH;
-          // Cumulative
-          const minCum=Math.min(...cumulative,0);
-          const maxCum2=Math.max(...cumulative,0);
-          const cumRange=maxCum2-minCum;
-          const cumZeroY=cumRange>0?padT+innerH-(Math.abs(minCum)/cumRange)*innerH:padT+innerH;
-          const cumPath=cumulative.map((v,i)=>{
-            const x=padL+barW*i+barW/2;
-            const y=cumRange>0?(padT+innerH-((v-minCum)/cumRange)*innerH):cumZeroY;
-            return(i===0?"M":"L")+x.toFixed(1)+","+y.toFixed(1);
-          }).join(" ");
+          const range=(maxPos-minOverall)||1;
+          const zeroY=padT+innerH-(Math.abs(minOverall)/range)*innerH;
+          // Shared cumulative scale across current + comparison lines
+          const allCum=compareActive?cumulative.concat(compareCumulative):cumulative;
+          const cMin=Math.min(...allCum,0);const cMax=Math.max(...allCum,0);const cRange=(cMax-cMin)||1;
+          const cumY=v=>padT+innerH-((v-cMin)/cRange)*innerH;
+          const lineFor=arr=>arr.map((v,i)=>{const x=padL+barW*i+barW/2;return(i===0?"M":"L")+x.toFixed(1)+","+cumY(v).toFixed(1);}).join(" ");
+          const cumPath=lineFor(cumulative);
+          const comparePath=compareActive?lineFor(compareCumulative):"";
+          const lastX=padL+barW*(monthlyData.length-1)+barW/2;
+          const areaPath=`${cumPath} L${lastX.toFixed(1)},${cumY(cMin).toFixed(1)} L${(padL+barW/2).toFixed(1)},${cumY(cMin).toFixed(1)} Z`;
           const stepLabel=Math.max(1,Math.floor(monthlyData.length/(isMobile?6:12)));
+          const yTicks=[0,0.25,0.5,0.75,1].map(p=>minOverall+p*range);
+          const cTicks=[cMin,cMin+cRange/2,cMax].filter((v,i,a)=>a.indexOf(v)===i);
           return <>
-            {/* Grid lines */}
-            {[0.25,0.5,0.75,1].map(p=><line key={p} x1={padL} x2={W-padR} y1={padT+innerH-p*innerH} y2={padT+innerH-p*innerH} stroke={B.borderLight} strokeWidth="0.5"/>)}
-            {/* Stacked bars: income net above zero, expenses below */}
+            <defs>
+              <linearGradient id="cfIncome" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#dcc596"/><stop offset="100%" stopColor="#c9ae78"/></linearGradient>
+              <linearGradient id="cfExpense" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#e05a5a"/><stop offset="100%" stopColor="#c92e2e"/></linearGradient>
+              <linearGradient id="cfArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#092b49" stopOpacity="0.16"/><stop offset="100%" stopColor="#092b49" stopOpacity="0"/></linearGradient>
+            </defs>
+            {/* Horizontal gridlines + left $ axis */}
+            {yTicks.map((v,i)=>{const y=padT+innerH-((v-minOverall)/range)*innerH;return <g key={i}>
+              <line x1={padL} x2={W-padR} y1={y} y2={y} stroke={B.borderLight} strokeWidth={Math.abs(v)<0.01?0.9:0.5} strokeDasharray={Math.abs(v)<0.01?"0":"3,3"}/>
+              <text x={padL-8} y={y+3} fontSize="9" fill={B.textMute} textAnchor="end">{fmtMoneyShort(v)}</text>
+            </g>;})}
+            {/* Bars */}
             {monthlyData.map((m,i)=>{
-              if(range<=0)return null;
-              const x=padL+barW*i+1;
-              const w=barW-2;
-              const incomeNet=m.income-m.tax;
-              const expense=m.expense;
-              const elements=[];
-              if(incomeNet>=0){
-                const h=(incomeNet/range)*innerH;
-                elements.push(<rect key={`ig-${i}`} x={x} y={zeroY-h} width={w} height={h} fill={B.gold} opacity="0.78"/>);
-              }else{
-                // negative net rental: draw as red below zero (income side itself went negative)
-                const h=(Math.abs(incomeNet)/range)*innerH;
-                elements.push(<rect key={`in-${i}`} x={x} y={zeroY} width={w} height={h} fill="#d43030" opacity="0.55"/>);
-              }
-              if(expense>0){
-                const h=(expense/range)*innerH;
-                // If income was already negative, expense stacks below it
-                const yStart=incomeNet<0?zeroY+(Math.abs(incomeNet)/range)*innerH:zeroY;
-                elements.push(<rect key={`ex-${i}`} x={x} y={yStart} width={w} height={h} fill="#d43030" opacity="0.78"/>);
-              }
-              return elements;
+              const x=padL+barW*i+barW*0.16;const w=barW*0.68;
+              const incomeNet=m.income-m.tax;const expense=m.expense;const els=[];
+              if(incomeNet>=0){const h=(incomeNet/range)*innerH;if(h>0.4)els.push(<rect key={`ig-${i}`} x={x} y={zeroY-h} width={w} height={h} rx={Math.min(2.5,w/2)} fill="url(#cfIncome)"/>);}
+              else{const h=(Math.abs(incomeNet)/range)*innerH;els.push(<rect key={`in-${i}`} x={x} y={zeroY} width={w} height={h} rx={Math.min(2.5,w/2)} fill="url(#cfExpense)" opacity="0.6"/>);}
+              if(expense>0){const h=(expense/range)*innerH;const yStart=incomeNet<0?zeroY+(Math.abs(incomeNet)/range)*innerH:zeroY;els.push(<rect key={`ex-${i}`} x={x} y={yStart} width={w} height={h} rx={Math.min(2.5,w/2)} fill="url(#cfExpense)"/>);}
+              return els;
             })}
             {/* Zero baseline */}
-            {minOverall<0&&<line x1={padL} x2={W-padR} y1={zeroY} y2={zeroY} stroke={B.navyMid} strokeWidth="0.7" strokeDasharray="2,2"/>}
-            {/* Cumulative line */}
-            <path d={cumPath} fill="none" stroke={B.navy} strokeWidth="1.8"/>
-            {/* Y axis labels */}
-            {[maxPos,0,minOverall].filter((v,i,arr)=>arr.indexOf(v)===i).map((v,i)=>{
-              const y=range>0?(padT+innerH-((v-minOverall)/range)*innerH):padT+innerH;
-              return<text key={i} x={padL-6} y={y+3} fontSize="9" fill={B.textMute} textAnchor="end">{fmtMoneyShort(v)}</text>;
-            })}
+            <line x1={padL} x2={W-padR} y1={zeroY} y2={zeroY} stroke={B.navyMid} strokeWidth="0.8"/>
+            {/* Cumulative area + line (current) */}
+            <path d={areaPath} fill="url(#cfArea)" stroke="none"/>
+            {compareActive&&comparePath&&<path d={comparePath} fill="none" stroke={B.gold} strokeWidth="2.2" strokeDasharray="6,4" strokeLinejoin="round" strokeLinecap="round"/>}
+            <path d={cumPath} fill="none" stroke={B.navy} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>
+            {/* End-point markers + labels */}
+            <circle cx={lastX} cy={cumY(cumulative[cumulative.length-1])} r="3" fill={B.navy}/>
+            {compareActive&&<circle cx={lastX} cy={cumY(compareCumulative[compareCumulative.length-1])} r="3" fill={B.gold}/>}
+            {/* Right axis cumulative ticks */}
+            {cTicks.map((v,i)=><text key={i} x={W-padR+6} y={cumY(v)+3} fontSize="9" fill={B.textMute} textAnchor="start">{fmtMoneyShort(v)}</text>)}
             {/* X axis labels */}
-            {monthlyData.map((m,i)=>i%stepLabel!==0?null:<text key={i} x={padL+barW*i+barW/2} y={padT+innerH+14} fontSize="9" fill={B.textMute} textAnchor="middle">{m.label}</text>)}
-            {/* Bottom axis */}
+            {monthlyData.map((m,i)=>i%stepLabel!==0?null:<text key={i} x={padL+barW*i+barW/2} y={padT+innerH+15} fontSize="9" fill={B.textMute} textAnchor="middle">{m.label}</text>)}
             <line x1={padL} x2={W-padR} y1={padT+innerH} y2={padT+innerH} stroke={B.border} strokeWidth="1"/>
           </>;
         })()}
@@ -1823,7 +1879,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
       const canMoveUp=reorderable&&myReorderIdx>0;
       const canMoveDown=reorderable&&myReorderIdx<reorderableEvents.length-1;
       const accentColor=isExpense?"#d43030":(e._synthetic?(isNegative?"#d43030":B.navyMid):B.gold);
-      return <div key={e.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${accentColor}`,borderRadius:10,padding:isMobile?14:16,marginBottom:8,boxShadow:B.shadow}}>
+      return <div key={e.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${accentColor}`,borderRadius:10,padding:isMobile?14:16,marginBottom:8,boxShadow:B.shadow,opacity:e._excluded?0.55:1}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
@@ -1832,6 +1888,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
               <Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{freqLabel}</Badge>
               {e._synthetic&&<Badge scheme={{bg:"#fef3e2",text:"#8a5c00",dot:"#d4900a"}}>Auto</Badge>}
               {e._synthetic&&isNegative&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>Net Outflow</Badge>}
+              {e._excluded&&<Badge scheme={{bg:B.bg,text:B.textMute,dot:B.textMute}}>Excluded</Badge>}
             </div>
             {e.description&&<div style={{fontSize:13,color:B.textMid,marginBottom:4}}>{e.description}</div>}
             <div style={{fontSize:11,color:B.textSoft}}>{fmt(e.startDate)}{e.endDate?` → ${fmt(e.endDate)}`:""}{!isExpense?` · ${treatLabel}`:""}</div>
