@@ -283,7 +283,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -614,12 +614,17 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
   // Quick add task
   const addTask=async(f)=>{
-    const{error}=await sb.from("tasks").insert({family_id:family.id,contact_id:f.contactId||null,title:f.title,due_date:f.dueDate||null,priority:f.priority,reminder_days:f.reminderDays||7,done:false});
+    const{error}=await sb.from("tasks").insert({family_id:family.id,contact_id:f.contactId||null,title:f.title,due_date:f.dueDate||null,priority:f.priority,reminder_days:f.reminderDays||7,done:false,recurrence:f.recurrence||null,recurrence_interval:f.recurrence==="Custom"?(Number(f.recurrenceInterval)||1):null,recurrence_unit:f.recurrence==="Custom"?(f.recurrenceUnit||"week"):null});
     if(error)toast(error.message,"error");else{toast("Task added");reload("tasks");}
   };
   const toggleTask=async(t)=>{
     const{error}=await sb.from("tasks").update({done:!t.done}).eq("id",t.id);
-    if(error)toast(error.message,"error");else reload("tasks");
+    if(error){toast(error.message,"error");return;}
+    if(!t.done&&t.recurrence){
+      const nd=nextRecurrence(t.dueDate,t.recurrence,t.recurrenceInterval,t.recurrenceUnit);
+      if(nd){await sb.from("tasks").insert({family_id:t.familyId||family.id,contact_id:t.contactId||null,title:t.title,due_date:nd,priority:t.priority,reminder_days:t.reminderDays||7,done:false,recurrence:t.recurrence,recurrence_interval:t.recurrence==="Custom"?(t.recurrenceInterval||1):null,recurrence_unit:t.recurrence==="Custom"?(t.recurrenceUnit||"week"):null});toast("Next occurrence: "+fmt(nd));}
+    }
+    reload("tasks");
   };
   const delTask=async(id)=>{
     const{error}=await sb.from("tasks").delete().eq("id",id);
@@ -1075,8 +1080,50 @@ function MemberForm({initial,onSave,onClose}){
 }
 
 // ── TASK FORM (with reminder) ─────────────────────────────────────────────────
+// Compute the next due date for a recurring task. Returns YYYY-MM-DD or null.
+function nextRecurrence(dateStr,recurrence,interval,unit){
+  if(!recurrence)return null;
+  const base=dateStr?new Date(dateStr+"T00:00:00"):new Date();
+  if(isNaN(base))return null;
+  let n=1,u="day";
+  if(recurrence==="Daily")u="day";
+  else if(recurrence==="Weekly")u="week";
+  else if(recurrence==="Monthly")u="month";
+  else if(recurrence==="Annual")u="year";
+  else if(recurrence==="Custom"){n=Math.max(1,Number(interval)||1);u=unit||"week";}
+  else return null;
+  const d=new Date(base);
+  if(u==="day")d.setDate(d.getDate()+n);
+  else if(u==="week")d.setDate(d.getDate()+7*n);
+  else if(u==="month")d.setMonth(d.getMonth()+n);
+  else if(u==="year")d.setFullYear(d.getFullYear()+n);
+  const p=x=>String(x).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+const RECUR_OPTS=["Daily","Weekly","Monthly","Annual","Custom"];
+const recurLabel=t=>!t.recurrence?"":(t.recurrence==="Custom"?`Every ${t.recurrenceInterval||1} ${(t.recurrenceUnit||"week")}${(t.recurrenceInterval||1)>1?"s":""}`:t.recurrence);
+
+function RecurrenceField({f,setF}){
+  return <Field label="Repeat">
+    <Sel value={f.recurrence||""} onChange={e=>setF(p=>({...p,recurrence:e.target.value}))}>
+      <option value="">Does not repeat</option>
+      {RECUR_OPTS.map(o=><option key={o} value={o}>{o}</option>)}
+    </Sel>
+    {f.recurrence==="Custom"&&<div style={{display:"flex",gap:8,alignItems:"center",marginTop:8}}>
+      <span style={{fontSize:13,color:B.textSoft}}>Every</span>
+      <input type="number" min={1} value={f.recurrenceInterval||1} onChange={e=>setF(p=>({...p,recurrenceInterval:Math.max(1,Number(e.target.value)||1)}))} style={{width:70,padding:"8px 10px",borderRadius:8,border:`1px solid ${B.border}`,fontSize:14,fontFamily:"'DM Sans',sans-serif"}}/>
+      <Sel value={f.recurrenceUnit||"week"} onChange={e=>setF(p=>({...p,recurrenceUnit:e.target.value}))}>
+        <option value="day">day(s)</option>
+        <option value="week">week(s)</option>
+        <option value="month">month(s)</option>
+        <option value="year">year(s)</option>
+      </Sel>
+    </div>}
+  </Field>;
+}
+
 function TaskForm({initial,contacts=[],onSave,onClose}){
-  const[f,setF]=useState(initial||{title:"",contactId:"",dueDate:"",priority:"Medium",reminderDays:7,done:false});
+  const[f,setF]=useState(initial||{title:"",contactId:"",dueDate:"",priority:"Medium",reminderDays:7,done:false,recurrence:"",recurrenceInterval:1,recurrenceUnit:"week"});
   const[saving,setSaving]=useState(false);
   const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const save=async()=>{if(!f.title.trim())return;setSaving(true);await onSave(f);onClose();};
@@ -1096,6 +1143,7 @@ function TaskForm({initial,contacts=[],onSave,onClose}){
     {f.reminderDays>0&&f.dueDate&&<div style={{background:"#e8f0f8",borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12,color:B.navyMid}}>
       🔔 Advisor will be emailed on {new Date(new Date(f.dueDate).setDate(new Date(f.dueDate).getDate()-f.reminderDays)).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
     </div>}
+    <RecurrenceField f={f} setF={setF}/>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
       <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
       <Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Task"}</Btn>
@@ -2379,8 +2427,8 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
     return Object.values(groups).sort((a,b)=>(b.open-a.open)||(b.overdue-a.overdue));
   },[tasks,contacts,advisors]);
 
-  const add=async f=>{const{error}=await sb.from("tasks").insert({family_id:f.familyId||null,contact_id:f.contactId||null,title:f.title,due_date:f.dueDate||null,priority:f.priority,reminder_days:Number(f.reminderDays)||7,done:false});if(error)toast(error.message,"error");else{toast("Task added");reload("tasks");}};
-  const tog=async t=>{const{error}=await sb.from("tasks").update({done:!t.done}).eq("id",t.id);if(error)toast(error.message,"error");else reload("tasks");};
+  const add=async f=>{const{error}=await sb.from("tasks").insert({family_id:f.familyId||null,contact_id:f.contactId||null,title:f.title,due_date:f.dueDate||null,priority:f.priority,reminder_days:Number(f.reminderDays)||7,done:false,recurrence:f.recurrence||null,recurrence_interval:f.recurrence==="Custom"?(Number(f.recurrenceInterval)||1):null,recurrence_unit:f.recurrence==="Custom"?(f.recurrenceUnit||"week"):null});if(error)toast(error.message,"error");else{toast("Task added");reload("tasks");}};
+  const tog=async t=>{const{error}=await sb.from("tasks").update({done:!t.done}).eq("id",t.id);if(error){toast(error.message,"error");return;}if(!t.done&&t.recurrence){const nd=nextRecurrence(t.dueDate,t.recurrence,t.recurrenceInterval,t.recurrenceUnit);if(nd){await sb.from("tasks").insert({family_id:t.familyId||null,contact_id:t.contactId||null,title:t.title,due_date:nd,priority:t.priority,reminder_days:t.reminderDays||7,done:false,recurrence:t.recurrence,recurrence_interval:t.recurrence==="Custom"?(t.recurrenceInterval||1):null,recurrence_unit:t.recurrence==="Custom"?(t.recurrenceUnit||"week"):null});toast("Next occurrence: "+fmt(nd));}}reload("tasks");};
   const del=async id=>{const{error}=await sb.from("tasks").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("tasks");}};
 
 
@@ -2450,6 +2498,7 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
               {contact&&<span>{contact.name}</span>}
               {t.dueDate&&<span style={{color:isOD?"#d43030":isSoon?"#d4900a":B.textSoft}}>{isOD?"⚠ ":isSoon?"⏰ ":""}{fmt(t.dueDate)}</span>}
               {t.reminderDays>0&&<span style={{color:B.textMute}}>🔔 {t.reminderDays}d</span>}
+              {t.recurrence&&<span style={{color:B.gold,fontWeight:600}}>↻ {recurLabel(t)}</span>}
             </div>
           </div>
           <Badge scheme={PRIORITY_COLORS[t.priority]}>{t.priority}</Badge>
@@ -2463,7 +2512,7 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
 
 // ── GLOBAL TASK FORM (top-level) ─────────────────────────────────────────────
 function GlobalTaskForm({initial,families=[],contacts=[],onSave,onClose}){
-  const[f,setF]=useState(initial||{familyId:"",contactId:"",title:"",dueDate:"",priority:"Medium",reminderDays:7,done:false});
+  const[f,setF]=useState(initial||{familyId:"",contactId:"",title:"",dueDate:"",priority:"Medium",reminderDays:7,done:false,recurrence:"",recurrenceInterval:1,recurrenceUnit:"week"});
   const[saving,setSaving]=useState(false);
   const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const save=async()=>{if(!f.title.trim())return;setSaving(true);await onSave(f);onClose();};
@@ -2474,6 +2523,7 @@ function GlobalTaskForm({initial,families=[],contacts=[],onSave,onClose}){
     <Grid2><Field label="Due Date"><Inp type="date" value={f.dueDate||""} onChange={set("dueDate")}/></Field><Field label="Priority"><Sel value={f.priority} onChange={set("priority")}><option>Low</option><option>Medium</option><option>High</option></Sel></Field></Grid2>
     <Field label="Email Reminder"><Sel value={f.reminderDays||7} onChange={e=>setF(p=>({...p,reminderDays:Number(e.target.value)}))}><option value={0}>No reminder</option>{REMINDER_OPTIONS.map(r=><option key={r.days} value={r.days}>{r.label}</option>)}</Sel></Field>
     {Number(f.reminderDays)>0&&f.dueDate&&<div style={{background:"#e8f0f8",borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12,color:B.navyMid}}>🔔 Advisor emailed on {new Date(new Date(f.dueDate).setDate(new Date(f.dueDate).getDate()-Number(f.reminderDays))).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>}
+    <RecurrenceField f={f} setF={setF}/>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Task"}</Btn></div>
   </div>;
 }
