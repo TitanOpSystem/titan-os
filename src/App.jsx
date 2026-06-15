@@ -265,9 +265,13 @@ function expandEvent(event,projectionStart,monthsOut){
 // Build a month-by-month cash flow projection. Tax rates are passed in so the same
 // inputs can be projected under different state/local tax scenarios (for Compare).
 function buildProjection(allEvents,settings,stateRate,localRate){
-  const start=new Date();start.setDate(1);start.setHours(0,0,0,0);
+  const yearMode=settings.projectionMode==="year";
+  const start=new Date();
+  if(yearMode){start.setMonth(0,1);}else{start.setDate(1);}
+  start.setHours(0,0,0,0);
+  const projMonths=yearMode?12:settings.projectionMonths;
   const months=[];
-  for(let i=0;i<settings.projectionMonths;i++){
+  for(let i=0;i<projMonths;i++){
     const d=new Date(start);d.setMonth(d.getMonth()+i);
     months.push({date:new Date(d),label:d.toLocaleDateString("en-US",{month:"short",year:"2-digit"}),income:0,tax:0,expense:0,gross:0,net:0});
   }
@@ -275,7 +279,7 @@ function buildProjection(allEvents,settings,stateRate,localRate){
     const isExpense=ev.direction==="expense";
     const excluded=isExpense?(settings.includeExpense===false):(!ev._synthetic&&settings.includeIncome===false);
     if(excluded)return{...ev,projectedGross:0,projectedTax:0,projectedExpense:0,projectedNet:0,_excluded:true};
-    const occurrences=expandEvent(ev,start,settings.projectionMonths);
+    const occurrences=expandEvent(ev,start,projMonths);
     let projGross=0,projTax=0,projExpense=0;
     occurrences.forEach(occ=>{
       const monthIdx=(occ.date.getFullYear()-start.getFullYear())*12+(occ.date.getMonth()-start.getMonth());
@@ -1380,7 +1384,7 @@ function CashFlowEventForm({initial,onSave,onClose}){
 }
 
 // ── CASH FLOW REPORT (printable) ──────────────────────────────────────────────
-function CashFlowReport({family,projectionMonths,filingStatus,baseIncome,stateRate,stateName,localRate,monthlyData,events,onClose}){
+function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,baseIncome,stateRate,stateName,localRate,monthlyData,events,onClose}){
   const totalIncome=monthlyData.reduce((s,m)=>s+(m.income||0),0);
   const totalGross=monthlyData.reduce((s,m)=>s+m.gross,0);
   const totalTax=monthlyData.reduce((s,m)=>s+m.tax,0);
@@ -1389,7 +1393,7 @@ function CashFlowReport({family,projectionMonths,filingStatus,baseIncome,stateRa
   const incomeEvents=events.filter(e=>e.direction!=="expense");
   const expenseEvents=events.filter(e=>e.direction==="expense");
   const projOption=CF_PROJECTION_OPTIONS.find(o=>o.value===projectionMonths);
-  const projectionLabel=projOption?projOption.label:projectionMonths+" months";
+  const projectionLabel=projectionMode==="year"?`Current Year (${new Date().getFullYear()})`:(projOption?projOption.label:projectionMonths+" months");
   const filingLabel=filingStatus==="mfj"?"Married Filing Jointly":"Single";
   const print=()=>{
     const w=window.open("","_blank");
@@ -1424,7 +1428,7 @@ function CashFlowReport({family,projectionMonths,filingStatus,baseIncome,stateRa
       let svg="";
       if(inc>=0){
         const h=(inc/range)*innerH;
-        svg+=`<rect x="${x}" y="${zeroY-h}" width="${w}" height="${h}" fill="#ceb684" opacity="0.78"/>`;
+        svg+=`<rect x="${x}" y="${zeroY-h}" width="${w}" height="${h}" fill="#1f9d57" opacity="0.85"/>`;
       }else{
         const h=(Math.abs(inc)/range)*innerH;
         svg+=`<rect x="${x}" y="${zeroY}" width="${w}" height="${h}" fill="#d43030" opacity="0.55"/>`;
@@ -1501,7 +1505,7 @@ function CashFlowReport({family,projectionMonths,filingStatus,baseIncome,stateRa
         ${yLabels}
         ${xLabels}
       </svg>
-      <div class="legend"><span><i style="background:#ceb684"></i>Income (net)</span><span><i style="background:#d43030"></i>Expenses</span><span><i style="background:#092b49;width:14px;height:2px;border-radius:0"></i>Cumulative</span></div>
+      <div class="legend"><span><i style="background:#1f9d57"></i>Income (net)</span><span><i style="background:#d43030"></i>Expenses</span><span><i style="background:#092b49;width:14px;height:2px;border-radius:0"></i>Cumulative</span></div>
     </div>
     ${incomeEvents.length>0?`<h2>Income Events</h2>
     <table><thead><tr><th>Type</th><th>Description</th><th>Frequency</th><th>Start</th><th class="num">Gross</th><th>Tax</th><th class="num">Net (proj.)</th></tr></thead><tbody>
@@ -1552,7 +1556,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
   const toggleBreakdown=(id)=>setExpandedBreakdowns(p=>({...p,[id]:!p[id]}));
   // Settings: DB (family.cashFlowSettings) is source of truth, localStorage is fallback
   const settingsKey=`cf_settings_${family.id}`;
-  const defaults={projectionMonths:60,filingStatus:"mfj",baseIncome:0,stateCode:"FL",stateTaxRate:0,localTaxRate:0,localTaxLabel:"",includeRental:false,includeIncome:true,includeExpense:true,compareStateCode:"",compareLocalTaxRate:0};
+  const defaults={projectionMonths:60,projectionMode:"rolling",filingStatus:"mfj",baseIncome:0,stateCode:"FL",stateTaxRate:0,localTaxRate:0,localTaxLabel:"",includeRental:false,includeIncome:true,includeExpense:true,compareStateCode:"",compareLocalTaxRate:0};
   const loadSettings=()=>{
     // 1) Try DB
     if(family.cashFlowSettings&&typeof family.cashFlowSettings==="object"){
@@ -1648,6 +1652,12 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
   const cTotalNet=compareProj?compareProj.monthlyData.reduce((s,m)=>s+m.net,0):0;
   const compareCumulative=[];if(compareProj){let cr=0;compareProj.monthlyData.forEach(m=>{cr+=m.net;compareCumulative.push(cr);});}
   const netDelta=cTotalNet-totalNet; // positive = comparison state keeps more (saves)
+  // Monthly net breakdown
+  const monthsCount=monthlyData.length||1;
+  const avgInflow=(totalIncome-totalTax)/monthsCount;
+  const avgOutflow=totalExpense/monthsCount;
+  const avgNet=totalNet/monthsCount;
+  const negMonths=monthlyData.filter(m=>m.net<0).length;
 
   // Add/edit/delete/reorder event
   const addEvent=async(f)=>{
@@ -1689,8 +1699,9 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
       <div style={{fontSize:11,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Projection Settings{readOnly?" (read-only)":""}</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12}}>
         <Field label="Projection Window">
-          <Sel value={settings.projectionMonths} disabled={readOnly} onChange={e=>updateSetting("projectionMonths",Number(e.target.value))}>
-            {CF_PROJECTION_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+          <Sel value={settings.projectionMode==="year"?"year":String(settings.projectionMonths)} disabled={readOnly} onChange={e=>{const v=e.target.value;if(v==="year")updateSettings({projectionMode:"year"});else updateSettings({projectionMode:"rolling",projectionMonths:Number(v)});}}>
+            <option value="year">Current Year ({new Date().getFullYear()})</option>
+            {CF_PROJECTION_OPTIONS.map(o=><option key={o.value} value={String(o.value)}>{o.label}</option>)}
           </Sel>
         </Field>
         <Field label="Filing Status">
@@ -1751,7 +1762,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
     {compareActive&&<div style={{background:"linear-gradient(135deg,#f9f7f3,#f2ede3)",border:`1px solid ${B.gold}`,borderRadius:12,padding:isMobile?16:20,marginBottom:18,boxShadow:B.shadow}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",flexWrap:"wrap",gap:8,marginBottom:14}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?17:20,color:B.navy,fontWeight:600}}>Relocation Comparison</div>
-        <div style={{fontSize:12,color:B.textSoft}}>over {settings.projectionMonths}-month projection</div>
+        <div style={{fontSize:12,color:B.textSoft}}>{settings.projectionMode==="year"?`calendar year ${new Date().getFullYear()}`:`over ${settings.projectionMonths}-month projection`}</div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12}}>
         <div style={{background:B.white,borderRadius:10,padding:"14px 16px",border:`1px solid ${B.borderLight}`}}>
@@ -1780,12 +1791,38 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
       <StatBox label="Effective Rate" value={effRate.toFixed(1)+"%"} accent={B.navyMid}/>
     </div>
 
+    {/* Monthly net breakdown */}
+    {monthlyData.length>0&&<div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:isMobile?14:16,marginBottom:18,boxShadow:B.shadow}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:B.navy,fontWeight:600}}>Average Monthly Net</div>
+        {negMonths>0?<div style={{fontSize:12,color:"#8b1a1a",fontWeight:700,background:"#fde8e8",padding:"3px 10px",borderRadius:14}}>{negMonths} of {monthlyData.length} months run negative</div>
+          :<div style={{fontSize:12,color:"#0d5c2b",fontWeight:700,background:"#e0f5e9",padding:"3px 10px",borderRadius:14}}>All months positive</div>}
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:isMobile?10:16,flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:120}}>
+          <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>Inflow (income net)</div>
+          <div style={{fontSize:isMobile?17:20,fontFamily:"'Cormorant Garamond',serif",fontWeight:700,color:"#1f9d57"}}>+{fmtMoney(avgInflow)}<span style={{fontSize:11,color:B.textSoft,fontWeight:400}}>/mo</span></div>
+        </div>
+        <div style={{fontSize:22,color:B.textMute,fontWeight:300}}>−</div>
+        <div style={{flex:1,minWidth:120}}>
+          <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>Outflow (expenses)</div>
+          <div style={{fontSize:isMobile?17:20,fontFamily:"'Cormorant Garamond',serif",fontWeight:700,color:"#d43030"}}>−{fmtMoney(avgOutflow)}<span style={{fontSize:11,color:B.textSoft,fontWeight:400}}>/mo</span></div>
+        </div>
+        <div style={{fontSize:22,color:B.textMute,fontWeight:300}}>=</div>
+        <div style={{flex:1,minWidth:120,background:avgNet>=0?"#e0f5e9":"#fde8e8",borderRadius:10,padding:"8px 12px",border:`1px solid ${avgNet>=0?"#18a850":"#d43030"}`}}>
+          <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>Net per month</div>
+          <div style={{fontSize:isMobile?18:22,fontFamily:"'Cormorant Garamond',serif",fontWeight:700,color:avgNet>=0?"#0d5c2b":"#8b1a1a"}}>{avgNet>=0?"+":"−"}{fmtMoney(Math.abs(avgNet))}<span style={{fontSize:11,color:B.textSoft,fontWeight:400}}>/mo</span></div>
+        </div>
+      </div>
+      {avgNet<0&&<div style={{fontSize:12,color:B.textSoft,marginTop:10,lineHeight:1.5}}>The cumulative line declines because average monthly outflow exceeds inflow. Note: a client's base salary is used for tax brackets only — to reflect it as income, add it as a recurring income event.</div>}
+    </div>}
+
     {/* Chart */}
     {monthlyData.length>0&&<div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:isMobile?14:20,marginBottom:18,boxShadow:B.shadow}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:8}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Cash Flow by Month</div>
         <div style={{display:"flex",gap:14,fontSize:11,color:B.textSoft,alignItems:"center",flexWrap:"wrap"}}>
-          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:B.gold,borderRadius:2,display:"inline-block"}}/>Income (net)</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:"#1f9d57",borderRadius:2,display:"inline-block"}}/>Income (net)</span>
           <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,background:"#d43030",borderRadius:2,display:"inline-block"}}/>Expenses</span>
           <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:2.5,background:B.navy,display:"inline-block",borderRadius:2}}/>Cumulative net</span>
           {compareActive&&<span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:16,height:0,borderTop:`2.5px dashed ${B.gold}`,display:"inline-block"}}/>{compareState.name}</span>}
@@ -1818,7 +1855,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
           const cTicks=[cMin,cMin+cRange/2,cMax].filter((v,i,a)=>a.indexOf(v)===i);
           return <>
             <defs>
-              <linearGradient id="cfIncome" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#dcc596"/><stop offset="100%" stopColor="#c9ae78"/></linearGradient>
+              <linearGradient id="cfIncome" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#34b36b"/><stop offset="100%" stopColor="#1f9d57"/></linearGradient>
               <linearGradient id="cfExpense" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#e05a5a"/><stop offset="100%" stopColor="#c92e2e"/></linearGradient>
               <linearGradient id="cfArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#092b49" stopOpacity="0.16"/><stop offset="100%" stopColor="#092b49" stopOpacity="0"/></linearGradient>
             </defs>
@@ -1942,7 +1979,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
     {/* Modals */}
     {modal&&modal.type==="add"&&<Modal title="New Cash Flow Event" onClose={()=>setModal(null)} wide><CashFlowEventForm onSave={async f=>{await addEvent(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
     {modal&&modal.type==="edit"&&<Modal title={modal.event.direction==="expense"?"Edit Expense":"Edit Income Event"} onClose={()=>setModal(null)} wide><CashFlowEventForm initial={modal.event} onSave={async f=>{await editEvent(modal.event.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
-    {reportOpen&&<CashFlowReport family={family} projectionMonths={settings.projectionMonths} filingStatus={settings.filingStatus} baseIncome={settings.baseIncome} stateRate={settings.stateTaxRate} stateName={STATE_TAX_RATES.find(s=>s.code===settings.stateCode)?.name||settings.stateCode} localRate={settings.localTaxRate} monthlyData={monthlyData} events={enrichedEvents} onClose={()=>setReportOpen(false)}/>}
+    {reportOpen&&<CashFlowReport family={family} projectionMonths={settings.projectionMonths} projectionMode={settings.projectionMode} filingStatus={settings.filingStatus} baseIncome={settings.baseIncome} stateRate={settings.stateTaxRate} stateName={STATE_TAX_RATES.find(s=>s.code===settings.stateCode)?.name||settings.stateCode} localRate={settings.localTaxRate} monthlyData={monthlyData} events={enrichedEvents} onClose={()=>setReportOpen(false)}/>}
   </div>;
 }
 
