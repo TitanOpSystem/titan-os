@@ -349,6 +349,23 @@ function MoneyInput({value,onChange,placeholder,style,disabled}){
   return <input type="text" inputMode="decimal" style={style||inp} disabled={disabled} value={fmt(value)} onChange={handleChange} placeholder={placeholder||"0"}/>;
 }
 const Sel=({children,...p})=><select style={{...inp,cursor:"pointer"}} {...p}>{children}</select>;
+function AdvisorScopeBar({userProfile,value,onChange,label="Advisor"}){
+  const[advisors,setAdvisors]=useState([]);
+  const isAdmin=userProfile?.role==="admin";
+  useEffect(()=>{
+    if(isAdmin)sb.from("user_profiles").select("id,email,full_name,role").in("role",["advisor","admin"]).then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});
+  },[isAdmin]);
+  if(!isAdmin)return null;
+  return <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+    <span style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>{label}</span>
+    <div style={{minWidth:150}}>
+      <Sel value={value} onChange={e=>onChange(e.target.value)}>
+        <option value="">All Advisors</option>
+        {advisors.map(a=><option key={a.id} value={(a.email||"").toLowerCase()}>{a.full_name||a.email}</option>)}
+      </Sel>
+    </div>
+  </div>;
+}
 const Tex=p=><textarea style={{...inp,minHeight:80,resize:"vertical"}} {...p}/>;
 function Field({label,children}){return <div style={{marginBottom:14}}><label style={{display:"block",fontSize:11,color:B.textSoft,marginBottom:5,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>{label}</label>{children}</div>;}
 function Grid2({children}){
@@ -2139,14 +2156,15 @@ function PortfolioAccountForm({initial,families=[],onSave,onClose}){
 }
 
 // ── PORTFOLIO VIEW (global) ───────────────────────────────────────────────────
-function PortfolioView({data,reload,toast}){
+function PortfolioView({data,reload,toast,userProfile}){
   const isMobile=useIsMobile();
   const{families,portfolio_accounts=[]}=data;
   const[modal,setModal]=useState(null);
   const[filterFamily,setFilterFamily]=useState("all");
+  const[advScope,setAdvScope]=useState("");
   const[selected,setSelected]=useState(null);
   const gf=id=>families.find(f=>f.id===id);
-  const accounts=portfolio_accounts.filter(a=>filterFamily==="all"||a.familyId===filterFamily);
+  const accounts=portfolio_accounts.filter(a=>(filterFamily==="all"||a.familyId===filterFamily)&&(!advScope||(gf(a.familyId)?.advisorEmail||"").toLowerCase()===advScope));
   const totalValue=accounts.reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalStart=accounts.reduce((s,a)=>s+(Number(a.startingBalance)||0),0);
   const totalPct=totalStart>0?(((totalValue-totalStart)/totalStart)*100).toFixed(2):null;
@@ -2160,6 +2178,7 @@ function PortfolioView({data,reload,toast}){
     {(!isMobile||!selected)&&<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:isMobile?"none":`1px solid ${B.borderLight}`}}>
       <div style={{padding:isMobile?"10px 14px":"12px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
         <Sel value={filterFamily} onChange={e=>setFilterFamily(e.target.value)} style={{width:isMobile?"100%":200,order:isMobile?2:0}}><option value="all">All Families</option>{families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</Sel>
+        <AdvisorScopeBar userProfile={userProfile} value={advScope} onChange={setAdvScope}/>
         <div style={{flex:1,fontSize:12,color:B.textSoft,order:isMobile?1:0}}>Total: <strong style={{color:B.navy}}>{fmtMoney(totalValue)}</strong>{totalPct!==null&&<span style={{color:Number(totalPct)>=0?"#18a850":"#d43030",fontWeight:700,marginLeft:8}}>{Number(totalPct)>=0?"+":""}{totalPct}%</span>}</div>
         <Btn onClick={()=>setModal("add")}>+ New Account</Btn>
       </div>
@@ -2220,6 +2239,7 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
   const[advisors,setAdvisors]=useState([]);
   useEffect(()=>{if(adminProspect){sb.from("user_profiles").select("id,email,full_name,role").in("role",["advisor","admin"]).then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[adminProspect]);
   const advisorOfNote=n=>{const c=contacts.find(x=>x.id===n.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
+  const[cmAdvScope,setCmAdvScope]=useState("");
   const advisorSummary=useMemo(()=>{
     const groups={};
     notes.forEach(n=>{
@@ -2274,6 +2294,7 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
   };
   const filtered=notes.filter(n=>{
     if(advisorFilter&&(advisorOfNote(n)?.email||"")!==advisorFilter)return false;
+    if(!prospectMode&&cmAdvScope&&(gf(n.familyId)?.advisorEmail||"").toLowerCase()!==cmAdvScope)return false;
     return n.body.toLowerCase().includes(search.toLowerCase())||(gc(n.contactId)?.name||"").toLowerCase().includes(search.toLowerCase())||(gf(n.familyId)?.name||"").toLowerCase().includes(search.toLowerCase());
   });
   if(adminProspect&&viewMode==="advisors"){
@@ -2319,6 +2340,10 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
         {[{k:"notes",l:"Notes"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
       </div>
       {advisorFilter&&<button onClick={()=>setAdvisorFilter("")} style={{border:`1px solid ${B.gold}`,background:"#fbf6ec",color:B.navy,borderRadius:16,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>{(advisorSummary.find(a=>a.email===advisorFilter)?.name)||advisorFilter} ✕</button>}
+    </div>}
+    {!prospectMode&&userProfile?.role==="admin"&&<div style={{padding:"10px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+      <AdvisorScopeBar userProfile={userProfile} value={cmAdvScope} onChange={setCmAdvScope}/>
+      {cmAdvScope&&<span style={{fontSize:12,color:B.textSoft}}>Showing notes for this advisor's families</span>}
     </div>}
     <div style={{padding:isMobile?"14px 14px":"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
       <div style={{maxWidth:800,margin:"0 auto"}}>
@@ -2426,7 +2451,8 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
   useEffect(()=>{if(adminProspect){sb.from("user_profiles").select("id,email,full_name,role").in("role",["advisor","admin"]).then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[adminProspect]);
   const advisorOfTask=t=>{const c=contacts.find(x=>x.id===t.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
   const gc=id=>contacts.find(c=>c.id===id);const gf=id=>families.find(f=>f.id===id);
-  const list=tasks.filter(t=>(filter==="All"||(filter==="Pending"?!t.done:t.done))&&(filterFamily==="all"||t.familyId===filterFamily)&&(!advisorFilter||(advisorOfTask(t)?.email||"")===advisorFilter));
+  const[cmAdvScope,setCmAdvScope]=useState("");
+  const list=tasks.filter(t=>(filter==="All"||(filter==="Pending"?!t.done:t.done))&&(filterFamily==="all"||t.familyId===filterFamily)&&(!advisorFilter||(advisorOfTask(t)?.email||"")===advisorFilter)&&(prospectMode||!cmAdvScope||(gf(t.familyId)?.advisorEmail||"").toLowerCase()===cmAdvScope));
   const oc=tasks.filter(t=>!t.done&&t.dueDate&&new Date(t.dueDate)<new Date()).length;
   const soon=tasks.filter(t=>!t.done&&t.dueDate&&(new Date(t.dueDate)-new Date())/(86400000)<=30&&new Date(t.dueDate)>=new Date()).length;
   const advisorSummary=useMemo(()=>{
@@ -2493,6 +2519,7 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
       {adminProspect&&advisorFilter&&<button onClick={()=>setAdvisorFilter("")} style={{border:`1px solid ${B.gold}`,background:"#fbf6ec",color:B.navy,borderRadius:16,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>{(advisorSummary.find(a=>a.email===advisorFilter)?.name)||advisorFilter} ✕</button>}
       <div style={{display:"flex",gap:5}}>{["Pending","Done","All"].map(s=><button key={s} onClick={()=>setFilter(s)} style={{background:filter===s?B.navy:"transparent",border:`1px solid ${filter===s?B.navy:B.border}`,color:filter===s?B.white:B.textSoft,borderRadius:20,padding:"4px 14px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{s}</button>)}</div>
       <Sel value={filterFamily} onChange={e=>setFilterFamily(e.target.value)} style={{width:170}}><option value="all">All Families</option>{families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</Sel>
+      {!prospectMode&&<AdvisorScopeBar userProfile={userProfile} value={cmAdvScope} onChange={setCmAdvScope}/>}
       <div style={{flex:1,display:"flex",gap:8}}>
         {oc>0&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>{oc} overdue</Badge>}
         {soon>0&&<Badge scheme={{bg:"#fef3e2",text:"#8a5c00",dot:"#d4900a"}}>{soon} due in 30 days</Badge>}
@@ -2821,9 +2848,19 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
-function Dashboard({data}){
+function Dashboard({data,userProfile}){
   const isMobile=useIsMobile();
-  const{families,contacts,properties,deals,notes,tasks,portfolio_accounts=[]}=data;
+  const{families:_families,contacts:_contacts,properties:_properties,deals:_deals,notes:_notes,tasks:_tasks,portfolio_accounts:_accts=[]}=data;
+  const[scope,setScope]=useState("");
+  const _famIds=new Set(_families.filter(f=>!scope||(f.advisorEmail||"").toLowerCase()===scope).map(f=>f.id));
+  const _cAdv=id=>{const c=_contacts.find(x=>x.id===id);return (c?.advisorEmail||"").toLowerCase();};
+  const families=scope?_families.filter(f=>(f.advisorEmail||"").toLowerCase()===scope):_families;
+  const contacts=scope?_contacts.filter(c=>(c.advisorEmail||"").toLowerCase()===scope):_contacts;
+  const properties=scope?_properties.filter(p=>_famIds.has(p.familyId)):_properties;
+  const portfolio_accounts=scope?_accts.filter(a=>_famIds.has(a.familyId)):_accts;
+  const notes=scope?_notes.filter(n=>n.familyId?_famIds.has(n.familyId):_cAdv(n.contactId)===scope):_notes;
+  const tasks=scope?_tasks.filter(t=>t.familyId?_famIds.has(t.familyId):_cAdv(t.contactId)===scope):_tasks;
+  const deals=scope?_deals.filter(d=>d.familyId?_famIds.has(d.familyId):(((d.advisorEmail||"").toLowerCase()||_cAdv(d.contactId))===scope)):_deals;
   const openDeals=deals.filter(d=>d.stage!=="Closed Lost"&&d.stage!=="Closed Won");
   const pipeline=openDeals.reduce((s,d)=>s+(Number(d.value)||0),0);
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
@@ -2839,10 +2876,13 @@ function Dashboard({data}){
 
   return <div style={{overflowY:"auto",height:"100%",padding:isMobile?"18px 14px 32px":"26px 30px 48px"}}>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-    <div style={{marginBottom:isMobile?16:24}}>
-      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?22:28,color:B.navy,fontWeight:600,marginBottom:4}}>Good {hr<12?"Morning":hr<17?"Afternoon":"Evening"}</div>
-      <div style={{color:B.textSoft,fontSize:isMobile?12:14}}>PCM Family Office — Portfolio & Client Overview</div>
-      <div style={{height:2,width:56,background:B.gold,marginTop:10,borderRadius:2}}/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap",marginBottom:isMobile?16:24}}>
+      <div>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?22:28,color:B.navy,fontWeight:600,marginBottom:4}}>Good {hr<12?"Morning":hr<17?"Afternoon":"Evening"}</div>
+        <div style={{color:B.textSoft,fontSize:isMobile?12:14}}>PCM Family Office — Portfolio & Client Overview{scope?" · filtered by advisor":""}</div>
+        <div style={{height:2,width:56,background:B.gold,marginTop:10,borderRadius:2}}/>
+      </div>
+      <AdvisorScopeBar userProfile={userProfile} value={scope} onChange={setScope}/>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:14,marginBottom:24}}>
       {[{label:"Families",value:families.length,sub:`${contacts.length} contacts`,accent:B.navy},{label:"Real Estate",value:fmtMoney(totalRE),sub:`${properties.length} properties`,accent:B.gold},{label:"Portfolio",value:fmtMoney(totalPortfolio),sub:`${portfolio_accounts.length} accounts`,accent:B.navyMid},{label:"Open Tasks",value:pending.length,sub:overdue.length>0?`${overdue.length} overdue`:dueSoon.length>0?`${dueSoon.length} due soon`:"All on track",accent:overdue.length>0?"#d43030":dueSoon.length>0?"#d4900a":B.navyMid}].map(s=><div key={s.label} style={{background:B.bgCard,borderRadius:12,padding:"20px 22px",border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,borderTop:`3px solid ${s.accent}`}}>
@@ -3608,11 +3648,11 @@ export default function App(){
 
       <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg,paddingBottom:"0"}}>
         {loading&&tab!=="families"&&tab!=="users"?<Spinner/>:<>
-          {tab==="dashboard"   &&<Dashboard data={data}/>}
+          {tab==="dashboard"   &&<Dashboard data={data} userProfile={userProfile}/>}
           {tab==="families"    &&<FamiliesView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
-          {tab==="portfolio"   &&<PortfolioView data={data} reload={reload} toast={showToast}/>}
-          {tab==="cm-notes"    &&<NotesView data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={showToast}/>}
-          {tab==="cm-tasks"    &&<TasksView data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={showToast}/>}
+          {tab==="portfolio"   &&<PortfolioView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
+          {tab==="cm-notes"    &&<NotesView data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
+          {tab==="cm-tasks"    &&<TasksView data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="users"       &&<UserManagementView userProfile={userProfile} data={data} toast={showToast}/>}
           {tab==="p-contacts"  &&<ProspectContactsView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="p-pipeline"  &&<ProspectPipelineView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
