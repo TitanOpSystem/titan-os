@@ -2723,7 +2723,8 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
   const[advisors,setAdvisors]=useState([]);
   useEffect(()=>{if(isAdmin){sb.from("user_profiles").select("id,email,full_name,role").in("role",["advisor","admin"]).then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[isAdmin]);
   const advisorOf=d=>{if(d.advisorEmail)return{email:d.advisorEmail,name:d.advisorName||d.advisorEmail};const c=allContacts.find(x=>x.id===d.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
-  const allDeals=data.deals.filter(d=>!d.familyId);
+  const myEmail=(userProfile?.email||"").toLowerCase();
+  const allDeals=data.deals.filter(d=>!d.familyId).filter(d=>isAdmin||(advisorOf(d)?.email||"").toLowerCase()===myEmail);
   const deals=allDeals.filter(d=>!advisorFilter||(advisorOf(d)?.email||"")===advisorFilter);
   const filtered=useMemo(()=>deals.filter(d=>fs==="All"||d.stage===fs),[deals,fs]);
   const byStage=STAGES.reduce((acc,s)=>({...acc,[s]:filtered.filter(d=>d.stage===s)}),{});
