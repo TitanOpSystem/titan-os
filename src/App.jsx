@@ -310,6 +310,8 @@ const REMINDER_OPTIONS=[
 
 const fmt=iso=>iso?new Date(iso).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
 const fmtMoney=n=>n!=null&&n!==""?`$${Number(n).toLocaleString()}`:"—";
+// Report-grade currency: always 2 decimals + thousands separators ($1,324,486.40). Avoids ragged decimals from raw toLocaleString().
+const fmtUSD=n=>n!=null&&n!==""?`$${Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`:"—";
 // Smart-abbreviated money for chart axis labels: $5K, $500K, $5M, $1.5M
 const fmtMoneyShort=n=>{
   if(n==null||n==="")return"$0";
@@ -1459,11 +1461,11 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
     h2{font-size:13px;font-weight:800;color:#092b49;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #ceb684;letter-spacing:.06em;text-transform:uppercase;}
     .assumptions{background:#f9f7f3;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
     .a-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:3px;}
-    .a-v{font-size:13px;font-weight:700;color:#092b49;}
+    .a-v{font-size:13px;font-weight:700;color:#092b49;white-space:nowrap;overflow:visible;}
     .stats{display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap;}
     .stat{background:#f9f7f3;border-radius:8px;padding:12px 16px;flex:1;min-width:120px;border-top:2px solid #ceb684;}
     .stat-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:4px;}
-    .stat-v{font-size:18px;font-weight:700;color:#092b49;}
+    .stat-v{font-size:18px;font-weight:700;color:#092b49;white-space:nowrap;overflow:visible;}
     .stat-red{border-top-color:#d43030;}
     table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11px;}
     th{background:#092b49;color:#ceb684;padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
@@ -1485,15 +1487,15 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
     <div class="assumptions">
       <div><div class="a-l">Projection</div><div class="a-v">${projectionLabel}</div></div>
       <div><div class="a-l">Filing Status</div><div class="a-v">${filingLabel}</div></div>
-      <div><div class="a-l">Base Income</div><div class="a-v">${fmtMoney(baseIncome)}</div></div>
+      <div><div class="a-l">Base Income</div><div class="a-v">${fmtUSD(baseIncome)}</div></div>
       <div><div class="a-l">State (${stateName||"—"})</div><div class="a-v">${(Number(stateRate)||0).toFixed(2)}%</div></div>
       <div><div class="a-l">Local / City</div><div class="a-v">${(Number(localRate)||0).toFixed(2)}%</div></div>
     </div>
     <div class="stats">
-      <div class="stat"><div class="stat-l">Total Gross Income</div><div class="stat-v">${fmtMoney(totalGross)}</div></div>
-      <div class="stat stat-red"><div class="stat-l">Total Tax</div><div class="stat-v">${fmtMoney(totalTax)}</div></div>
-      <div class="stat stat-red"><div class="stat-l">Total Expenses</div><div class="stat-v">${fmtMoney(totalExpense)}</div></div>
-      <div class="stat"><div class="stat-l">Total Net</div><div class="stat-v ${totalNet<0?"neg":""}">${totalNet<0?"−":""}${fmtMoney(Math.abs(totalNet))}</div></div>
+      <div class="stat"><div class="stat-l">Total Gross Income</div><div class="stat-v">${fmtUSD(totalGross)}</div></div>
+      <div class="stat stat-red"><div class="stat-l">Total Tax</div><div class="stat-v">${fmtUSD(totalTax)}</div></div>
+      <div class="stat stat-red"><div class="stat-l">Total Expenses</div><div class="stat-v">${fmtUSD(totalExpense)}</div></div>
+      <div class="stat"><div class="stat-l">Total Net</div><div class="stat-v ${totalNet<0?"neg":""}">${totalNet<0?"−":""}${fmtUSD(Math.abs(totalNet))}</div></div>
       <div class="stat"><div class="stat-l">Effective Rate</div><div class="stat-v">${totalGross>0?((totalTax/totalGross)*100).toFixed(1):"0.0"}%</div></div>
     </div>
     <h2>Cash Flow by Month</h2>
@@ -1512,25 +1514,35 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
     ${incomeEvents.map(e=>{
       const treatLabel=CF_TAX_TREATMENTS.find(t=>t.value===e.taxTreatment)?.label.split(" (")[0]||e.taxTreatment;
       const freqLabel=CF_FREQUENCIES.find(fr=>fr.value===e.frequency)?.label||e.frequency;
-      return`<tr><td>${e.eventType}</td><td>${e.description||"—"}</td><td>${freqLabel}</td><td>${fmt(e.startDate)}</td><td class="num">${fmtMoney(e.amount)}</td><td>${treatLabel}</td><td class="num">${fmtMoney(e.projectedNet||0)}</td></tr>`;
+      return`<tr><td>${e.eventType}</td><td>${e.description||"—"}</td><td>${freqLabel}</td><td>${fmt(e.startDate)}</td><td class="num">${fmtUSD(e.amount)}</td><td>${treatLabel}</td><td class="num">${fmtUSD(e.projectedNet||0)}</td></tr>`;
     }).join("")}
     </tbody></table>`:""}
     ${expenseEvents.length>0?`<h2>Expense Items</h2>
     <table><thead><tr><th>Category</th><th>Description</th><th>Frequency</th><th>Start</th><th class="num">Amount</th><th class="num">Total (proj.)</th></tr></thead><tbody>
     ${expenseEvents.map(e=>{
       const freqLabel=CF_FREQUENCIES.find(fr=>fr.value===e.frequency)?.label||e.frequency;
-      return`<tr><td>${e.eventType}</td><td>${e.description||"—"}</td><td>${freqLabel}</td><td>${fmt(e.startDate)}</td><td class="num neg">−${fmtMoney(e.amount)}</td><td class="num neg">−${fmtMoney(Math.abs(e.projectedNet||0))}</td></tr>`;
+      return`<tr><td>${e.eventType}</td><td>${e.description||"—"}</td><td>${freqLabel}</td><td>${fmt(e.startDate)}</td><td class="num neg">−${fmtUSD(e.amount)}</td><td class="num neg">−${fmtUSD(Math.abs(e.projectedNet||0))}</td></tr>`;
     }).join("")}
     </tbody></table>`:""}
     <h2>Monthly Breakdown</h2>
     <table><thead><tr><th>Month</th><th class="num">Income</th><th class="num">Tax</th><th class="num">Expenses</th><th class="num">Net</th><th class="num">Cumulative</th></tr></thead><tbody>
-    ${(()=>{let cum=0;return monthlyData.map(m=>{cum+=m.net;const negNet=m.net<0;const negCum=cum<0;return`<tr><td>${m.label}</td><td class="num">${fmtMoney(m.income||0)}</td><td class="num">${fmtMoney(m.tax)}</td><td class="num neg">${m.expense?"−"+fmtMoney(m.expense):"$0"}</td><td class="num ${negNet?"neg":""}">${negNet?"−":""}${fmtMoney(Math.abs(m.net))}</td><td class="num ${negCum?"neg":""}"><strong>${negCum?"−":""}${fmtMoney(Math.abs(cum))}</strong></td></tr>`;}).join("");})()}
+    ${(()=>{let cum=0;return monthlyData.map(m=>{cum+=m.net;const negNet=m.net<0;const negCum=cum<0;return`<tr><td>${m.label}</td><td class="num">${fmtUSD(m.income||0)}</td><td class="num">${fmtUSD(m.tax)}</td><td class="num neg">${m.expense?"−"+fmtUSD(m.expense):"$0"}</td><td class="num ${negNet?"neg":""}">${negNet?"−":""}${fmtUSD(Math.abs(m.net))}</td><td class="num ${negCum?"neg":""}"><strong>${negCum?"−":""}${fmtUSD(Math.abs(cum))}</strong></td></tr>`;}).join("");})()}
     </tbody></table>
     <div class="disclaimer">
       <strong>Disclaimer:</strong> This cash flow projection is a planning estimate only and is not tax advice. Tax calculations use 2026 federal brackets applied marginally on top of base income. Expenses are treated as after-tax outflows. Actual taxes vary based on deductions, credits, AMT, phase-outs, additional Medicare tax, state-specific rules, and other factors. Consult a qualified tax professional before making decisions based on these figures.
     </div>
     </body></html>`);
-    w.document.close();w.focus();setTimeout(()=>w.print(),400);
+    w.document.close();w.focus();
+    // Shrink-to-fit: any stat/assumption value wider than its tile gets stepped down (to a 9px floor) so large figures never clip.
+    setTimeout(()=>{
+      try{
+        w.document.querySelectorAll(".stat-v,.a-v").forEach(el=>{
+          let size=parseFloat(w.getComputedStyle(el).fontSize)||18;let guard=0;
+          while(el.scrollWidth>el.clientWidth+1&&size>9&&guard<40){size-=0.5;el.style.fontSize=size+"px";guard++;}
+        });
+      }catch(e){}
+      w.print();
+    },400);
   };
 
   return <Modal title="Cash Flow Report" onClose={onClose} wide>
@@ -1652,6 +1664,120 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
   const cTotalNet=compareProj?compareProj.monthlyData.reduce((s,m)=>s+m.net,0):0;
   const compareCumulative=[];if(compareProj){let cr=0;compareProj.monthlyData.forEach(m=>{cr+=m.net;compareCumulative.push(cr);});}
   const netDelta=cTotalNet-totalNet; // positive = comparison state keeps more (saves)
+  // Standalone print: side-by-side relocation tax comparison (current state vs compare state)
+  const printComparison=()=>{
+    if(!compareActive){toast&&toast("Select a comparison state first.");return;}
+    const w=window.open("","_blank");
+    const curName=STATE_TAX_RATES.find(s=>s.code===settings.stateCode)?.name||settings.stateCode||"Current State";
+    const curRate=Number(settings.stateTaxRate)||0;
+    const curLocal=Number(settings.localTaxRate)||0;
+    const cmpRate=Number(compareState.rate)||0;
+    const cmpLocal=Number(compareLocalRate)||0;
+    const cTotalGross=totalGross; // identical income base; only the tax jurisdiction differs
+    const curEff=totalGross>0?(totalTax/totalGross)*100:0;
+    const cmpEff=cTotalGross>0?(cTotalTax/cTotalGross)*100:0;
+    const projOption=CF_PROJECTION_OPTIONS.find(o=>o.value===settings.projectionMonths);
+    const projectionLabel=settings.projectionMode==="year"?`Current Year (${new Date().getFullYear()})`:(projOption?projOption.label:settings.projectionMonths+" months");
+    const filingLabel=settings.filingStatus==="mfj"?"Married Filing Jointly":"Single";
+    const saves=netDelta>=0;
+    const taxDiff=totalTax-cTotalTax; // positive = compare state has the lower tax
+    const cMonthly=compareProj?compareProj.monthlyData:[];
+    const rows=monthlyData.map((m,i)=>{
+      const cn=cMonthly[i]?cMonthly[i].net:0;
+      const diff=cn-m.net;
+      const negA=m.net<0,negB=cn<0,negD=diff<0;
+      return `<tr><td>${m.label}</td><td class="num ${negA?"neg":""}">${negA?"−":""}${fmtUSD(Math.abs(m.net))}</td><td class="num ${negB?"neg":""}">${negB?"−":""}${fmtUSD(Math.abs(cn))}</td><td class="num ${negD?"neg":"pos"}">${diff>=0?"+":"−"}${fmtUSD(Math.abs(diff))}</td></tr>`;
+    }).join("");
+    w.document.write(`<!DOCTYPE html><html><head><title> </title>
+    <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:#092b49;background:#fff;padding:40px;font-size:12px;line-height:1.6;}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #ceb684;}
+    .logo-img{height:120px;width:auto;display:block;}
+    h1{font-size:22px;font-weight:700;margin-bottom:2px;}
+    .sub{font-size:12px;color:#5a6e84;margin-top:4px;}
+    .date{font-size:11px;color:#8fa0b2;margin-top:2px;}
+    h2{font-size:13px;font-weight:800;color:#092b49;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #ceb684;letter-spacing:.06em;text-transform:uppercase;}
+    .assumptions{background:#f9f7f3;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
+    .a-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:3px;}
+    .a-v{font-size:13px;font-weight:700;color:#092b49;white-space:nowrap;overflow:visible;}
+    .cols{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap;}
+    .col{flex:1;min-width:220px;background:#f9f7f3;border-radius:10px;padding:16px 18px;border-top:3px solid #ceb684;}
+    .col.cmp{border-top-color:#092b49;}
+    .col-name{font-size:15px;font-weight:800;color:#092b49;margin-bottom:2px;}
+    .col-meta{font-size:10px;color:#8fa0b2;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;}
+    .line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:5px 0;border-bottom:1px solid #ede8de;overflow:hidden;}
+    .line:last-child{border-bottom:none;}
+    .line .k{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#5a6e84;flex:0 0 auto;}
+    .line .v{font-size:15px;font-weight:700;color:#092b49;white-space:nowrap;text-align:right;}
+    .line .v.tax{color:#8b1a1a;}
+    .verdict{border-radius:10px;padding:16px 20px;margin-bottom:16px;text-align:center;}
+    .verdict.save{background:#e0f5e9;border:1px solid #18a850;}
+    .verdict.cost{background:#fde8e8;border:1px solid #d43030;}
+    .verdict-l{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#5a6e84;margin-bottom:4px;}
+    .verdict-v{font-size:26px;font-weight:800;white-space:nowrap;}
+    .verdict.save .verdict-v{color:#0d5c2b;}
+    .verdict.cost .verdict-v{color:#8b1a1a;}
+    .verdict-sub{font-size:11px;color:#5a6e84;margin-top:4px;}
+    table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11px;}
+    th{background:#092b49;color:#ceb684;padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
+    td{padding:5px 10px;border-bottom:1px solid #ede8de;color:#293d5c;}
+    tr:nth-child(even) td{background:#f9f7f3;}
+    .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+    .neg{color:#8b1a1a;}.pos{color:#0d5c2b;}
+    tfoot td{font-weight:800;border-top:2px solid #092b49;background:#fff;}
+    .disclaimer{margin-top:24px;padding:12px 14px;background:#fef3e2;border:1px solid #fcd97d;border-radius:6px;font-size:10px;color:#8a5c00;line-height:1.5;}
+    @media print{body{padding:20px;}}
+    </style></head><body>
+    <div class="header">
+      <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/></div>
+      <div style="text-align:right"><h1>Relocation Tax Comparison</h1><div class="sub">${family.name}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
+    </div>
+    <div class="assumptions">
+      <div><div class="a-l">Projection</div><div class="a-v">${projectionLabel}</div></div>
+      <div><div class="a-l">Filing Status</div><div class="a-v">${filingLabel}</div></div>
+      <div><div class="a-l">Base Income</div><div class="a-v">${fmtUSD(settings.baseIncome)}</div></div>
+      <div><div class="a-l">Projected Gross</div><div class="a-v">${fmtUSD(totalGross)}</div></div>
+    </div>
+    <h2>Scenario Comparison</h2>
+    <div class="cols">
+      <div class="col">
+        <div class="col-name">${curName}</div>
+        <div class="col-meta">Current &middot; ${curRate.toFixed(2)}% state${curLocal>0?` + ${curLocal.toFixed(2)}% local`:""}</div>
+        <div class="line"><span class="k">Total Tax</span><span class="v tax">${fmtUSD(totalTax)}</span></div>
+        <div class="line"><span class="k">Effective Rate</span><span class="v">${curEff.toFixed(1)}%</span></div>
+        <div class="line"><span class="k">Net (after tax)</span><span class="v">${fmtUSD(totalNet)}</span></div>
+      </div>
+      <div class="col cmp">
+        <div class="col-name">${compareState.name}</div>
+        <div class="col-meta">Relocation &middot; ${cmpRate.toFixed(2)}% state${cmpLocal>0?` + ${cmpLocal.toFixed(2)}% local`:" &middot; no city tax"}</div>
+        <div class="line"><span class="k">Total Tax</span><span class="v tax">${fmtUSD(cTotalTax)}</span></div>
+        <div class="line"><span class="k">Effective Rate</span><span class="v">${cmpEff.toFixed(1)}%</span></div>
+        <div class="line"><span class="k">Net (after tax)</span><span class="v">${fmtUSD(cTotalNet)}</span></div>
+      </div>
+    </div>
+    <div class="verdict ${saves?"save":"cost"}">
+      <div class="verdict-l">${saves?`Potential Net Gain &mdash; Relocating to ${compareState.name}`:`Additional Net Cost &mdash; Relocating to ${compareState.name}`}</div>
+      <div class="verdict-v">${saves?"+":"−"}${fmtUSD(Math.abs(netDelta))}</div>
+      <div class="verdict-sub">${Math.abs(taxDiff)>0.005?`${fmtUSD(Math.abs(taxDiff))} ${taxDiff>0?"less":"more"} tax`:"Identical tax burden"} &middot; ${settings.projectionMode==="year"?`calendar year ${new Date().getFullYear()}`:`${settings.projectionMonths}-month projection`}</div>
+    </div>
+    <h2>Monthly Net &mdash; Side by Side</h2>
+    <table><thead><tr><th>Month</th><th class="num">${curName} Net</th><th class="num">${compareState.name} Net</th><th class="num">Difference</th></tr></thead><tbody>
+    ${rows}
+    </tbody><tfoot><tr><td>Total</td><td class="num ${totalNet<0?"neg":""}">${totalNet<0?"−":""}${fmtUSD(Math.abs(totalNet))}</td><td class="num ${cTotalNet<0?"neg":""}">${cTotalNet<0?"−":""}${fmtUSD(Math.abs(cTotalNet))}</td><td class="num ${netDelta<0?"neg":"pos"}">${netDelta>=0?"+":"−"}${fmtUSD(Math.abs(netDelta))}</td></tr></tfoot></table>
+    <div class="disclaimer">
+      <strong>Disclaimer:</strong> This relocation comparison models identical income and expense inputs under each state's tax rate (plus any specified local tax), using 2026 federal brackets applied marginally on top of base income. It does not account for differences in property tax, sales tax, cost of living, homestead or residency-establishment rules, part-year allocation, or state-specific deductions and credits. It is a planning estimate only and not tax or relocation advice. Consult a qualified tax professional before acting on these figures.
+    </div>
+    </body></html>`);
+    w.document.close();w.focus();
+    setTimeout(()=>{
+      try{
+        w.document.querySelectorAll(".a-v,.verdict-v,.col .v").forEach(el=>{
+          let size=parseFloat(w.getComputedStyle(el).fontSize)||14;let guard=0;
+          while(el.scrollWidth>el.clientWidth+1&&size>9&&guard<40){size-=0.5;el.style.fontSize=size+"px";guard++;}
+        });
+      }catch(e){}
+      w.print();
+    },400);
+  };
   // Monthly net breakdown
   const monthsCount=monthlyData.length||1;
   const avgInflow=(totalIncome-totalTax)/monthsCount;
@@ -1762,7 +1888,10 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
     {compareActive&&<div style={{background:"linear-gradient(135deg,#f9f7f3,#f2ede3)",border:`1px solid ${B.gold}`,borderRadius:12,padding:isMobile?16:20,marginBottom:18,boxShadow:B.shadow}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",flexWrap:"wrap",gap:8,marginBottom:14}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?17:20,color:B.navy,fontWeight:600}}>Relocation Comparison</div>
-        <div style={{fontSize:12,color:B.textSoft}}>{settings.projectionMode==="year"?`calendar year ${new Date().getFullYear()}`:`over ${settings.projectionMonths}-month projection`}</div>
+        <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+          <div style={{fontSize:12,color:B.textSoft}}>{settings.projectionMode==="year"?`calendar year ${new Date().getFullYear()}`:`over ${settings.projectionMonths}-month projection`}</div>
+          <Btn small variant="gold" onClick={printComparison}>🖨 Print Comparison</Btn>
+        </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12}}>
         <div style={{background:B.white,borderRadius:10,padding:"14px 16px",border:`1px solid ${B.borderLight}`}}>
