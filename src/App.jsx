@@ -2976,7 +2976,8 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
   useEffect(()=>{if(isAdmin){sb.from("user_profiles").select("id,email,full_name,role").in("role",["advisor","admin"]).then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[isAdmin]);
   const advisorOf=d=>{if(d.advisorEmail)return{email:d.advisorEmail,name:d.advisorName||d.advisorEmail};const c=allContacts.find(x=>x.id===d.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
   const myEmail=(userProfile?.email||"").toLowerCase();
-  const allDeals=data.deals.filter(d=>!d.familyId).filter(d=>isAdmin||(advisorOf(d)?.email||"").toLowerCase()===myEmail);
+  // Visibility is authoritative on the deal's OWN advisor stamp — no live contact fallback, which leaked legacy/contact-derived deals across advisors. Admin still sees all.
+  const allDeals=data.deals.filter(d=>!d.familyId).filter(d=>isAdmin||(d.advisorEmail||"").toLowerCase()===myEmail);
   const deals=allDeals.filter(d=>!advisorFilter||(advisorOf(d)?.email||"")===advisorFilter);
   const filtered=useMemo(()=>deals.filter(d=>fs==="All"||d.stage===fs),[deals,fs]);
   const byStage=STAGES.reduce((acc,s)=>({...acc,[s]:filtered.filter(d=>d.stage===s)}),{});
@@ -3056,7 +3057,7 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
       {STAGES.map(stage=>{const list=byStage[stage];if(!list?.length)return null;return <div key={stage}>
         <div style={{padding:"8px 20px 3px",display:"flex",alignItems:"center",gap:7}}><span style={{width:7,height:7,borderRadius:"50%",background:STAGE_COLORS[stage].dot}}/><span style={{fontSize:11,fontWeight:800,color:STAGE_COLORS[stage].dot,letterSpacing:"0.1em",textTransform:"uppercase"}}>{stage}</span></div>
         {list.map(deal=>{const contact=gc(deal.contactId);return <div key={deal.id} style={{margin:"3px 20px",padding:"12px 15px",background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`3px solid ${STAGE_COLORS[deal.stage].dot}`,borderRadius:10,display:"flex",alignItems:"center",gap:10,boxShadow:B.shadow}}>
-          <div style={{flex:1,minWidth:0}}><div style={{fontWeight:700,color:B.navy,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{deal.title}</div><div style={{fontSize:12,color:B.textSoft}}>{contact?contact.name:"No contact"}{deal.closeDate?` · ${fmt(deal.closeDate)}`:""}</div></div>
+          <div style={{flex:1,minWidth:0}}><div style={{fontWeight:700,color:B.navy,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{deal.title}</div><div style={{fontSize:12,color:B.textSoft}}>{contact?contact.name:"No contact"}{deal.closeDate?` · ${fmt(deal.closeDate)}`:""}</div>{isAdmin&&<div style={{fontSize:11,color:deal.advisorEmail?B.gold:B.textMute,fontWeight:600,marginTop:2}}>{deal.advisorName||deal.advisorEmail||"Unassigned"}</div>}</div>
           {deal.value&&<div style={{color:B.navy,fontWeight:800,fontSize:14}}>{fmtMoney(deal.value)}</div>}
           <div style={{display:"flex",gap:4}}>
             <button onClick={()=>move(deal,-1)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14}}>←</button>
@@ -3815,7 +3816,7 @@ export default function App(){
   const _isAdmin=userProfile?.role==="admin";
   const _myEmail=(userProfile?.email||"").toLowerCase();
   const _contactAdv=id=>{const c=data.contacts.find(x=>x.id===id);return (c?.advisorEmail||"").toLowerCase();};
-  const _dealAdv=d=>((d.advisorEmail||"").toLowerCase())||_contactAdv(d.contactId);
+  const _dealAdv=d=>(d.advisorEmail||"").toLowerCase();
   const _mine=e=>_isAdmin||(!!e&&e===_myEmail);
   const cmStats={families:data.families.length,portfolio:(data.portfolio_accounts||[]).length,"cm-notes":data.notes.filter(n=>n.familyId).length,"cm-tasks":data.tasks.filter(t=>t.familyId&&!t.done).length};
   const pStats={"p-contacts":data.contacts.filter(c=>!c.familyId&&_mine((c.advisorEmail||"").toLowerCase())).length,"p-pipeline":data.deals.filter(d=>!d.familyId&&d.stage!=="Closed Lost"&&_mine(_dealAdv(d))).length,"p-notes":data.notes.filter(n=>!n.familyId&&_mine(_contactAdv(n.contactId))).length,"p-tasks":data.tasks.filter(t=>!t.familyId&&!t.done&&_mine(_contactAdv(t.contactId))).length};
