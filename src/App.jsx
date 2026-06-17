@@ -3455,6 +3455,17 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
     toast("Document deleted");loadDocs();
   };
 
+  const openEdit=doc=>{setName(doc.name||"");setDescription(doc.description||"");setCategory(doc.category||"General");setModal({edit:doc});};
+  const saveEdit=async()=>{
+    const doc=modal?.edit;if(!doc||!name.trim())return;
+    setUploading(true);
+    const{error}=await sb.from("documents").update({name:name.trim(),description:description||null,category}).eq("id",doc.id);
+    if(error){toast(error.message,"error");setUploading(false);return;}
+    toast("Document updated");
+    setModal(null);setName("");setDescription("");setCategory("General");
+    loadDocs();setUploading(false);
+  };
+
   const fmtSize=bytes=>{if(!bytes)return"—";if(bytes<1024)return bytes+"B";if(bytes<1024*1024)return(bytes/1024).toFixed(1)+"KB";return(bytes/(1024*1024)).toFixed(1)+"MB";};
   const fileLabel=(type,name)=>{const t=(type||"").toLowerCase();const ext=(name||"").split(".").pop().toLowerCase();if(t.includes("pdf")||ext==="pdf")return"PDF";if(t.includes("image")||["png","jpg","jpeg","gif","webp","svg","heic","bmp","tiff"].includes(ext))return"IMAGE";if(t.includes("word")||["doc","docx"].includes(ext))return"WORD";if(t.includes("sheet")||t.includes("excel")||["xls","xlsx","csv"].includes(ext))return"EXCEL";if(t.includes("presentation")||["ppt","pptx","key"].includes(ext))return"SLIDES";if(["zip","rar","7z","gz"].includes(ext))return"ARCHIVE";if(["txt","rtf","md"].includes(ext))return"TEXT";return ext&&ext.length<=4?ext.toUpperCase():"FILE";};
 
@@ -3488,6 +3499,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
           <div style={{fontSize:11,color:B.textMute}}>{fmt(doc.createdAt)}</div>
           <div style={{display:"flex",gap:8,marginTop:4}}>
             <Btn small onClick={()=>download(doc)} style={{flex:1}}>⬇ Download</Btn>
+            {allowUpload&&<Btn small variant="ghost" onClick={()=>openEdit(doc)}>✏ Edit</Btn>}
             {allowDelete&&<Btn small variant="danger" onClick={()=>del(doc)}>✕</Btn>}
           </div>
         </div>)}
@@ -3510,6 +3522,17 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <Btn variant="ghost" onClick={()=>setModal(null)}>Cancel</Btn>
         <Btn onClick={upload} disabled={uploading||!file||!name.trim()}>{uploading?"Uploading…":"Upload"}</Btn>
+      </div>
+    </Modal>}
+
+    {modal&&modal.edit&&<Modal title="Edit Document" onClose={()=>setModal(null)}>
+      <Field label="Document Name"><Inp placeholder="Q4 2024 Statement" value={name} onChange={e=>setName(e.target.value)}/></Field>
+      <Field label="Category"><Sel value={category} onChange={e=>setCategory(e.target.value)}>{DOC_CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></Field>
+      <Field label="Description"><Inp placeholder="Optional description" value={description} onChange={e=>setDescription(e.target.value)}/></Field>
+      <div style={{fontSize:11,color:B.textMute,marginBottom:14}}>Renaming changes the display title only; the stored file itself is unchanged.</div>
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <Btn variant="ghost" onClick={()=>setModal(null)}>Cancel</Btn>
+        <Btn onClick={saveEdit} disabled={uploading||!name.trim()}>{uploading?"Saving…":"Save"}</Btn>
       </div>
     </Modal>}
   </div>;
