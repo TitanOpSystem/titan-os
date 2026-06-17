@@ -2519,6 +2519,7 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
   };
   const filtered=notes.filter(n=>{
     if(advisorFilter&&(advisorOfNote(n)?.email||"")!==advisorFilter)return false;
+    if(prospectMode&&userProfile?.role!=="admin"&&(advisorOfNote(n)?.email||"").toLowerCase()!==(userProfile?.email||"").toLowerCase())return false;
     if(!prospectMode&&cmAdvScope&&(gf(n.familyId)?.advisorEmail||"").toLowerCase()!==cmAdvScope)return false;
     return n.body.toLowerCase().includes(search.toLowerCase())||(gc(n.contactId)?.name||"").toLowerCase().includes(search.toLowerCase())||(gf(n.familyId)?.name||"").toLowerCase().includes(search.toLowerCase());
   });
@@ -2677,7 +2678,7 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
   const advisorOfTask=t=>{const c=contacts.find(x=>x.id===t.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
   const gc=id=>contacts.find(c=>c.id===id);const gf=id=>families.find(f=>f.id===id);
   const[cmAdvScope,setCmAdvScope]=useState("");
-  const list=tasks.filter(t=>(filter==="All"||(filter==="Pending"?!t.done:t.done))&&(filterFamily==="all"||t.familyId===filterFamily)&&(!advisorFilter||(advisorOfTask(t)?.email||"")===advisorFilter)&&(prospectMode||!cmAdvScope||(gf(t.familyId)?.advisorEmail||"").toLowerCase()===cmAdvScope));
+  const list=tasks.filter(t=>(filter==="All"||(filter==="Pending"?!t.done:t.done))&&(filterFamily==="all"||t.familyId===filterFamily)&&(!advisorFilter||(advisorOfTask(t)?.email||"")===advisorFilter)&&(prospectMode||!cmAdvScope||(gf(t.familyId)?.advisorEmail||"").toLowerCase()===cmAdvScope)&&(!prospectMode||userProfile?.role==="admin"||(advisorOfTask(t)?.email||"").toLowerCase()===(userProfile?.email||"").toLowerCase()));
   const oc=tasks.filter(t=>!t.done&&t.dueDate&&new Date(t.dueDate)<new Date()).length;
   const soon=tasks.filter(t=>!t.done&&t.dueDate&&(new Date(t.dueDate)-new Date())/(86400000)<=30&&new Date(t.dueDate)>=new Date()).length;
   const advisorSummary=useMemo(()=>{
@@ -2826,7 +2827,7 @@ function ProspectContactForm({initial,onSave,onClose,userProfile,advisors=[]}){
 function ProspectContactsView({data,reload,toast,userProfile}){
   const isMobile=useIsMobile();
   const isAdmin=userProfile?.role==="admin";
-  const prospects=data.contacts.filter(c=>!c.familyId);
+  const prospects=data.contacts.filter(c=>!c.familyId&&(isAdmin||(c.advisorEmail||"").toLowerCase()===(userProfile?.email||"").toLowerCase()));
   const[modal,setModal]=useState(null);const[search,setSearch]=useState("");const[selected,setSelected]=useState(null);
   const[viewMode,setViewMode]=useState("contacts"); // admin only: "contacts" | "advisors"
   const[advisorFilter,setAdvisorFilter]=useState("");
@@ -3077,7 +3078,10 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
 function Dashboard({data,userProfile}){
   const isMobile=useIsMobile();
   const{families:_families,contacts:_contacts,properties:_properties,deals:_deals,notes:_notes,tasks:_tasks,portfolio_accounts:_accts=[]}=data;
-  const[scope,setScope]=useState("");
+  const isAdmin=userProfile?.role==="admin";
+  const myEmail=(userProfile?.email||"").toLowerCase();
+  // Admins default to "All Advisors" and can switch; non-admins are locked to their own scope so unscoped prospect records (family_id null) don't leak in.
+  const[scope,setScope]=useState(isAdmin?"":myEmail);
   const _famIds=new Set(_families.filter(f=>!scope||(f.advisorEmail||"").toLowerCase()===scope).map(f=>f.id));
   const _cAdv=id=>{const c=_contacts.find(x=>x.id===id);return (c?.advisorEmail||"").toLowerCase();};
   const families=scope?_families.filter(f=>(f.advisorEmail||"").toLowerCase()===scope):_families;
@@ -3086,7 +3090,7 @@ function Dashboard({data,userProfile}){
   const portfolio_accounts=scope?_accts.filter(a=>_famIds.has(a.familyId)):_accts;
   const notes=scope?_notes.filter(n=>n.familyId?_famIds.has(n.familyId):_cAdv(n.contactId)===scope):_notes;
   const tasks=scope?_tasks.filter(t=>t.familyId?_famIds.has(t.familyId):_cAdv(t.contactId)===scope):_tasks;
-  const deals=scope?_deals.filter(d=>d.familyId?_famIds.has(d.familyId):(((d.advisorEmail||"").toLowerCase()||_cAdv(d.contactId))===scope)):_deals;
+  const deals=scope?_deals.filter(d=>d.familyId?_famIds.has(d.familyId):((d.advisorEmail||"").toLowerCase()===scope)):_deals;
   const openDeals=deals.filter(d=>d.stage!=="Closed Lost"&&d.stage!=="Closed Won");
   const pipeline=openDeals.reduce((s,d)=>s+(Number(d.value)||0),0);
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
@@ -3105,7 +3109,7 @@ function Dashboard({data,userProfile}){
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap",marginBottom:isMobile?16:24}}>
       <div>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?22:28,color:B.navy,fontWeight:600,marginBottom:4}}>Good {hr<12?"Morning":hr<17?"Afternoon":"Evening"}</div>
-        <div style={{color:B.textSoft,fontSize:isMobile?12:14}}>PCM Family Office — Portfolio & Client Overview{scope?" · filtered by advisor":""}</div>
+        <div style={{color:B.textSoft,fontSize:isMobile?12:14}}>PCM Family Office — Portfolio & Client Overview{isAdmin&&scope?" · filtered by advisor":""}</div>
         <div style={{height:2,width:56,background:B.gold,marginTop:10,borderRadius:2}}/>
       </div>
       <AdvisorScopeBar userProfile={userProfile} value={scope} onChange={setScope}/>
