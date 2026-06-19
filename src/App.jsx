@@ -397,7 +397,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -575,7 +575,7 @@ function FamilyReport({family,data,onClose}){
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
   const totalPortfolio=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
-  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0)+accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0)+(Number(p.secondMortgageBalance)||0),0)+accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalAccounts=accounts.filter(a=>a.accountType!=="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalValuables=valuables.reduce((s,v)=>s+(Number(v.estimatedValue)||0),0);
 
@@ -627,6 +627,7 @@ function FamilyReport({family,data,onClose}){
     <tr><td><b>Lender</b></td><td>${p.lender||"—"}</td><td><b>Loan Type</b></td><td>${p.loanType}</td></tr>
     <tr><td><b>Loan Balance</b></td><td>${fmtMoney(p.loanBalance)}</td><td><b>Interest Rate</b></td><td>${fmtPct(p.interestRate)}</td></tr>
     <tr><td><b>Monthly Payment</b></td><td>${fmtMoney(p.loanPayment)}</td><td><b>Loan Maturity</b></td><td>${fmt(p.loanMaturityDate)}</td></tr>
+    ${Number(p.secondMortgageBalance)>0?`<tr><td><b>2nd Mortgage</b></td><td>${fmtMoney(p.secondMortgageBalance)}</td><td><b>2nd Mtg Payment</b></td><td>${p.secondMortgagePayment?`${fmtMoney(p.secondMortgagePayment)}/mo`:"—"}</td></tr>`:""}
     <tr><td><b>Rental Income</b></td><td>${fmtMoney(p.rentalIncome)}/mo</td><td><b>Property Taxes</b></td><td>${fmtMoney(p.propertyTaxes)}/yr</td></tr>
     <tr><td><b>Insurance</b></td><td>${p.insuranceCompany||"—"}</td><td><b>Flood Insurance</b></td><td>${p.floodInsurance?"Yes":"No"}</td></tr>
     </tbody></table>`).join("")||"<p style='color:#8fa0b2;margin-bottom:12px'>No properties</p>"}
@@ -683,7 +684,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
 
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
-  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0)+accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0)+(Number(p.secondMortgageBalance)||0),0)+accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalAccounts=accounts.filter(a=>a.accountType!=="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalValuables=valuables.reduce((s,v)=>s+(Number(v.estimatedValue)||0),0);
   const netWorth=totalRE-totalDebt+totalAccounts+totalValuables;
@@ -781,12 +782,12 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   };
   // Add property
   const addProperty=async(f)=>{
-    const row={family_id:family.id,owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,hoa_fee:Number(f.hoaFee)||0,property_management_fee_pct:Number(f.propertyManagementFeePct)||0,include_mortgage_in_cashflow:f.includeMortgageInCashflow!==false,notes:f.notes||null};
+    const row={family_id:family.id,owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,hoa_fee:Number(f.hoaFee)||0,property_management_fee_pct:Number(f.propertyManagementFeePct)||0,include_mortgage_in_cashflow:f.includeMortgageInCashflow!==false,second_mortgage_balance:f.secondMortgageBalance||null,second_mortgage_payment:f.secondMortgagePayment||null,notes:f.notes||null};
     const{error}=await sb.from("properties").insert(row);
     if(error)toast(error.message,"error");else{toast("Property added");reload("properties");}
   };
   const editProperty=async(id,f)=>{
-    const row={owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,hoa_fee:Number(f.hoaFee)||0,property_management_fee_pct:Number(f.propertyManagementFeePct)||0,include_mortgage_in_cashflow:f.includeMortgageInCashflow!==false,notes:f.notes||null};
+    const row={owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,hoa_fee:Number(f.hoaFee)||0,property_management_fee_pct:Number(f.propertyManagementFeePct)||0,include_mortgage_in_cashflow:f.includeMortgageInCashflow!==false,second_mortgage_balance:f.secondMortgageBalance||null,second_mortgage_payment:f.secondMortgagePayment||null,notes:f.notes||null};
     const{error}=await sb.from("properties").update(row).eq("id",id);
     if(error)toast(error.message,"error");else{toast("Property updated");reload("properties");}
   };
@@ -975,7 +976,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8}}>
-                {[["Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—"],["Loan Type",p.loanType],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—"],["Utilities",p.utilities?`${fmtMoney(p.utilities)}/mo`:"—"],["Insurance Co.",p.insuranceCompany||"—"],["Ins. Premium",p.insurancePremium?`${fmtMoney(p.insurancePremium)}/yr`:"—"],["Flood Insurance",p.floodInsurance?`Yes${p.floodInsuranceCompany?` — ${p.floodInsuranceCompany}`:""}`:("No")]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
+                {[["Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—"],["Loan Type",p.loanType],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],...(Number(p.secondMortgageBalance)>0?[["2nd Mtg Balance",fmtMoney(p.secondMortgageBalance)],["2nd Mtg Payment",p.secondMortgagePayment?`${fmtMoney(p.secondMortgagePayment)}/mo`:"—"]]:[]),["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—"],["Utilities",p.utilities?`${fmtMoney(p.utilities)}/mo`:"—"],["Insurance Co.",p.insuranceCompany||"—"],["Ins. Premium",p.insurancePremium?`${fmtMoney(p.insurancePremium)}/yr`:"—"],["Flood Insurance",p.floodInsurance?`Yes${p.floodInsuranceCompany?` — ${p.floodInsuranceCompany}`:""}`:("No")]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                   <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}</div>
                   <div style={{fontSize:12,color:B.text,fontWeight:600}}>{v}</div>
                 </div>)}
@@ -1313,7 +1314,7 @@ function TaskForm({initial,contacts=[],onSave,onClose}){
 
 // ── PROPERTY FORM ─────────────────────────────────────────────────────────────
 function PropertyForm({initial,onSave,onClose}){
-  const blank={ownerName:"",address:"",propertyType:"Residential",purchasePrice:"",purchaseDate:"",currentValue:"",lender:"",loanBalance:"",interestRate:"",loanPayment:"",loanMaturityDate:"",loanType:"Fixed",rentalIncome:"",propertyTaxes:"",utilities:"",insuranceCompany:"",insurancePremium:"",floodInsurance:false,floodInsuranceCompany:"",floodInsurancePremium:"",hoaFee:"",propertyManagementFeePct:"",includeMortgageInCashflow:true,notes:""};
+  const blank={ownerName:"",address:"",propertyType:"Residential",purchasePrice:"",purchaseDate:"",currentValue:"",lender:"",loanBalance:"",interestRate:"",loanPayment:"",loanMaturityDate:"",loanType:"Fixed",secondMortgageBalance:"",secondMortgagePayment:"",rentalIncome:"",propertyTaxes:"",utilities:"",insuranceCompany:"",insurancePremium:"",floodInsurance:false,floodInsuranceCompany:"",floodInsurancePremium:"",hoaFee:"",propertyManagementFeePct:"",includeMortgageInCashflow:true,notes:""};
   const[f,setF]=useState(()=>{
     // Merge initial with defaults to ensure new fields have sensible values
     return initial?{...blank,...initial,includeMortgageInCashflow:initial.includeMortgageInCashflow!==false}:blank;
@@ -1329,7 +1330,7 @@ function PropertyForm({initial,onSave,onClose}){
   const floodM=(Number(f.floodInsurancePremium)||0)/12;
   const hoaM=Number(f.hoaFee)||0;
   const pmM=grossRental*((Number(f.propertyManagementFeePct)||0)/100);
-  const mortgageM=f.includeMortgageInCashflow?(Number(f.loanPayment)||0):0;
+  const mortgageM=f.includeMortgageInCashflow?((Number(f.loanPayment)||0)+(Number(f.secondMortgagePayment)||0)):0;
   const netRental=grossRental-taxesM-insM-floodM-hoaM-pmM-mortgageM;
   return <div style={{maxHeight:"70vh",overflowY:"auto",paddingRight:4}}>
     <Grid2><Field label="Owner / LLC"><Inp placeholder="Smith Holdings LLC" value={f.ownerName||""} onChange={set("ownerName")}/></Field><Field label="Property Type"><Sel value={f.propertyType} onChange={set("propertyType")}>{PROP_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field></Grid2>
@@ -1338,6 +1339,7 @@ function PropertyForm({initial,onSave,onClose}){
     <Grid2><Field label="Purchase Date"><Inp type="date" value={f.purchaseDate||""} onChange={set("purchaseDate")}/></Field><Field label="Loan Type"><Sel value={f.loanType} onChange={set("loanType")}>{LOAN_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field></Grid2>
     <Grid2><Field label="Lender"><Inp value={f.lender||""} onChange={set("lender")}/></Field><Field label="Loan Balance"><MoneyInput value={f.loanBalance||""} onChange={set("loanBalance")}/></Field></Grid2>
     <Grid2><Field label="Interest Rate (%)"><Inp type="number" step="0.01" value={f.interestRate||""} onChange={set("interestRate")}/></Field><Field label="Monthly Payment"><MoneyInput value={f.loanPayment||""} onChange={set("loanPayment")}/></Field></Grid2>
+    <Grid2><Field label="Second Mortgage Balance"><MoneyInput value={f.secondMortgageBalance||""} onChange={set("secondMortgageBalance")}/></Field><Field label="Second Mortgage Payment/mo"><MoneyInput value={f.secondMortgagePayment||""} onChange={set("secondMortgagePayment")}/></Field></Grid2>
     <Grid2><Field label="Loan Maturity Date"><Inp type="date" value={f.loanMaturityDate||""} onChange={set("loanMaturityDate")}/></Field><Field label="Rental Income/mo"><MoneyInput value={f.rentalIncome||""} onChange={set("rentalIncome")}/></Field></Grid2>
     <Grid2><Field label="Property Taxes/yr"><MoneyInput value={f.propertyTaxes||""} onChange={set("propertyTaxes")}/></Field><Field label="Utilities/mo"><MoneyInput value={f.utilities||""} onChange={set("utilities")}/></Field></Grid2>
     <Grid2><Field label="Insurance Company"><Inp value={f.insuranceCompany||""} onChange={set("insuranceCompany")}/></Field><Field label="Insurance Premium/yr"><MoneyInput value={f.insurancePremium||""} onChange={set("insurancePremium")}/></Field></Grid2>
@@ -1715,7 +1717,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
         const pmPct=Number(p.propertyManagementFeePct)||0;
         const pmM=grossRental*(pmPct/100);
         const includesMortgage=p.includeMortgageInCashflow!==false;
-        const mortgageM=includesMortgage?(Number(p.loanPayment)||0):0;
+        const mortgageM=includesMortgage?((Number(p.loanPayment)||0)+(Number(p.secondMortgagePayment)||0)):0;
         const netRental=grossRental-taxesM-insM-floodM-hoaM-pmM-mortgageM;
         e.push({
           id:`rental_${p.id}`,
@@ -3191,7 +3193,7 @@ function Dashboard({data,userProfile}){
   const openDeals=deals.filter(d=>d.stage!=="Closed Lost"&&d.stage!=="Closed Won");
   const pipeline=openDeals.reduce((s,d)=>s+(Number(d.value)||0),0);
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
-  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0)+portfolio_accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0)+(Number(p.secondMortgageBalance)||0),0)+portfolio_accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalPortfolio=portfolio_accounts.filter(a=>a.accountType!=="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const pending=tasks.filter(t=>!t.done);
   const overdue=pending.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
@@ -3644,7 +3646,7 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
   const tasks=(data.tasks||[]).filter(t=>t.familyId===family.id&&!t.done);
   const totalRE=properties.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0);
-  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0),0)+accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
+  const totalDebt=properties.reduce((s,p)=>s+(Number(p.loanBalance)||0)+(Number(p.secondMortgageBalance)||0),0)+accounts.filter(a=>a.accountType==="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalAccounts=accounts.filter(a=>a.accountType!=="Line of Credit").reduce((s,a)=>s+(Number(a.currentBalance)||0),0);
   const totalValuables=valuables.reduce((s,v)=>s+(Number(v.estimatedValue)||0),0);
   const netWorth=totalRE-totalDebt+totalAccounts+totalValuables;
@@ -3782,7 +3784,7 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10}}>
-            {[["Property Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—"],["Loan Balance",fmtMoney(p.loanBalance)],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—"],["Insurance",p.insuranceCompany||"—"],["Flood Insurance",p.floodInsurance?"Yes":"No"]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:8,padding:"10px 12px"}}>
+            {[["Property Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—"],["Loan Balance",fmtMoney(p.loanBalance)],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],...(Number(p.secondMortgageBalance)>0?[["2nd Mtg Balance",fmtMoney(p.secondMortgageBalance)],["2nd Mtg Payment",p.secondMortgagePayment?`${fmtMoney(p.secondMortgagePayment)}/mo`:"—"]]:[]),["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—"],["Insurance",p.insuranceCompany||"—"],["Flood Insurance",p.floodInsurance?"Yes":"No"]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:8,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>{l}</div>
               <div style={{fontSize:13,color:B.text,fontWeight:600}}>{v}</div>
             </div>)}
