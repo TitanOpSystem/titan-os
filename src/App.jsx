@@ -100,6 +100,8 @@ const TAX_BRACKETS_2026={
     {min:751600,max:Infinity,rate:0.37},
   ],
 };
+// 2026 federal standard deduction (IRS Rev. Proc. 2025-32 / OBBBA). Applied to ordinary income event income, once per tax year, before federal brackets. State/local rates apply to full gross.
+const STANDARD_DEDUCTION_2026={single:16100,mfj:32200};
 // Long-term capital gains brackets for 2026
 const LTCG_BRACKETS_2026={
   single:[
@@ -277,26 +279,61 @@ function buildProjection(allEvents,settings,stateRate,localRate){
     const d=new Date(start);d.setMonth(d.getMonth()+i);
     months.push({date:new Date(d),label:d.toLocaleDateString("en-US",{month:"short",year:"2-digit"}),income:0,tax:0,expense:0,gross:0,net:0});
   }
-  const enriched=allEvents.map(ev=>{
+  const baseIncome=Number(settings.baseIncome)||0;
+  const filing=settings.filingStatus;
+  const stdDed=STANDARD_DEDUCTION_2026[filing]||STANDARD_DEDUCTION_2026.mfj;
+  const sRate=(Number(stateRate)||0)/100;
+  const lRate=(Number(localRate)||0)/100;
+
+  // Pass 1: expand events into occurrences. Tally expenses immediately; queue income for a chronological pass
+  // so the annual standard deduction can be drawn down in date order across all income events.
+  const perEvent=new Map();
+  const incomeOccs=[];
+  allEvents.forEach(ev=>{
+    const pe={projGross:0,projTax:0,projExpense:0,excluded:false};perEvent.set(ev,pe);
     const isExpense=ev.direction==="expense";
     const excluded=isExpense?(settings.includeExpense===false):(!ev._synthetic&&settings.includeIncome===false);
-    if(excluded)return{...ev,projectedGross:0,projectedTax:0,projectedExpense:0,projectedNet:0,_excluded:true};
-    const occurrences=expandEvent(ev,start,projMonths);
-    let projGross=0,projTax=0,projExpense=0;
-    occurrences.forEach(occ=>{
+    if(excluded){pe.excluded=true;return;}
+    expandEvent(ev,start,projMonths).forEach(occ=>{
       const monthIdx=(occ.date.getFullYear()-start.getFullYear())*12+(occ.date.getMonth()-start.getMonth());
       if(monthIdx<0||monthIdx>=months.length)return;
       if(isExpense){
         const amt=Math.abs(Number(occ.amount)||0);
-        projExpense+=amt;months[monthIdx].expense+=amt;months[monthIdx].net-=amt;
+        pe.projExpense+=amt;months[monthIdx].expense+=amt;months[monthIdx].net-=amt;
       }else{
-        const{tax,net}=calcEventTax(occ.amount,ev.taxTreatment,Number(settings.baseIncome)||0,settings.filingStatus,stateRate,localRate);
-        projGross+=occ.amount;projTax+=tax;
-        months[monthIdx].gross+=occ.amount;months[monthIdx].income+=occ.amount;months[monthIdx].tax+=tax;months[monthIdx].net+=net;
+        incomeOccs.push({ev,date:occ.date,amount:Number(occ.amount)||0,treatment:ev.taxTreatment,monthIdx});
       }
     });
-    if(isExpense)return{...ev,projectedGross:0,projectedTax:0,projectedExpense:projExpense,projectedNet:-projExpense};
-    return{...ev,projectedGross:projGross,projectedTax:projTax,projectedNet:projGross-projTax};
+  });
+
+  // Pass 2: income in date order. The federal standard deduction shields the first $stdDed of ORDINARY income
+  // (ordinary/stcg) per calendar year, applied before the federal brackets. State & local apply to full gross.
+  incomeOccs.sort((a,b)=>a.date-b.date);
+  const dedLeft={};
+  incomeOccs.forEach(o=>{
+    const pe=perEvent.get(o.ev);
+    const gross=o.amount;
+    months[o.monthIdx].gross+=gross;months[o.monthIdx].income+=gross;pe.projGross+=gross;
+    if(gross<=0||o.treatment==="none"){months[o.monthIdx].net+=gross;return;}
+    const yr=o.date.getFullYear();
+    if(dedLeft[yr]===undefined)dedLeft[yr]=stdDed;
+    let fedTax=0,niit=0;
+    if(o.treatment==="ordinary"||o.treatment==="stcg"){
+      const shield=Math.min(dedLeft[yr],gross);dedLeft[yr]-=shield;
+      fedTax=calcOrdinaryTax(gross-shield,baseIncome,filing);
+    }else if(o.treatment==="ltcg"||o.treatment==="qualified_div"){
+      fedTax=calcLTCGTax(gross,baseIncome,filing);
+      niit=calcNIIT(gross,baseIncome+gross,filing);
+    }
+    const tax=fedTax+gross*sRate+gross*lRate+niit;
+    months[o.monthIdx].tax+=tax;months[o.monthIdx].net+=gross-tax;pe.projTax+=tax;
+  });
+
+  const enriched=allEvents.map(ev=>{
+    const pe=perEvent.get(ev);
+    if(pe.excluded)return{...ev,projectedGross:0,projectedTax:0,projectedExpense:0,projectedNet:0,_excluded:true};
+    if(ev.direction==="expense")return{...ev,projectedGross:0,projectedTax:0,projectedExpense:pe.projExpense,projectedNet:-pe.projExpense};
+    return{...ev,projectedGross:pe.projGross,projectedTax:pe.projTax,projectedNet:pe.projGross-pe.projTax};
   });
   return{monthlyData:months,enrichedEvents:enriched};
 }
@@ -1531,7 +1568,7 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
     ${(()=>{let cum=0;return monthlyData.map(m=>{cum+=m.net;const negNet=m.net<0;const negCum=cum<0;return`<tr><td>${m.label}</td><td class="num">${fmtUSD(m.income||0)}</td><td class="num">${fmtUSD(m.tax)}</td><td class="num neg">${m.expense?"−"+fmtUSD(m.expense):"$0"}</td><td class="num ${negNet?"neg":""}">${negNet?"−":""}${fmtUSD(Math.abs(m.net))}</td><td class="num ${negCum?"neg":""}"><strong>${negCum?"−":""}${fmtUSD(Math.abs(cum))}</strong></td></tr>`;}).join("");})()}
     </tbody></table>
     <div class="disclaimer">
-      <strong>Disclaimer:</strong> This cash flow projection is a planning estimate only and is not tax advice. Tax calculations use 2026 federal brackets applied marginally on top of base income. Expenses are treated as after-tax outflows. Actual taxes vary based on deductions, credits, AMT, phase-outs, additional Medicare tax, state-specific rules, and other factors. Consult a qualified tax professional before making decisions based on these figures.
+      <strong>Disclaimer:</strong> This cash flow projection is a planning estimate only and is not tax advice. Tax calculations use 2026 federal brackets applied marginally on top of base income, with the federal standard deduction for the filing status applied to ordinary income once per tax year (state and local rates apply to full gross). Expenses are treated as after-tax outflows. Actual taxes vary based on deductions, credits, AMT, phase-outs, additional Medicare tax, state-specific rules, and other factors. Consult a qualified tax professional before making decisions based on these figures.
     </div>
     </body></html>`);
     w.document.close();w.focus();
@@ -1766,7 +1803,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
     ${rows}
     </tbody><tfoot><tr><td>Total</td><td class="num ${totalNet<0?"neg":""}">${totalNet<0?"−":""}${fmtUSD(Math.abs(totalNet))}</td><td class="num ${cTotalNet<0?"neg":""}">${cTotalNet<0?"−":""}${fmtUSD(Math.abs(cTotalNet))}</td><td class="num ${netDelta<0?"neg":"pos"}">${netDelta>=0?"+":"−"}${fmtUSD(Math.abs(netDelta))}</td></tr></tfoot></table>
     <div class="disclaimer">
-      <strong>Disclaimer:</strong> This relocation comparison models identical income and expense inputs under each state's tax rate (plus any specified local tax), using 2026 federal brackets applied marginally on top of base income. It does not account for differences in property tax, sales tax, cost of living, homestead or residency-establishment rules, part-year allocation, or state-specific deductions and credits. It is a planning estimate only and not tax or relocation advice. Consult a qualified tax professional before acting on these figures.
+      <strong>Disclaimer:</strong> This relocation comparison models identical income and expense inputs under each state's tax rate (plus any specified local tax), using 2026 federal brackets applied marginally on top of base income, with the federal standard deduction for the filing status applied to ordinary income once per tax year (state and local rates apply to full gross). It does not account for differences in property tax, sales tax, cost of living, homestead or residency-establishment rules, part-year allocation, or state-specific deductions and credits. It is a planning estimate only and not tax or relocation advice. Consult a qualified tax professional before acting on these figures.
     </div>
     </body></html>`);
     w.document.close();w.focus();
@@ -2104,7 +2141,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
 
     {/* Disclaimer */}
     <div style={{background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"10px 14px",marginTop:18,fontSize:11,color:"#8a5c00",lineHeight:1.5}}>
-      <strong>Planning estimate only.</strong> Tax calculations use 2026 federal brackets applied marginally on top of base income. Actual taxes vary based on deductions, credits, AMT, phase-outs, additional Medicare tax, and other factors. Not tax advice — consult a qualified tax professional.
+      <strong>Planning estimate only.</strong> Tax calculations use 2026 federal brackets applied marginally on top of base income, with the federal standard deduction for the filing status applied to ordinary income once per tax year (state and local rates apply to full gross). Actual taxes vary based on deductions, credits, AMT, phase-outs, additional Medicare tax, and other factors. Not tax advice — consult a qualified tax professional.
     </div>
 
     {/* Modals */}
