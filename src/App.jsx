@@ -79,40 +79,40 @@ const CF_PROJECTION_OPTIONS=[
 ];
 
 // 2026 Federal Tax Brackets (projected based on inflation adjustments from 2025)
-// Source: IRS Rev. Proc. 2024-40 (2025 brackets) — these are projected forward ~2.5% for 2026
+// Source: IRS Rev. Proc. 2025-32 (official 2026 tax year brackets, OBBBA-permanent structure)
 const TAX_BRACKETS_2026={
   single:[
-    {min:0,max:11925,rate:0.10},
-    {min:11925,max:48475,rate:0.12},
-    {min:48475,max:103350,rate:0.22},
-    {min:103350,max:197300,rate:0.24},
-    {min:197300,max:250525,rate:0.32},
-    {min:250525,max:626350,rate:0.35},
-    {min:626350,max:Infinity,rate:0.37},
+    {min:0,max:12400,rate:0.10},
+    {min:12400,max:50400,rate:0.12},
+    {min:50400,max:105700,rate:0.22},
+    {min:105700,max:201775,rate:0.24},
+    {min:201775,max:256225,rate:0.32},
+    {min:256225,max:640600,rate:0.35},
+    {min:640600,max:Infinity,rate:0.37},
   ],
   mfj:[
-    {min:0,max:23850,rate:0.10},
-    {min:23850,max:96950,rate:0.12},
-    {min:96950,max:206700,rate:0.22},
-    {min:206700,max:394600,rate:0.24},
-    {min:394600,max:501050,rate:0.32},
-    {min:501050,max:751600,rate:0.35},
-    {min:751600,max:Infinity,rate:0.37},
+    {min:0,max:24800,rate:0.10},
+    {min:24800,max:100800,rate:0.12},
+    {min:100800,max:211400,rate:0.22},
+    {min:211400,max:403550,rate:0.24},
+    {min:403550,max:512450,rate:0.32},
+    {min:512450,max:768700,rate:0.35},
+    {min:768700,max:Infinity,rate:0.37},
   ],
 };
 // 2026 federal standard deduction (IRS Rev. Proc. 2025-32 / OBBBA). Applied to ordinary income event income, once per tax year, before federal brackets. State/local rates apply to full gross.
 const STANDARD_DEDUCTION_2026={single:16100,mfj:32200};
-// Long-term capital gains brackets for 2026
+// Long-term capital gains brackets for 2026 (IRS Rev. Proc. 2025-32)
 const LTCG_BRACKETS_2026={
   single:[
-    {min:0,max:48350,rate:0.00},
-    {min:48350,max:533400,rate:0.15},
-    {min:533400,max:Infinity,rate:0.20},
+    {min:0,max:49450,rate:0.00},
+    {min:49450,max:545500,rate:0.15},
+    {min:545500,max:Infinity,rate:0.20},
   ],
   mfj:[
-    {min:0,max:96700,rate:0.00},
-    {min:96700,max:600050,rate:0.15},
-    {min:600050,max:Infinity,rate:0.20},
+    {min:0,max:98900,rate:0.00},
+    {min:98900,max:613700,rate:0.15},
+    {min:613700,max:Infinity,rate:0.20},
   ],
 };
 // Net Investment Income Tax (NIIT) thresholds — 3.8% on capital gains above this
@@ -228,6 +228,19 @@ function calcEventTax(grossAmount,treatment,baseIncome,filingStatus,stateRate,lo
   const localTax=gross*((Number(localRate)||0)/100);
   const totalTax=fedTax+stateTax+localTax+niit;
   return{tax:totalTax,fedTax,stateTax,localTax,niit,net:gross-totalTax};
+}
+// Annualized ordinary income (ordinary + short-term gains) from the projected events, used to place the marginal bracket.
+function annualOrdinaryIncome(enrichedEvents,projectionMode,projectionMonths){
+  const years=Math.max(1,(projectionMode==="year"?12:(Number(projectionMonths)||12))/12);
+  const ord=(enrichedEvents||[]).filter(e=>!e._excluded&&e.direction!=="expense"&&(e.taxTreatment==="ordinary"||e.taxTreatment==="stcg")).reduce((s,e)=>s+(Number(e.projectedGross)||0),0);
+  return ord/years;
+}
+// All-in marginal rate (%): federal bracket on the next dollar of ordinary income (base salary + annualized ordinary income, after the standard deduction) plus state and local rates.
+function marginalTaxRate(baseIncome,annualOrdinary,filingStatus,stateRate,localRate){
+  const stdDed=STANDARD_DEDUCTION_2026[filingStatus]||STANDARD_DEDUCTION_2026.mfj;
+  const taxable=Math.max(0,(Number(baseIncome)||0)+(Number(annualOrdinary)||0)-stdDed);
+  const fed=marginalRate(taxable,TAX_BRACKETS_2026[filingStatus]||TAX_BRACKETS_2026.mfj);
+  return fed*100+(Number(stateRate)||0)+(Number(localRate)||0);
 }
 // Expand a recurring event into monthly occurrences within projection window
 // Parse a YYYY-MM-DD string as LOCAL midnight (not UTC) to avoid timezone day/month shifts
@@ -1431,6 +1444,7 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
   const totalTax=monthlyData.reduce((s,m)=>s+m.tax,0);
   const totalExpense=monthlyData.reduce((s,m)=>s+(m.expense||0),0);
   const totalNet=monthlyData.reduce((s,m)=>s+m.net,0);
+  const marginalAllIn=marginalTaxRate(baseIncome,annualOrdinaryIncome(events,projectionMode,projectionMonths),filingStatus,Number(stateRate)||0,Number(localRate)||0);
   const incomeEvents=events.filter(e=>e.direction!=="expense");
   const expenseEvents=events.filter(e=>e.direction==="expense");
   const projOption=CF_PROJECTION_OPTIONS.find(o=>o.value===projectionMonths);
@@ -1535,7 +1549,7 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
       <div class="stat stat-red"><div class="stat-l">Total Tax</div><div class="stat-v">${fmtUSD(totalTax)}</div></div>
       <div class="stat stat-red"><div class="stat-l">Total Expenses</div><div class="stat-v">${fmtUSD(totalExpense)}</div></div>
       <div class="stat"><div class="stat-l">Total Net</div><div class="stat-v ${totalNet<0?"neg":""}">${totalNet<0?"−":""}${fmtUSD(Math.abs(totalNet))}</div></div>
-      <div class="stat"><div class="stat-l">Effective Rate</div><div class="stat-v">${totalGross>0?((totalTax/totalGross)*100).toFixed(1):"0.0"}%</div></div>
+      <div class="stat"><div class="stat-l">Marginal Rate</div><div class="stat-v">${marginalAllIn.toFixed(1)}%</div></div>
     </div>
     <h2>Cash Flow by Month</h2>
     <div class="chart-box">
@@ -1695,7 +1709,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
   const totalTax=monthlyData.reduce((s,m)=>s+m.tax,0);
   const totalExpense=monthlyData.reduce((s,m)=>s+m.expense,0);
   const totalNet=monthlyData.reduce((s,m)=>s+m.net,0);
-  const effRate=totalGross>0?(totalTax/totalGross)*100:0;
+  const marginalAllIn=marginalTaxRate(settings.baseIncome,annualOrdinaryIncome(enrichedEvents,settings.projectionMode,settings.projectionMonths),settings.filingStatus,Number(settings.stateTaxRate)||0,Number(settings.localTaxRate)||0);
   // For chart scaling: max positive (income net), min (expenses + negative net rentals)
   const cumulative=[];let run=0;monthlyData.forEach(m=>{run+=m.net;cumulative.push(run);});
   // Comparison scenario totals + cumulative
@@ -1956,7 +1970,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
       <StatBox label="Projected Gross" value={fmtMoney(totalGross)} accent={B.gold}/>
       <StatBox label="Projected Tax" value={fmtMoney(totalTax)} accent="#d43030"/>
       <StatBox label="Projected Net" value={fmtMoney(totalNet)} accent={B.navy}/>
-      <StatBox label="Effective Rate" value={effRate.toFixed(1)+"%"} accent={B.navyMid}/>
+      <StatBox label="Marginal Rate" value={marginalAllIn.toFixed(1)+"%"} accent={B.navyMid}/>
     </div>
 
     {/* Monthly net breakdown */}
