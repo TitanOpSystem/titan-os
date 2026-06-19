@@ -794,6 +794,18 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
     const{error}=await sb.from("properties").delete().eq("id",id);
     if(error)toast(error.message,"error");else reload("properties");
   };
+  // Order within a type section: saved sort_order first (unset goes last), then by creation date.
+  const propBySort=(a,b)=>((Number.isFinite(Number(a.sortOrder))?Number(a.sortOrder):1e9)-(Number.isFinite(Number(b.sortOrder))?Number(b.sortOrder):1e9))||(new Date(a.createdAt||0)-new Date(b.createdAt||0));
+  const moveProperty=async(p,dir)=>{
+    const section=properties.filter(x=>x.propertyType===p.propertyType).sort(propBySort);
+    const idx=section.findIndex(x=>x.id===p.id);
+    const swap=dir==="up"?idx-1:idx+1;
+    if(swap<0||swap>=section.length)return;
+    const reordered=[...section];[reordered[idx],reordered[swap]]=[reordered[swap],reordered[idx]];
+    const results=await Promise.all(reordered.map((x,i)=>sb.from("properties").update({sort_order:i}).eq("id",x.id)));
+    if(results.some(r=>r.error))toast("Reorder couldn't be saved — the properties table needs a sort_order column.","error");
+    reload("properties");
+  };
 
   // Add valuable
   const addValuable=async(f)=>{
@@ -937,31 +949,48 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
             <div style={{fontSize:13,color:B.textSoft}}>{properties.length} properties · {fmtMoney(totalRE)} total · {fmtMoney(totalDebt)} debt</div>
             <Btn onClick={()=>setModal("property")}>+ Add Property</Btn>
           </div>
-          {properties.length===0?<Empty text="No properties yet. Add the first one."/>:properties.map(p=><div key={p.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${B.gold}`,borderRadius:12,padding:20,marginBottom:14,boxShadow:B.shadow}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
-              <div>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>{p.address}</div>
-                {p.ownerName&&<div style={{fontSize:12,color:B.textSoft,marginTop:2}}>{p.ownerName}</div>}
-              </div>
-              <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:16,fontWeight:700,color:B.navy}}>{fmtMoney(p.currentValue||p.purchasePrice)}</div>
-                  {p.loanBalance&&<div style={{fontSize:11,color:B.textSoft}}>Balance: {fmtMoney(p.loanBalance)}</div>}
+          {properties.length===0?<Empty text="No properties yet. Add the first one."/>:(()=>{
+            const groups=[...PROP_TYPES,"Other"].map(type=>({type,list:properties.filter(p=>type==="Other"?!PROP_TYPES.includes(p.propertyType):p.propertyType===type).sort(propBySort)})).filter(g=>g.list.length>0);
+            const card=(p,section,i)=><div key={p.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${B.gold}`,borderRadius:12,padding:20,marginBottom:14,boxShadow:B.shadow}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                    <button onClick={()=>moveProperty(p,"up")} disabled={i===0} style={{cursor:i===0?"default":"pointer",opacity:i===0?0.3:1,background:B.bg,border:`1px solid ${B.border}`,borderRadius:5,width:24,height:20,fontSize:11,color:B.navy,lineHeight:1,fontFamily:"inherit"}}>↑</button>
+                    <button onClick={()=>moveProperty(p,"down")} disabled={i===section.length-1} style={{cursor:i===section.length-1?"default":"pointer",opacity:i===section.length-1?0.3:1,background:B.bg,border:`1px solid ${B.border}`,borderRadius:5,width:24,height:20,fontSize:11,color:B.navy,lineHeight:1,fontFamily:"inherit"}}>↓</button>
+                  </div>
+                  <div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>{p.address}</div>
+                    {p.ownerName&&<div style={{fontSize:12,color:B.textSoft,marginTop:2}}>{p.ownerName}</div>}
+                  </div>
                 </div>
-                <Btn small variant="ghost" onClick={()=>window.open(`https://www.zillow.com/homes/${encodeURIComponent(p.address||"")}_rb/`,"_blank","noopener,noreferrer")}>🔗 Zillow</Btn>
-                <Btn small variant="ghost" onClick={()=>window.open(`https://www.google.com/search?q=${encodeURIComponent(`"${p.address||""}" property tax records`)}`,"_blank","noopener,noreferrer")}>🏛 Tax Records</Btn>
-                <Btn small variant="ghost" onClick={()=>setModal({type:"editProperty",property:p})}>Edit</Btn>
-                <Btn small variant="danger" onClick={()=>delProperty(p.id)}>✕</Btn>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:16,fontWeight:700,color:B.navy}}>{fmtMoney(p.currentValue||p.purchasePrice)}</div>
+                    {p.loanBalance&&<div style={{fontSize:11,color:B.textSoft}}>Balance: {fmtMoney(p.loanBalance)}</div>}
+                  </div>
+                  <Btn small variant="ghost" onClick={()=>window.open(`https://www.zillow.com/homes/${encodeURIComponent(p.address||"")}_rb/`,"_blank","noopener,noreferrer")}>🔗 Zillow</Btn>
+                  <Btn small variant="ghost" onClick={()=>window.open(`https://www.google.com/search?q=${encodeURIComponent(`"${p.address||""}" property tax records`)}`,"_blank","noopener,noreferrer")}>🏛 Tax Records</Btn>
+                  <Btn small variant="ghost" onClick={()=>setModal({type:"editProperty",property:p})}>Edit</Btn>
+                  <Btn small variant="danger" onClick={()=>delProperty(p.id)}>✕</Btn>
+                </div>
               </div>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8}}>
-              {[["Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—"],["Loan Type",p.loanType],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—"],["Utilities",p.utilities?`${fmtMoney(p.utilities)}/mo`:"—"],["Insurance Co.",p.insuranceCompany||"—"],["Ins. Premium",p.insurancePremium?`${fmtMoney(p.insurancePremium)}/yr`:"—"],["Flood Insurance",p.floodInsurance?`Yes${p.floodInsuranceCompany?` — ${p.floodInsuranceCompany}`:""}`:("No")]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
-                <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}</div>
-                <div style={{fontSize:12,color:B.text,fontWeight:600}}>{v}</div>
-              </div>)}
-            </div>
-            {p.notes&&<div style={{marginTop:12,fontSize:13,color:B.textSoft,fontStyle:"italic"}}>{p.notes}</div>}
-          </div>)}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8}}>
+                {[["Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—"],["Loan Type",p.loanType],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—"],["Utilities",p.utilities?`${fmtMoney(p.utilities)}/mo`:"—"],["Insurance Co.",p.insuranceCompany||"—"],["Ins. Premium",p.insurancePremium?`${fmtMoney(p.insurancePremium)}/yr`:"—"],["Flood Insurance",p.floodInsurance?`Yes${p.floodInsuranceCompany?` — ${p.floodInsuranceCompany}`:""}`:("No")]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
+                  <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}</div>
+                  <div style={{fontSize:12,color:B.text,fontWeight:600}}>{v}</div>
+                </div>)}
+              </div>
+              {p.notes&&<div style={{marginTop:12,fontSize:13,color:B.textSoft,fontStyle:"italic"}}>{p.notes}</div>}
+            </div>;
+            return groups.map(g=><div key={g.type} style={{marginBottom:22}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,paddingBottom:6,borderBottom:`2px solid ${B.gold}`}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,color:B.navy,fontWeight:700}}>{g.type}</div>
+                <div style={{background:B.navy,color:B.white,borderRadius:20,minWidth:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,padding:"0 7px"}}>{g.list.length}</div>
+                <div style={{fontSize:12,color:B.textSoft,marginLeft:"auto"}}>{fmtMoney(g.list.reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0))}</div>
+              </div>
+              {g.list.map((p,i)=>card(p,g.list,i))}
+            </div>);
+          })()}
         </div>}
 
         {/* PORTFOLIO TAB */}
@@ -3741,7 +3770,10 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
       {/* PROPERTIES */}
       {activeTab==="properties"&&<div>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:20}}>Property Holdings</div>
-        {properties.length===0?<Empty text="No properties on file."/>:properties.map(p=><div key={p.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${B.gold}`,borderRadius:12,padding:24,marginBottom:16,boxShadow:B.shadow}}>
+        {properties.length===0?<Empty text="No properties on file."/>:(()=>{
+          const bySort=(a,b)=>((Number.isFinite(Number(a.sortOrder))?Number(a.sortOrder):1e9)-(Number.isFinite(Number(b.sortOrder))?Number(b.sortOrder):1e9))||(new Date(a.createdAt||0)-new Date(b.createdAt||0));
+          const groups=[...PROP_TYPES,"Other"].map(type=>({type,list:properties.filter(p=>type==="Other"?!PROP_TYPES.includes(p.propertyType):p.propertyType===type).sort(bySort)})).filter(g=>g.list.length>0);
+          const card=p=><div key={p.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${B.gold}`,borderRadius:12,padding:24,marginBottom:16,boxShadow:B.shadow}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
             <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600}}>{p.address}</div>{p.ownerName&&<div style={{fontSize:13,color:B.textSoft,marginTop:2}}>{p.ownerName}</div>}</div>
             <div style={{textAlign:"right"}}>
@@ -3755,7 +3787,15 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
               <div style={{fontSize:13,color:B.text,fontWeight:600}}>{v}</div>
             </div>)}
           </div>
-        </div>)}
+        </div>;
+          return groups.map(g=><div key={g.type} style={{marginBottom:24}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,paddingBottom:6,borderBottom:`2px solid ${B.gold}`}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:700}}>{g.type}</div>
+              <div style={{background:B.navy,color:B.white,borderRadius:20,minWidth:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,padding:"0 7px"}}>{g.list.length}</div>
+            </div>
+            {g.list.map(card)}
+          </div>);
+        })()}
       </div>}
 
       {/* CASH FLOW (read-only) */}
