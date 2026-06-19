@@ -232,7 +232,7 @@ function calcEventTax(grossAmount,treatment,baseIncome,filingStatus,stateRate,lo
 // Annualized ordinary income (ordinary + short-term gains) from the projected events, used to place the marginal bracket.
 function annualOrdinaryIncome(enrichedEvents,projectionMode,projectionMonths){
   const years=Math.max(1,(projectionMode==="year"?12:(Number(projectionMonths)||12))/12);
-  const ord=(enrichedEvents||[]).filter(e=>!e._excluded&&e.direction!=="expense"&&(e.taxTreatment==="ordinary"||e.taxTreatment==="stcg")).reduce((s,e)=>s+(Number(e.projectedGross)||0),0);
+  const ord=(enrichedEvents||[]).filter(e=>!e._excluded&&!e._baseSalary&&e.direction!=="expense"&&(e.taxTreatment==="ordinary"||e.taxTreatment==="stcg")).reduce((s,e)=>s+(Number(e.projectedGross)||0),0);
   return ord/years;
 }
 // All-in marginal rate (%): federal bracket on the next dollar of ordinary income (base salary + annualized ordinary income, after the standard deduction) plus state and local rates.
@@ -297,6 +297,22 @@ function buildProjection(allEvents,settings,stateRate,localRate){
   const stdDed=STANDARD_DEDUCTION_2026[filing]||STANDARD_DEDUCTION_2026.mfj;
   const sRate=(Number(stateRate)||0)/100;
   const lRate=(Number(localRate)||0)/100;
+  // The standard deduction is consumed by the base salary first (it's the bottom of the income stack);
+  // ordinary income events then stack on the post-deduction floor and draw any leftover deduction.
+  const floor=Math.max(0,baseIncome-stdDed);
+  const eventDedPerYear=Math.max(0,stdDed-baseIncome);
+  const salaryIncluded=settings.includeIncome!==false;
+
+  // Base salary: spread evenly across the projection months and taxed as ordinary income (federal from $0 after
+  // the standard deduction, plus state/local on full salary). Surfaced as a read-only "Base Salary" income line.
+  let salaryEvent=null;
+  if(baseIncome>0){
+    const monthlyBase=baseIncome/12;
+    const annualBaseTax=calcOrdinaryTax(floor,0,filing)+baseIncome*(sRate+lRate);
+    const monthlyBaseTax=annualBaseTax/12;
+    if(salaryIncluded){months.forEach(m=>{m.income+=monthlyBase;m.gross+=monthlyBase;m.tax+=monthlyBaseTax;m.net+=monthlyBase-monthlyBaseTax;});}
+    salaryEvent={id:"__base_salary",eventType:"Base Salary",direction:"income",frequency:"monthly",taxTreatment:"ordinary",amount:monthlyBase,startDate:start.toISOString().slice(0,10),endDate:null,_synthetic:true,_baseSalary:true,_excluded:!salaryIncluded,description:"Annual base salary, spread monthly",projectedGross:salaryIncluded?monthlyBase*projMonths:0,projectedTax:salaryIncluded?monthlyBaseTax*projMonths:0,projectedNet:salaryIncluded?(monthlyBase-monthlyBaseTax)*projMonths:0};
+  }
 
   // Pass 1: expand events into occurrences. Tally expenses immediately; queue income for a chronological pass
   // so the annual standard deduction can be drawn down in date order across all income events.
@@ -319,8 +335,8 @@ function buildProjection(allEvents,settings,stateRate,localRate){
     });
   });
 
-  // Pass 2: income in date order. The federal standard deduction shields the first $stdDed of ORDINARY income
-  // (ordinary/stcg) per calendar year, applied before the federal brackets. State & local apply to full gross.
+  // Pass 2: income in date order. Ordinary income events stack on the post-deduction floor; any standard deduction
+  // not used by the base salary shields the first events of each calendar year. State & local apply to full gross.
   incomeOccs.sort((a,b)=>a.date-b.date);
   const dedLeft={};
   incomeOccs.forEach(o=>{
@@ -329,13 +345,13 @@ function buildProjection(allEvents,settings,stateRate,localRate){
     months[o.monthIdx].gross+=gross;months[o.monthIdx].income+=gross;pe.projGross+=gross;
     if(gross<=0||o.treatment==="none"){months[o.monthIdx].net+=gross;return;}
     const yr=o.date.getFullYear();
-    if(dedLeft[yr]===undefined)dedLeft[yr]=stdDed;
+    if(dedLeft[yr]===undefined)dedLeft[yr]=eventDedPerYear;
     let fedTax=0,niit=0;
     if(o.treatment==="ordinary"||o.treatment==="stcg"){
       const shield=Math.min(dedLeft[yr],gross);dedLeft[yr]-=shield;
-      fedTax=calcOrdinaryTax(gross-shield,baseIncome,filing);
+      fedTax=calcOrdinaryTax(gross-shield,floor,filing);
     }else if(o.treatment==="ltcg"||o.treatment==="qualified_div"){
-      fedTax=calcLTCGTax(gross,baseIncome,filing);
+      fedTax=calcLTCGTax(gross,floor,filing);
       niit=calcNIIT(gross,baseIncome+gross,filing);
     }
     const tax=fedTax+gross*sRate+gross*lRate+niit;
@@ -348,6 +364,7 @@ function buildProjection(allEvents,settings,stateRate,localRate){
     if(ev.direction==="expense")return{...ev,projectedGross:0,projectedTax:0,projectedExpense:pe.projExpense,projectedNet:-pe.projExpense};
     return{...ev,projectedGross:pe.projGross,projectedTax:pe.projTax,projectedNet:pe.projGross-pe.projTax};
   });
+  if(salaryEvent)enriched.unshift(salaryEvent);
   return{monthlyData:months,enrichedEvents:enriched};
 }
 
@@ -1996,7 +2013,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
           <div style={{fontSize:isMobile?18:22,fontFamily:"'Cormorant Garamond',serif",fontWeight:700,color:avgNet>=0?"#0d5c2b":"#8b1a1a"}}>{avgNet>=0?"+":"−"}{fmtMoney(Math.abs(avgNet))}<span style={{fontSize:11,color:B.textSoft,fontWeight:400}}>/mo</span></div>
         </div>
       </div>
-      {avgNet<0&&<div style={{fontSize:12,color:B.textSoft,marginTop:10,lineHeight:1.5}}>The cumulative line declines because average monthly outflow exceeds inflow. Note: a client's base salary is used for tax brackets only — to reflect it as income, add it as a recurring income event.</div>}
+      {avgNet<0&&<div style={{fontSize:12,color:B.textSoft,marginTop:10,lineHeight:1.5}}>The cumulative line declines because average monthly outflow exceeds inflow.</div>}
     </div>}
 
     {/* Chart */}
