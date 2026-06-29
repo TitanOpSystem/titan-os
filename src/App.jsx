@@ -797,7 +797,7 @@ function FamilyAssistant({family,data}){
 
   return <div style={{maxWidth:820,margin:"0 auto"}}>
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?22:26,color:B.navy,fontWeight:600}}>Ask AI</div>
+      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?22:26,color:B.navy,fontWeight:600}}>Ask Titan</div>
       <span style={{fontSize:10,fontWeight:800,letterSpacing:"0.1em",textTransform:"uppercase",color:B.navy,background:"rgba(206,182,132,0.22)",border:`1px solid ${B.gold}`,borderRadius:20,padding:"2px 9px"}}>Beta</span>
     </div>
     <div style={{fontSize:13,color:B.textSoft,marginBottom:16}}>
@@ -868,7 +868,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   const overdueTasks=pendingTasks.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
   const soonTasks=pendingTasks.filter(t=>t.dueDate&&!overdueTasks.includes(t)&&(new Date(t.dueDate)-new Date())/(86400000)<=30);
 
-  const TABS=["Overview","Properties","Portfolio","Cash Flow","Valuables","Deals","Notes","Tasks","Documents","Ask AI"];
+  const TABS=["Overview","Properties","Portfolio","Cash Flow","Valuables","Deals","Notes","Tasks","Documents","Ask Titan"];
 
   // Quick add note (with optional file attachments)
   const[noteBody,setNoteBody]=useState("");
@@ -1373,7 +1373,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         <DocumentsView familyId={family.id} readOnly={false} toast={toast}/>
       </div>}
 
-      {activeTab==="askai"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
+      {activeTab==="asktitan"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
         <FamilyAssistant family={family} data={data}/>
       </div>}
 
@@ -3877,7 +3877,7 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
     {id:"valuables", label:"Valuables",  icon:"◆"},
     {id:"tasks",     label:"Tasks",      icon:"◻"},
     {id:"documents", label:"Documents",  icon:"📁"},
-    {id:"assistant", label:"Ask AI",     icon:"✦"},
+    {id:"assistant", label:"Ask Titan",   icon:"✦"},
   ];
 
   return <div style={{minHeight:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",paddingBottom:isMobile?70:0}}>
