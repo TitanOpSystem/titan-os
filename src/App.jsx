@@ -397,7 +397,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -762,14 +762,36 @@ const ASSISTANT_SUGGESTIONS=[
   "Which loans mature within the next 12 months?",
 ];
 
-function FamilyAssistant({family,data}){
+function FamilyAssistant({family,data,reload}){
   const isMobile=useIsMobile();
+  // Read the family from the live data set so a rename reflects immediately
+  // (the `family` prop passed by parents can be a stale snapshot).
+  const fam=(data.families||[]).find(x=>x.id===family.id)||family;
+  const assistantName=(fam.assistantName||"").trim()||"Titan";
   const[messages,setMessages]=useState([]); // {role:"user"|"assistant", content}
   const[input,setInput]=useState("");
   const[busy,setBusy]=useState(false);
   const[error,setError]=useState(null);
+  const[editingName,setEditingName]=useState(false);
+  const[nameInput,setNameInput]=useState(assistantName);
+  const[savingName,setSavingName]=useState(false);
+  const[nameErr,setNameErr]=useState(null);
   const scrollRef=useRef(null);
   const snapshot=useMemo(()=>buildFamilySnapshot(family,data),[family,data]);
+
+  const saveName=async()=>{
+    const nm=(nameInput||"").trim().slice(0,40);
+    if(!nm){setEditingName(false);setNameInput(assistantName);return;}
+    if(nm===assistantName){setEditingName(false);return;}
+    setSavingName(true);setNameErr(null);
+    try{
+      const{error}=await sb.from("families").update({assistant_name:nm}).eq("id",family.id);
+      if(error)throw error;
+      if(reload)await reload("families");
+      setEditingName(false);
+    }catch(e){setNameErr(e&&e.message?e.message:"Couldn't save the name.");}
+    finally{setSavingName(false);}
+  };
 
   useEffect(()=>{ if(scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight; },[messages,busy]);
 
@@ -782,7 +804,7 @@ function FamilyAssistant({family,data}){
     setInput("");
     setBusy(true);
     try{
-      const{data:resp,error:fnErr}=await sb.functions.invoke("family-ai-assistant",{body:{question,snapshot,history}});
+      const{data:resp,error:fnErr}=await sb.functions.invoke("family-ai-assistant",{body:{question,snapshot,history,assistantName}});
       if(fnErr)throw new Error(fnErr.message||"Could not reach the assistant.");
       if(resp&&resp.error)throw new Error(resp.error);
       setMessages(m=>[...m,{role:"assistant",content:(resp&&resp.answer)||"No response."}]);
@@ -796,12 +818,24 @@ function FamilyAssistant({family,data}){
   const onKey=e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); ask(); } };
 
   return <div style={{maxWidth:820,margin:"0 auto"}}>
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?22:26,color:B.navy,fontWeight:600}}>Ask Titan</div>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,flexWrap:"wrap"}}>
+      {editingName
+        ? <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?22:26,color:B.navy,fontWeight:600}}>Ask</span>
+            <input autoFocus value={nameInput} onChange={e=>setNameInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveName();if(e.key==="Escape"){setEditingName(false);setNameInput(assistantName);}}} maxLength={40} placeholder="Titan"
+              style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?20:24,color:B.navy,fontWeight:600,border:`1px solid ${B.border}`,borderRadius:8,padding:"2px 8px",width:160,outline:"none"}}/>
+            <Btn small onClick={saveName} disabled={savingName}>{savingName?"…":"Save"}</Btn>
+            <button onClick={()=>{setEditingName(false);setNameInput(assistantName);}} style={{background:"none",border:"none",color:B.textSoft,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          </div>
+        : <>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?22:26,color:B.navy,fontWeight:600}}>Ask {assistantName}</div>
+            <button onClick={()=>{setNameInput(assistantName==="Titan"?"":assistantName);setEditingName(true);}} title="Rename your assistant" style={{background:"none",border:"none",color:B.gold,fontSize:14,cursor:"pointer",padding:"2px 4px"}}>✎</button>
+          </>}
       <span style={{fontSize:10,fontWeight:800,letterSpacing:"0.1em",textTransform:"uppercase",color:B.navy,background:"rgba(206,182,132,0.22)",border:`1px solid ${B.gold}`,borderRadius:20,padding:"2px 9px"}}>Beta</span>
     </div>
+    {nameErr&&<div style={{fontSize:12,color:"#8b1a1a",marginBottom:8}}>⚠ {nameErr}</div>}
     <div style={{fontSize:13,color:B.textSoft,marginBottom:16}}>
-      Ask questions about this family's dashboard — net worth, properties, loans, insurance, tasks, and documents. Answers come only from the data on file and are read-only.
+      {assistantName} answers questions about this family's dashboard — net worth, properties, loans, insurance, tasks, and documents. Answers come only from the data on file and are read-only.
     </div>
 
     {/* Conversation */}
@@ -869,6 +903,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   const soonTasks=pendingTasks.filter(t=>t.dueDate&&!overdueTasks.includes(t)&&(new Date(t.dueDate)-new Date())/(86400000)<=30);
 
   const TABS=["Overview","Properties","Portfolio","Cash Flow","Valuables","Deals","Notes","Tasks","Documents","Ask Titan"];
+  const assistantName=(((data.families||[]).find(x=>x.id===family.id)||family).assistantName||"").trim()||"Titan";
 
   // Quick add note (with optional file attachments)
   const[noteBody,setNoteBody]=useState("");
@@ -1047,7 +1082,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
       {/* Tabs */}
       <div style={{borderBottom:`1px solid ${B.borderLight}`,background:B.white,padding:isMobile?"0 8px":"0 28px",display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-        {TABS.map(t=><button key={t} onClick={()=>setActiveTab(t.toLowerCase().replace(/\s+/g,""))} style={{background:"none",border:"none",borderBottom:activeTab===t.toLowerCase().replace(/\s+/g,"")?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.toLowerCase().replace(/\s+/g,"")?B.navy:B.textSoft,fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.toLowerCase().replace(/\s+/g,"")?700:400,padding:isMobile?"12px 12px":"10px 14px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>{t}</button>)}
+        {TABS.map(t=><button key={t} onClick={()=>setActiveTab(t.toLowerCase().replace(/\s+/g,""))} style={{background:"none",border:"none",borderBottom:activeTab===t.toLowerCase().replace(/\s+/g,"")?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.toLowerCase().replace(/\s+/g,"")?B.navy:B.textSoft,fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.toLowerCase().replace(/\s+/g,"")?700:400,padding:isMobile?"12px 12px":"10px 14px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>{t==="Ask Titan"?("Ask "+assistantName):t}</button>)}
       </div>
 
       {/* Content */}
@@ -1374,7 +1409,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       </div>}
 
       {activeTab==="asktitan"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
-        <FamilyAssistant family={family} data={data}/>
+        <FamilyAssistant family={family} data={data} reload={reload}/>
       </div>}
 
       {/* Modals */}
@@ -3854,9 +3889,10 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
 }
 
 // ── CLIENT DASHBOARD ──────────────────────────────────────────────────────────
-function ClientDashboard({family,data,userProfile,logout,toast}){
+function ClientDashboard({family,data,userProfile,logout,toast,reload}){
   const isMobile=useIsMobile();
   const[activeTab,setActiveTab]=useState("summary");
+  const assistantName=(((data.families||[]).find(x=>x.id===family.id)||family).assistantName||"").trim()||"Titan";
   const properties=(data.properties||[]).filter(p=>p.familyId===family.id);
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
@@ -3877,7 +3913,7 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
     {id:"valuables", label:"Valuables",  icon:"◆"},
     {id:"tasks",     label:"Tasks",      icon:"◻"},
     {id:"documents", label:"Documents",  icon:"📁"},
-    {id:"assistant", label:"Ask Titan",   icon:"✦"},
+    {id:"assistant", label:"Ask "+assistantName,   icon:"✦"},
   ];
 
   return <div style={{minHeight:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",paddingBottom:isMobile?70:0}}>
@@ -4070,7 +4106,7 @@ function ClientDashboard({family,data,userProfile,logout,toast}){
       </div>}
 
       {/* ASK AI */}
-      {activeTab==="assistant"&&<FamilyAssistant family={family} data={data}/>}
+      {activeTab==="assistant"&&<FamilyAssistant family={family} data={data} reload={reload}/>}
 
     </div>
 
@@ -4191,7 +4227,7 @@ export default function App(){
     const clientFamily=data.families.find(f=>f.id===userProfile.familyId);
     if(loading)return <div style={{minHeight:"100vh",background:B.navy,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
     if(!clientFamily)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,flexDirection:"column",gap:12,color:B.navy,fontFamily:"'DM Sans',sans-serif"}}><PCMLogo/><div style={{marginTop:20,fontSize:16}}>No family assigned to your account. Contact your advisor.</div><button onClick={logout} style={{marginTop:12,background:"none",border:`1px solid ${B.border}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontFamily:"inherit",color:B.textSoft}}>Sign Out</button></div>;
-    return <><ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout} toast={showToast}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
+    return <><ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout} toast={showToast} reload={reload}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
   }
 
 
