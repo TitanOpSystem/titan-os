@@ -3892,7 +3892,20 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
 function ClientDashboard({family,data,userProfile,logout,toast,reload}){
   const isMobile=useIsMobile();
   const[activeTab,setActiveTab]=useState("summary");
-  const assistantName=(((data.families||[]).find(x=>x.id===family.id)||family).assistantName||"").trim()||"Titan";
+  const fam=(data.families||[]).find(x=>x.id===family.id)||family;
+  const rawAssistantName=(fam.assistantName||"").trim();
+  const assistantName=rawAssistantName||"Titan";
+  const[namePromptDismissed,setNamePromptDismissed]=useState(false);
+  const[welcomeName,setWelcomeName]=useState("");
+  const[savingWelcome,setSavingWelcome]=useState(false);
+  const showNamePrompt=!rawAssistantName && !namePromptDismissed;
+  const saveWelcomeName=async(useDefault)=>{
+    const nm=useDefault?"Titan":((welcomeName||"").trim().slice(0,40)||"Titan");
+    setSavingWelcome(true);
+    try{ await sb.from("families").update({assistant_name:nm}).eq("id",family.id); if(reload)await reload("families"); }
+    catch(e){}
+    finally{ setSavingWelcome(false); setNamePromptDismissed(true); }
+  };
   const properties=(data.properties||[]).filter(p=>p.familyId===family.id);
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
@@ -3917,6 +3930,23 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
   ];
 
   return <div style={{minHeight:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",paddingBottom:isMobile?70:0}}>
+
+    {showNamePrompt&&<Modal title="Meet your assistant" onClose={()=>setNamePromptDismissed(true)}>
+      <div style={{fontSize:14,color:B.text,lineHeight:1.55,marginBottom:18}}>
+        You have a personal AI assistant that can answer questions about your dashboard — your net worth, properties, loans, insurance, tasks, and documents. It only ever sees your own information.
+        <br/><br/>
+        What would you like to call it? You can always change this later.
+      </div>
+      <Field label="Assistant name">
+        <Inp autoFocus placeholder="e.g. Titan, Ace, Atlas…" value={welcomeName} maxLength={40}
+          onChange={e=>setWelcomeName(e.target.value)}
+          onKeyDown={e=>{if(e.key==="Enter"&&!savingWelcome)saveWelcomeName(false);}}/>
+      </Field>
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end",alignItems:"center",marginTop:18}}>
+        <button onClick={()=>saveWelcomeName(true)} disabled={savingWelcome} style={{background:"none",border:"none",color:B.textSoft,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Skip — use "Titan"</button>
+        <Btn onClick={()=>saveWelcomeName(false)} disabled={savingWelcome}>{savingWelcome?"Saving…":"Save name"}</Btn>
+      </div>
+    </Modal>}
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
     {/* Header (navy banner with logo, family name, sign out) */}
