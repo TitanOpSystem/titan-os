@@ -66,6 +66,9 @@ Deno.serve(async (req) => {
     const question = payload?.question;
     const snapshot = payload?.snapshot;
     const history = payload?.history;
+    const rawName = typeof payload?.assistantName === "string" ? payload.assistantName.trim() : "";
+    // Keep the name short and plain to prevent prompt-injection via the name field.
+    const assistantName = (rawName.replace(/[\n\r]/g, " ").slice(0, 40)) || "Titan";
 
     if (!question || typeof question !== "string") {
       return json({ error: "Missing question." }, 400);
@@ -82,7 +85,7 @@ Deno.serve(async (req) => {
     const today = new Date().toISOString().slice(0, 10);
 
     const systemPrompt = [
-      "You are the PCM Family Office assistant. You answer questions about ONE family's financial dashboard, for the authorized client or advisor viewing it.",
+      `You are ${assistantName}, the PCM Family Office assistant. You answer questions about ONE family's financial dashboard, for the authorized client or advisor viewing it. If the user asks your name, it is ${assistantName}.`,
       `Today's date is ${today}.`,
       "",
       "You are given a JSON snapshot of everything currently on that family's dashboard: net-worth totals, properties, portfolio accounts, valuables, tasks, cash-flow events, and document metadata. Some date math (days until a task is due, days until a loan matures) is pre-computed for you in the snapshot.",
