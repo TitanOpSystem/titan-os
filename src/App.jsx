@@ -3851,6 +3851,63 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
   const fmtSize=bytes=>{if(!bytes)return"—";if(bytes<1024)return bytes+"B";if(bytes<1024*1024)return(bytes/1024).toFixed(1)+"KB";return(bytes/(1024*1024)).toFixed(1)+"MB";};
   const fileLabel=(type,name)=>{const t=(type||"").toLowerCase();const ext=(name||"").split(".").pop().toLowerCase();if(t.includes("pdf")||ext==="pdf")return"PDF";if(t.includes("image")||["png","jpg","jpeg","gif","webp","svg","heic","bmp","tiff"].includes(ext))return"IMAGE";if(t.includes("word")||["doc","docx"].includes(ext))return"WORD";if(t.includes("sheet")||t.includes("excel")||["xls","xlsx","csv"].includes(ext))return"EXCEL";if(t.includes("presentation")||["ppt","pptx","key"].includes(ext))return"SLIDES";if(["zip","rar","7z","gz"].includes(ext))return"ARCHIVE";if(["txt","rtf","md"].includes(ext))return"TEXT";return ext&&ext.length<=4?ext.toUpperCase():"FILE";};
 
+  const[scanningId,setScanningId]=useState(null);
+  const[bulkScan,setBulkScan]=useState(null); // {done,total} | null
+  // Map a stored document to a media type the extractor supports (PDF/images).
+  const guessMedia=doc=>{
+    const ft=(doc.fileType||"").toLowerCase();
+    if(ft.includes("pdf"))return "application/pdf";
+    if(ft.includes("png"))return "image/png";
+    if(ft.includes("webp"))return "image/webp";
+    if(ft.includes("jpeg")||ft.includes("jpg"))return "image/jpeg";
+    const p=(doc.filePath||"").toLowerCase();
+    if(p.endsWith(".pdf"))return "application/pdf";
+    if(p.endsWith(".png"))return "image/png";
+    if(p.endsWith(".webp"))return "image/webp";
+    if(p.endsWith(".jpg")||p.endsWith(".jpeg"))return "image/jpeg";
+    return null;
+  };
+  const needsScan=doc=>!!guessMedia(doc)&&!((doc.extractedText||"").trim());
+  // Backfill: scan an EXISTING document in place — download it, extract text,
+  // and store it on the same row. No re-upload, no duplicate.
+  const scanExisting=async doc=>{
+    const mt=guessMedia(doc);
+    if(!mt)return false;
+    const{data:signed,error:sErr}=await sb.storage.from("documents").createSignedUrl(doc.filePath,300);
+    if(sErr||!signed?.signedUrl)throw new Error("Could not open file");
+    const resp=await fetch(signed.signedUrl);
+    const blob=await resp.blob();
+    if(blob.size>15*1024*1024)throw new Error("File too large to scan (max 15 MB)");
+    const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=()=>rej(new Error("read failed"));r.readAsDataURL(blob);});
+    const{data:exResp,error:exErr}=await sb.functions.invoke("extract-document-text",{body:{fileBase64:b64,mediaType:mt}});
+    if(exErr)throw new Error(exErr.message||"Scan failed");
+    if(exResp&&exResp.error)throw new Error(exResp.error);
+    const text=(exResp&&exResp.text)||"";
+    const{error:uErr}=await sb.from("documents").update({extracted_text:text||null}).eq("id",doc.id);
+    if(uErr)throw new Error(uErr.message);
+    return true;
+  };
+  const scanOne=async doc=>{
+    setScanningId(doc.id);
+    try{ await scanExisting(doc); toast("Document scanned"); loadDocs(); if(reload)reload("documents"); }
+    catch(e){ toast(e.message||"Scan failed","error"); }
+    finally{ setScanningId(null); }
+  };
+  const scanAllUnscanned=async()=>{
+    const targets=docs.filter(needsScan);
+    if(!targets.length){ toast("No documents need scanning"); return; }
+    setBulkScan({done:0,total:targets.length});
+    let ok=0;
+    for(let i=0;i<targets.length;i++){
+      try{ await scanExisting(targets[i]); ok++; }catch(_e){}
+      setBulkScan({done:i+1,total:targets.length});
+    }
+    setBulkScan(null);
+    toast(`Scanned ${ok} of ${targets.length} document${targets.length>1?"s":""}`);
+    loadDocs(); if(reload)reload("documents");
+  };
+  const unscannedCount=docs.filter(needsScan).length;
+
   const filtered=docs.filter(d=>filterCat==="All"||d.category===filterCat);
 
   return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
@@ -3859,6 +3916,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
         {["All",...DOC_CATEGORIES].map(c=><button key={c} onClick={()=>setFilterCat(c)} style={{background:filterCat===c?B.navy:"transparent",border:`1px solid ${filterCat===c?B.navy:B.border}`,color:filterCat===c?B.white:B.textSoft,borderRadius:20,padding:"3px 12px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{c}</button>)}
       </div>
       {allowUpload&&<Btn onClick={()=>setModal("upload")}>⬆ Upload Document</Btn>}
+      {allowUpload&&unscannedCount>0&&<Btn variant="ghost" onClick={scanAllUnscanned} disabled={!!bulkScan} title="Extract text from existing documents so the AI assistant can read them">{bulkScan?`Scanning ${bulkScan.done}/${bulkScan.total}…`:`✦ Scan ${unscannedCount} for AI`}</Btn>}
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
       {loading?<Spinner/>:filtered.length===0?<div style={{padding:"60px 0",textAlign:"center",color:B.textMute}}><div style={{fontSize:40,marginBottom:12}}>📁</div>No documents yet.</div>:
@@ -3879,8 +3937,10 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
             <span style={{fontSize:11,color:B.textMute}}>{fmtSize(doc.fileSize)}</span>
           </div>
           <div style={{fontSize:11,color:B.textMute}}>{fmt(doc.createdAt)}</div>
-          <div style={{display:"flex",gap:8,marginTop:4}}>
+          <div style={{display:"flex",gap:8,marginTop:4,alignItems:"center",flexWrap:"wrap"}}>
             <Btn small onClick={()=>download(doc)} style={{flex:1}}>⬇ Download</Btn>
+            {allowUpload&&needsScan(doc)&&<Btn small variant="ghost" onClick={()=>scanOne(doc)} disabled={scanningId===doc.id} title="Make this document readable by the AI assistant">{scanningId===doc.id?"Scanning…":"✦ Scan"}</Btn>}
+            {(doc.extractedText||"").trim()&&<span title="The assistant can read this document" style={{fontSize:10,fontWeight:800,letterSpacing:"0.04em",color:B.navyMid,background:"rgba(206,182,132,0.18)",border:`1px solid ${B.gold}`,borderRadius:12,padding:"2px 7px"}}>✦ AI</span>}
             {allowUpload&&<Btn small variant="ghost" onClick={()=>openEdit(doc)}>✏ Edit</Btn>}
             {allowDelete&&<Btn small variant="danger" onClick={()=>del(doc)}>✕</Btn>}
           </div>
