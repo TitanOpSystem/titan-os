@@ -397,7 +397,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -718,10 +718,23 @@ function buildFamilySnapshot(family,data){
     startDate:e.startDate||null, endDate:e.endDate||null, taxTreatment:e.taxTreatment||null,
   }));
 
-  const documents=(data.documents||[]).filter(d=>d.familyId===fid).map(d=>({
-    name:d.name||null, category:d.category||null, fileType:d.fileType||null,
-    description:d.description||null, uploadedAt:d.uploadedAt||d.createdAt||null,
-  }));
+  // Include document CONTENTS (extracted at upload) so the assistant can answer
+  // from inside files. Bounded by a per-document cap and a global budget so the
+  // prompt stays a sane size even with dozens of documents.
+  const PER_DOC=4000, DOC_BUDGET=60000;
+  let docTextUsed=0;
+  const documents=(data.documents||[]).filter(d=>d.familyId===fid).map(d=>{
+    const out={ name:d.name||null, category:d.category||null, fileType:d.fileType||null,
+      description:d.description||null, uploadedAt:d.uploadedAt||d.createdAt||null };
+    const raw=(d.extractedText||"").trim();
+    if(!raw){ out.contentsAvailable=false; return out; }
+    if(docTextUsed>=DOC_BUDGET){ out.contentsAvailable=true; out.contents="[not included — document-text budget reached; ask about this document specifically]"; return out; }
+    let txt=raw.slice(0,PER_DOC);
+    if(raw.length>PER_DOC) txt+="…[truncated]";
+    docTextUsed+=txt.length;
+    out.contentsAvailable=true; out.contents=txt;
+    return out;
+  });
 
   const totalRE=properties.reduce((s,p)=>s+(p.currentValue||p.purchasePrice||0),0);
   const totalDebt=properties.reduce((s,p)=>s+p.loanBalance+p.secondMortgageBalance,0)
@@ -3754,6 +3767,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
   const[description,setDescription]=useState("");
   const[category,setCategory]=useState("General");
   const[file,setFile]=useState(null);
+  const[uploadPhase,setUploadPhase]=useState("");
 
   const loadDocs=async()=>{
     const q=sb.from("documents").select("*").order("created_at",{ascending:false});
@@ -3771,15 +3785,31 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
       // Upload file to Supabase storage
       const ext=file.name.split(".").pop();
       const path=`${familyId||"general"}/${Date.now()}_${file.name.replace(/\s+/g,"_")}`;
+      setUploadPhase("Uploading…");
       const{error:uploadError}=await sb.storage.from("documents").upload(path,file,{upsert:false});
       if(uploadError)throw new Error(uploadError.message);
+      // Extract text so the family's AI assistant can answer from this document's
+      // contents. PDFs and images only; other types are stored without text.
+      // Non-fatal: if extraction fails, the document still uploads.
+      let extractedText=null;
+      const mt=file.type==="image/jpg"?"image/jpeg":file.type;
+      if(["application/pdf","image/png","image/jpeg","image/webp"].includes(mt)){
+        try{
+          setUploadPhase("Scanning for AI assistant…");
+          const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=()=>rej(new Error("read failed"));r.readAsDataURL(file);});
+          const{data:exResp,error:exErr}=await sb.functions.invoke("extract-document-text",{body:{fileBase64:b64,mediaType:mt}});
+          if(!exErr&&exResp&&exResp.text)extractedText=exResp.text;
+        }catch(_e){/* keep extractedText null; upload proceeds */}
+      }
       // Save record
-      const{error:dbError}=await sb.from("documents").insert({family_id:familyId||null,name,description:description||null,category,file_path:path,file_size:file.size,file_type:file.type||ext});
+      setUploadPhase("Saving…");
+      const{error:dbError}=await sb.from("documents").insert({family_id:familyId||null,name,description:description||null,category,file_path:path,file_size:file.size,file_type:file.type||ext,extracted_text:extractedText});
       if(dbError)throw new Error(dbError.message);
-      toast("Document uploaded");
+      toast(extractedText?"Document uploaded and scanned":"Document uploaded");
       setModal(null);setName("");setDescription("");setCategory("General");setFile(null);
       loadDocs();
     }catch(e){toast(e.message,"error");}
+    setUploadPhase("");
     setUploading(false);
   };
 
@@ -3871,7 +3901,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
       </div>
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <Btn variant="ghost" onClick={()=>setModal(null)}>Cancel</Btn>
-        <Btn onClick={upload} disabled={uploading||!file||!name.trim()}>{uploading?"Uploading…":"Upload"}</Btn>
+        <Btn onClick={upload} disabled={uploading||!file||!name.trim()}>{uploading?(uploadPhase||"Uploading…"):"Upload"}</Btn>
       </div>
     </Modal>}
 
