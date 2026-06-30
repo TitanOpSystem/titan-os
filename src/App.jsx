@@ -1418,7 +1418,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
       {/* DOCUMENTS TAB */}
       {activeTab==="documents"&&<div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
-        <DocumentsView familyId={family.id} readOnly={false} toast={toast}/>
+        <DocumentsView familyId={family.id} readOnly={false} toast={toast} reload={reload}/>
       </div>}
 
       {activeTab==="asktitan"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
@@ -3753,7 +3753,7 @@ function UserManagementView({userProfile,data={},toast}){
 // ── DOCUMENTS VIEW ────────────────────────────────────────────────────────────
 const DOC_CATEGORIES = ["General","Tax","Legal","Insurance","Investment","Real Estate","Estate Planning","Other"];
 
-function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
+function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload}){
   // Backward compat: if readOnly passed, default canUpload=false canDelete=false
   // If canUpload/canDelete passed explicitly, use those
   const allowUpload=canUpload!==undefined?canUpload:!readOnly;
@@ -3808,6 +3808,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
       toast(extractedText?"Document uploaded and scanned":"Document uploaded");
       setModal(null);setName("");setDescription("");setCategory("General");setFile(null);
       loadDocs();
+      if(reload)reload("documents"); // refresh global data so the AI assistant snapshot includes this document
     }catch(e){toast(e.message,"error");}
     setUploadPhase("");
     setUploading(false);
@@ -3833,6 +3834,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast}){
     await sb.storage.from("documents").remove([doc.filePath]);
     await sb.from("documents").delete().eq("id",doc.id);
     toast("Document deleted");loadDocs();
+    if(reload)reload("documents");
   };
 
   const openEdit=doc=>{setName(doc.name||"");setDescription(doc.description||"");setCategory(doc.category||"General");setModal({edit:doc});};
@@ -4162,7 +4164,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
       {/* DOCUMENTS */}
       {activeTab==="documents"&&<div style={{height:"calc(100vh - 200px)"}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:20}}>Documents</div>
-        <DocumentsView familyId={family.id} canUpload={true} canDelete={false} toast={toast||(()=>{})}/>
+        <DocumentsView familyId={family.id} canUpload={true} canDelete={false} toast={toast||(()=>{})} reload={reload}/>
       </div>}
 
       {/* ASK AI */}
@@ -4238,6 +4240,20 @@ export default function App(){
         const ids=allowedFamilyIdsRef.current||[];
         const idList=ids.length?ids.join(","):"00000000-0000-0000-0000-000000000000";
         q=q.or(`family_id.is.null,family_id.in.(${idList})`);
+      }
+    } else if(prof?.role==="client"){
+      // A client may only ever load their OWN family's data. Without this,
+      // select("*") would pull every family's rows into the client's browser.
+      const fid=prof.familyId||"00000000-0000-0000-0000-000000000000";
+      if(table==="families"){
+        q=q.eq("id",fid);
+      } else if(FAMILY_SCOPED.includes(table)){
+        q=q.eq("family_id",fid);
+      } else {
+        // Non-family-scoped tables (e.g. note_attachments) aren't used by the
+        // client UI; don't load them at all.
+        setData(p=>({...p,[table]:[]}));
+        return;
       }
     }
     const{data:rows,error}=await q;
