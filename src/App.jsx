@@ -775,7 +775,7 @@ const ASSISTANT_SUGGESTIONS=[
   "Which loans mature within the next 12 months?",
 ];
 
-function FamilyAssistant({family,data,reload}){
+function FamilyAssistant({family,data,reload,compact}){
   const isMobile=useIsMobile();
   // Read the family from the live data set so a rename reflects immediately
   // (the `family` prop passed by parents can be a stale snapshot).
@@ -831,7 +831,7 @@ function FamilyAssistant({family,data,reload}){
   const onKey=e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); ask(); } };
 
   return <div style={{maxWidth:820,margin:"0 auto"}}>
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,flexWrap:"wrap"}}>
+    {!compact&&<><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,flexWrap:"wrap"}}>
       {editingName
         ? <div style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?22:26,color:B.navy,fontWeight:600}}>Ask</span>
@@ -849,7 +849,7 @@ function FamilyAssistant({family,data,reload}){
     {nameErr&&<div style={{fontSize:12,color:"#8b1a1a",marginBottom:8}}>⚠ {nameErr}</div>}
     <div style={{fontSize:13,color:B.textSoft,marginBottom:16}}>
       {assistantName} answers questions about this family's dashboard — net worth, properties, loans, insurance, tasks, and documents. Answers come only from the data on file and are read-only.
-    </div>
+    </div></>}
 
     {/* Conversation */}
     <div ref={scrollRef} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:14,boxShadow:B.shadow,padding:isMobile?16:22,minHeight:200,maxHeight:isMobile?"46vh":"52vh",overflowY:"auto",marginBottom:14}}>
@@ -889,6 +889,23 @@ function FamilyAssistant({family,data,reload}){
   </div>;
 }
 
+// Tracks which families have already been greeted this browser session, so the
+// welcome popup appears once per login (per family) rather than on every view.
+const _greetedFamilies=new Set();
+
+function AssistantWelcome({family,data,reload,onClose}){
+  const assistantName=(((data.families||[]).find(x=>x.id===family.id)||family).assistantName||"").trim()||"Titan";
+  return <Modal title={`Hi — I'm ${assistantName}`} onClose={onClose} wide>
+    <div style={{fontSize:14,color:B.text,lineHeight:1.55,marginBottom:16}}>
+      Anything I can help you find before you dive in? Ask me about your net worth, properties, loans, insurance, tasks, or documents — or head straight to the dashboard.
+    </div>
+    <FamilyAssistant family={family} data={data} reload={reload} compact/>
+    <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}>
+      <Btn onClick={onClose}>Take me to the dashboard →</Btn>
+    </div>
+  </Modal>;
+}
+
 function FamilyDashboard({family,data,reload,toast,onBack}){
   const isMobile=useIsMobile();
   const[activeTab,setActiveTab]=useState("overview");
@@ -917,6 +934,13 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
   const TABS=["Overview","Properties","Portfolio","Cash Flow","Valuables","Deals","Notes","Tasks","Documents","Ask Titan"];
   const assistantName=(((data.families||[]).find(x=>x.id===family.id)||family).assistantName||"").trim()||"Titan";
+  const[showWelcome,setShowWelcome]=useState(false);
+  useEffect(()=>{
+    if(!family?.id)return;
+    if(_greetedFamilies.has(family.id))return;   // already greeted this session
+    _greetedFamilies.add(family.id);
+    setShowWelcome(true);
+  },[family?.id]);
 
   // Quick add note (with optional file attachments)
   const[noteBody,setNoteBody]=useState("");
@@ -1426,6 +1450,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       </div>}
 
       {/* Modals */}
+      {showWelcome&&<AssistantWelcome family={family} data={data} reload={reload} onClose={()=>setShowWelcome(false)}/>}
       {modal==="member"&&<Modal title={editM?"Edit Member":"Add Member"} onClose={()=>{setModal(null);setEditM(null);}}>
         <MemberForm initial={editM?{name:editM.name||"",email:editM.email||"",phone:editM.phone||"",company:editM.company||"",type:editM.type||"Individual",dob:editM.dob||"",address:editM.address||""}:null} onSave={async f=>{editM?await editMember(f):await addMember(f);setModal(null);setEditM(null);}} onClose={()=>{setModal(null);setEditM(null);}}/>
       </Modal>}
@@ -3998,6 +4023,14 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
     catch(e){}
     finally{ setSavingWelcome(false); setNamePromptDismissed(true); }
   };
+  const[showAssistantGreeting,setShowAssistantGreeting]=useState(false);
+  useEffect(()=>{
+    if(!family?.id)return;
+    if(showNamePrompt){ _greetedFamilies.add(family.id); return; } // first-login naming serves as the greeting
+    if(_greetedFamilies.has(family.id))return;
+    _greetedFamilies.add(family.id);
+    setShowAssistantGreeting(true);
+  },[family?.id,showNamePrompt]);
   const properties=(data.properties||[]).filter(p=>p.familyId===family.id);
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
   const valuables=(data.valuables||[]).filter(v=>v.familyId===family.id);
@@ -4039,6 +4072,8 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
         <Btn onClick={()=>saveWelcomeName(false)} disabled={savingWelcome}>{savingWelcome?"Saving…":"Save name"}</Btn>
       </div>
     </Modal>}
+
+    {showAssistantGreeting&&!showNamePrompt&&<AssistantWelcome family={family} data={data} reload={reload} onClose={()=>setShowAssistantGreeting(false)}/>}
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
     {/* Header (navy banner with logo, family name, sign out) */}
