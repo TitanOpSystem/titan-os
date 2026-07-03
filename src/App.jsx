@@ -45,7 +45,7 @@ const PRIORITY_COLORS={
   Medium:{bg:"#fef3e2",text:"#8a5c00",dot:"#d4900a"},
   Low:{bg:"#e8f0f8",text:"#293d5c",dot:"#293d5c"},
 };
-const PROP_TYPES=["Residential","Commercial","Industrial","Land","Mixed Use","Vacation"];
+const PROP_TYPES=["Residential","Commercial","Industrial","Land","Mixed Use","Vacation","Boat","Car","Plane"];
 const LOAN_TYPES=["Fixed","ARM","Interest Only","Balloon","Bridge","HELOC"];
 const VALUABLE_CATS=["Car / Vehicle","Jewelry","Art","Watch","Boat / Watercraft","Other"];
 const ACCT_TYPES=["Investment","Brokerage","Retirement (IRA)","401(k)","Trust","Savings","Other","Checking","Money Market","Line of Credit"];
@@ -396,12 +396,12 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
-const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","note_attachments","deadline_acks","family_contacts"];
-const FAMILY_SCOPED=["contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","deadline_acks","family_contacts"];
+const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","note_attachments","deadline_acks","family_contacts","property_contacts"];
+const FAMILY_SCOPED=["contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","deadline_acks","family_contacts","property_contacts"];
 // Display label of the signed-in user, set at login; used to stamp task completions.
 let CURRENT_USER_LABEL="";
 
@@ -1107,6 +1107,11 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   const delFamilyContact=async(id)=>{const{error}=await sb.from("family_contacts").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Contact removed");reload("family_contacts");}};
   const toggleFCAdvisor=async(c)=>{if(!c.email){toast("Add an email to this contact first — the client emails them here.","error");return;}const{error}=await sb.from("family_contacts").update({is_advisor:!c.isAdvisor}).eq("id",c.id);if(error)toast(error.message,"error");else{toast(!c.isAdvisor?"Marked as an emailable advisor":"Removed as advisor option");reload("family_contacts");}};
 
+  const propContactsFor=(pid)=>(data.property_contacts||[]).filter(pc=>pc.propertyId===pid);
+  const addPropertyContact=async(pid,f)=>{const{error}=await sb.from("property_contacts").insert({property_id:pid,family_id:family.id,name:f.name,role:f.role||null,company:f.company||null,email:f.email||null,phone:f.phone||null,notes:f.notes||null});if(error)toast(error.message,"error");else{toast("Contact added");reload("property_contacts");}};
+  const editPropertyContact=async(id,f)=>{const{error}=await sb.from("property_contacts").update({name:f.name,role:f.role||null,company:f.company||null,email:f.email||null,phone:f.phone||null,notes:f.notes||null}).eq("id",id);if(error)toast(error.message,"error");else{toast("Contact updated");reload("property_contacts");}};
+  const delPropertyContact=async(id)=>{const{error}=await sb.from("property_contacts").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Contact removed");reload("property_contacts");}};
+
   // Add property
   const addProperty=async(f)=>{
     const row={family_id:family.id,owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,insurance_expiration:f.insuranceExpiration||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,flood_insurance_expiration:f.floodInsuranceExpiration||null,hoa_fee:Number(f.hoaFee)||0,property_management_fee_pct:Number(f.propertyManagementFeePct)||0,include_mortgage_in_cashflow:f.includeMortgageInCashflow!==false,second_mortgage_balance:f.secondMortgageBalance||null,second_mortgage_payment:f.secondMortgagePayment||null,notes:f.notes||null};
@@ -1333,6 +1338,24 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 </div>)}
               </div>
               {p.notes&&<div style={{marginTop:12,fontSize:13,color:B.textSoft,fontStyle:"italic"}}>{p.notes}</div>}
+              <div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${B.borderLight}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:11,color:B.textMute,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase"}}>Service Providers</div>
+                  <button onClick={()=>setModal({type:"propertyContact",propertyId:p.id})} style={{background:"none",border:`1px solid ${B.border}`,color:B.navy,borderRadius:6,padding:"3px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>+ Add</button>
+                </div>
+                {propContactsFor(p.id).length===0
+                  ? <div style={{fontSize:12,color:B.textMute}}>None yet — add a landscaper, pool service, property manager…</div>
+                  : <div style={{display:"flex",flexDirection:"column",gap:6}}>{propContactsFor(p.id).map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,background:B.bg,borderRadius:6,padding:"6px 10px"}}>
+                      <div style={{minWidth:0}}>
+                        <div style={{fontSize:12,fontWeight:600,color:B.navy}}>{c.name}{c.role&&<span style={{fontWeight:400,color:B.textSoft,marginLeft:6}}>· {c.role}</span>}</div>
+                        <div style={{fontSize:11,color:B.textSoft,display:"flex",gap:10,flexWrap:"wrap",marginTop:1}}>{c.company&&<span>{c.company}</span>}{c.phone&&<span>📞 {c.phone}</span>}{c.email&&<span>✉ {c.email}</span>}</div>
+                      </div>
+                      <div style={{display:"flex",gap:6,flexShrink:0}}>
+                        <button onClick={()=>setModal({type:"propertyContact",propertyId:p.id,contact:c})} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit">✎</button>
+                        <button onClick={()=>delPropertyContact(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
+                      </div>
+                    </div>)}</div>}
+              </div>
             </div>;
             return groups.map(g=><div key={g.type} style={{marginBottom:22}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,paddingBottom:6,borderBottom:`2px solid ${B.gold}`}}>
@@ -1544,7 +1567,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
       {/* DOCUMENTS TAB */}
       {activeTab==="documents"&&<div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
-        <DocumentsView familyId={family.id} readOnly={false} toast={toast} reload={reload}/>
+        <DocumentsView familyId={family.id} readOnly={false} canScan={true} toast={toast} reload={reload}/>
       </div>}
 
       {activeTab==="asktitan"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
@@ -1561,6 +1584,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       {modal==="property"&&<Modal title="Add Property" onClose={()=>setModal(null)} wide><PropertyForm canExtract={true} onSave={async f=>{await addProperty(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal&&modal.type==="editProperty"&&<Modal title="Edit Property" onClose={()=>setModal(null)} wide><PropertyForm initial={modal.property} canExtract={true} onSave={async f=>{await editProperty(modal.property.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="valuable"&&<Modal title="Add Valuable" onClose={()=>setModal(null)}><ValuableForm onSave={async f=>{await addValuable(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
+      {modal&&modal.type==="propertyContact"&&<Modal title={modal.contact?"Edit Service Provider":"Add Service Provider"} onClose={()=>setModal(null)}><PropertyContactForm initial={modal.contact?{name:modal.contact.name||"",role:modal.contact.role||"",company:modal.contact.company||"",email:modal.contact.email||"",phone:modal.contact.phone||"",notes:modal.contact.notes||""}:null} onSave={async f=>{modal.contact?await editPropertyContact(modal.contact.id,f):await addPropertyContact(modal.propertyId,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal&&modal.type==="editValuable"&&<Modal title="Edit Valuable" onClose={()=>setModal(null)}><ValuableForm initial={modal.valuable} onSave={async f=>{await editValuable(modal.valuable.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="deal"&&<Modal title="Add Deal" onClose={()=>setModal(null)}><SimpleDealForm contacts={contacts} onSave={async f=>{await addDeal(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="account"&&<Modal title="Add Portfolio Account" onClose={()=>setModal(null)}><AccountForm onSave={async f=>{await addAccount(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
@@ -1571,7 +1595,30 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 }
 
 // ── MEMBER FORM ───────────────────────────────────────────────────────────────
-function FamilyContactForm({initial,onSave,onClose}){
+function PropertyContactForm({initial,onSave,onClose}){
+  const[f,setF]=useState(initial||{name:"",role:"",company:"",email:"",phone:"",notes:""});
+  const[saving,setSaving]=useState(false);
+  const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  const save=async()=>{if(!f.name.trim())return;setSaving(true);await onSave(f);onClose();};
+  return <div>
+    <Field label="Name"><Inp placeholder="ABC Landscaping" value={f.name} onChange={set("name")}/></Field>
+    <Grid2>
+      <Field label="Service / Role"><Inp placeholder="Landscaper · Pool · Manager" value={f.role||""} onChange={set("role")}/></Field>
+      <Field label="Company"><Inp placeholder="Company name" value={f.company||""} onChange={set("company")}/></Field>
+    </Grid2>
+    <Grid2>
+      <Field label="Phone"><Inp placeholder="+1 555 000" value={f.phone||""} onChange={set("phone")}/></Field>
+      <Field label="Email"><Inp type="email" placeholder="contact@company.com" value={f.email||""} onChange={set("email")}/></Field>
+    </Grid2>
+    <Field label="Notes"><Inp placeholder="Optional — schedule, gate code, account #…" value={f.notes||""} onChange={set("notes")}/></Field>
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
+      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn onClick={save} disabled={saving}>{saving?"Saving…":initial?"Save Changes":"Add Provider"}</Btn>
+    </div>
+  </div>;
+}
+
+function FamilyContactForm({initial,onSave,onClose,hideAdvisor=false,rolePlaceholder="CPA · Estate Attorney · Wealth Advisor"}){
   const[f,setF]=useState(initial||{name:"",role:"",company:"",email:"",phone:"",isAdvisor:false,notes:""});
   const[saving,setSaving]=useState(false);
   const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
@@ -1579,7 +1626,7 @@ function FamilyContactForm({initial,onSave,onClose}){
   return <div>
     <Field label="Name"><Inp placeholder="John Smith" value={f.name} onChange={set("name")}/></Field>
     <Grid2>
-      <Field label="Role / Title"><Inp placeholder="CPA · Estate Attorney · Wealth Advisor" value={f.role||""} onChange={set("role")}/></Field>
+      <Field label="Role / Title"><Inp placeholder={rolePlaceholder} value={f.role||""} onChange={set("role")}/></Field>
       <Field label="Company / Firm"><Inp placeholder="Smith & Co." value={f.company||""} onChange={set("company")}/></Field>
     </Grid2>
     <Grid2>
@@ -1587,11 +1634,11 @@ function FamilyContactForm({initial,onSave,onClose}){
       <Field label="Phone"><Inp placeholder="+1 555 000" value={f.phone||""} onChange={set("phone")}/></Field>
     </Grid2>
     <Field label="Notes"><Inp placeholder="Optional" value={f.notes||""} onChange={set("notes")}/></Field>
-    <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.isAdvisor?"rgba(206,182,132,0.15)":B.bg,borderRadius:8,border:`1px solid ${f.isAdvisor?B.gold:B.border}`,marginBottom:4}}>
+    {!hideAdvisor&&<label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.isAdvisor?"rgba(206,182,132,0.15)":B.bg,borderRadius:8,border:`1px solid ${f.isAdvisor?B.gold:B.border}`,marginBottom:4}}>
       <input type="checkbox" checked={!!f.isAdvisor} onChange={e=>setF(p=>({...p,isAdvisor:e.target.checked}))} style={{width:16,height:16,accentColor:B.navy}}/>
       <span style={{fontSize:13,color:B.navy,fontWeight:600}}>Client can email this contact</span>
       <span style={{fontSize:11,color:B.textMute}}>appears in the client's "Email my advisor"</span>
-    </label>
+    </label>}
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
       <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
       <Btn onClick={save} disabled={saving}>{saving?"Saving…":initial?"Save Changes":"Add Contact"}</Btn>
@@ -1752,7 +1799,7 @@ function PropertyForm({initial,onSave,onClose,canExtract=false}){
       <Btn small variant="ghost" onClick={()=>fileRef.current&&fileRef.current.click()} disabled={extracting}>{extracting?"Reading…":"Upload document"}</Btn>
     </div>
     {extractMsg&&<div style={{background:extractMsg.type==="success"?"#e0f5e9":"#fde8e8",border:`1px solid ${extractMsg.type==="success"?"#2e9e57":"#d43030"}`,color:extractMsg.type==="success"?"#0d5c2b":"#8b1a1a",borderRadius:8,padding:"10px 13px",fontSize:12,marginBottom:14,lineHeight:1.4}}>{extractMsg.type==="success"?"✓ ":"⚠ "}{extractMsg.text}</div>}</>}
-    <Grid2><Field label="Owner / LLC"><Inp placeholder="Smith Holdings LLC" value={f.ownerName||""} onChange={set("ownerName")}/></Field><Field label="Property Type"><Sel value={f.propertyType} onChange={set("propertyType")}>{PROP_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field></Grid2>
+    <Grid2><Field label="Owner / LLC"><Inp placeholder="Smith Holdings LLC" value={f.ownerName||""} onChange={set("ownerName")}/></Field><Field label="Property Type"><Sel value={f.propertyType} onChange={set("propertyType")}>{[...PROP_TYPES,"Other"].map(t=><option key={t}>{t}</option>)}</Sel></Field></Grid2>
     <Field label="Address"><Inp placeholder="123 Main St, Tampa FL" value={f.address} onChange={set("address")}/></Field>
     <Grid2><Field label="Purchase Price"><MoneyInput value={f.purchasePrice||""} onChange={set("purchasePrice")}/></Field><Field label="Current Value"><MoneyInput value={f.currentValue||""} onChange={set("currentValue")}/></Field></Grid2>
     <Grid2><Field label="Purchase Date"><Inp type="date" value={f.purchaseDate||""} onChange={set("purchaseDate")}/></Field><Field label="Loan Type"><Sel value={f.loanType} onChange={set("loanType")}>{LOAN_TYPES.map(t=><option key={t}>{t}</option>)}</Sel></Field></Grid2>
@@ -4072,11 +4119,12 @@ async function extractScannedPdfText(arrayBuffer,onProgress){
   return { text:combined.trim(), pagesScanned:total, totalPages:pdf.numPages, truncated };
 }
 
-function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload}){
+function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,toast,reload}){
   // Backward compat: if readOnly passed, default canUpload=false canDelete=false
   // If canUpload/canDelete passed explicitly, use those
   const allowUpload=canUpload!==undefined?canUpload:!readOnly;
   const allowDelete=canDelete!==undefined?canDelete:!readOnly;
+  const allowScan=canScan!==undefined?canScan:allowUpload; // scanning is advisor-side only
   const[docs,setDocs]=useState([]);
   const[loading,setLoading]=useState(true);
   const[uploading,setUploading]=useState(false);
@@ -4112,7 +4160,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
       // Non-fatal: if extraction fails, the document still uploads.
       let extractedText=null;
       const mt=file.type==="image/jpg"?"image/jpeg":file.type;
-      if(mt==="application/pdf"){
+      if(allowScan&&mt==="application/pdf"){
         // Fast, unlimited browser text extraction first; batched vision scan
         // only for scanned PDFs that have no embedded text.
         try{
@@ -4128,7 +4176,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
             if(r&&r.text)extractedText=r.text;
           }catch(_e){}
         }
-      } else if(["image/png","image/jpeg","image/webp"].includes(mt)){
+      } else if(allowScan&&["image/png","image/jpeg","image/webp"].includes(mt)){
         try{
           setUploadPhase("Scanning for AI assistant…");
           const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=()=>rej(new Error("read failed"));r.readAsDataURL(file);});
@@ -4265,7 +4313,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
         {["All",...DOC_CATEGORIES].map(c=><button key={c} onClick={()=>setFilterCat(c)} style={{background:filterCat===c?B.navy:"transparent",border:`1px solid ${filterCat===c?B.navy:B.border}`,color:filterCat===c?B.white:B.textSoft,borderRadius:20,padding:"3px 12px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{c}</button>)}
       </div>
       {allowUpload&&<Btn onClick={()=>setModal("upload")}>⬆ Upload Document</Btn>}
-      {allowUpload&&unscannedCount>0&&<Btn variant="ghost" onClick={scanAllUnscanned} disabled={!!bulkScan} title="Extract text from existing documents so the AI assistant can read them">{bulkScan?`Scanning ${bulkScan.done}/${bulkScan.total}${scanMsg?" · "+scanMsg:""}…`:`✦ Scan ${unscannedCount} for AI`}</Btn>}
+      {allowScan&&unscannedCount>0&&<Btn variant="ghost" onClick={scanAllUnscanned} disabled={!!bulkScan} title="Extract text from existing documents so the AI assistant can read them">{bulkScan?`Scanning ${bulkScan.done}/${bulkScan.total}${scanMsg?" · "+scanMsg:""}…`:`✦ Scan ${unscannedCount} for AI`}</Btn>}
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
       {loading?<Spinner/>:filtered.length===0?<div style={{padding:"60px 0",textAlign:"center",color:B.textMute}}><div style={{fontSize:40,marginBottom:12}}>📁</div>No documents yet.</div>:
@@ -4288,8 +4336,8 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
           <div style={{fontSize:11,color:B.textMute}}>{fmt(doc.createdAt)}</div>
           <div style={{display:"flex",gap:8,marginTop:4,alignItems:"center",flexWrap:"wrap"}}>
             <Btn small onClick={()=>download(doc)} style={{flex:1}}>⬇ Download</Btn>
-            {allowUpload&&needsScan(doc)&&<Btn small variant="ghost" onClick={()=>scanOne(doc)} disabled={scanningId===doc.id} title="Make this document readable by the AI assistant">{scanningId===doc.id?(scanMsg?`Scanning ${scanMsg}…`:"Scanning…"):"✦ Scan"}</Btn>}
-            {(doc.extractedText||"").trim()&&<span title="The assistant can read this document" style={{fontSize:10,fontWeight:800,letterSpacing:"0.04em",color:B.navyMid,background:"rgba(206,182,132,0.18)",border:`1px solid ${B.gold}`,borderRadius:12,padding:"2px 7px"}}>✦ AI</span>}
+            {allowScan&&needsScan(doc)&&<Btn small variant="ghost" onClick={()=>scanOne(doc)} disabled={scanningId===doc.id} title="Make this document readable by the AI assistant">{scanningId===doc.id?(scanMsg?`Scanning ${scanMsg}…`:"Scanning…"):"✦ Scan"}</Btn>}
+            {allowScan&&(doc.extractedText||"").trim()&&<span title="The assistant can read this document" style={{fontSize:10,fontWeight:800,letterSpacing:"0.04em",color:B.navyMid,background:"rgba(206,182,132,0.18)",border:`1px solid ${B.gold}`,borderRadius:12,padding:"2px 7px"}}>✦ AI</span>}
             {allowUpload&&<Btn small variant="ghost" onClick={()=>openEdit(doc)}>✏ Edit</Btn>}
             {allowDelete&&<Btn small variant="danger" onClick={()=>del(doc)}>✕</Btn>}
           </div>
@@ -4595,7 +4643,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
       {/* DOCUMENTS */}
       {activeTab==="documents"&&<div style={{height:"calc(100vh - 200px)"}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:20}}>Documents</div>
-        <DocumentsView familyId={family.id} canUpload={true} canDelete={false} toast={toast||(()=>{})} reload={reload}/>
+        <DocumentsView familyId={family.id} canUpload={true} canDelete={false} canScan={false} toast={toast||(()=>{})} reload={reload}/>
       </div>}
 
       {/* ASK AI */}
