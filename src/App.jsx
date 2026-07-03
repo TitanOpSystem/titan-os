@@ -895,16 +895,49 @@ function FamilyAssistant({family,data,reload,compact}){
 // welcome popup appears once per login (per family) rather than on every view.
 const _greetedFamilies=new Set();
 
-function AssistantWelcome({family,data,reload,onClose}){
+function AssistantWelcome({family,data,reload,onClose,userProfile}){
   const assistantName=(((data.families||[]).find(x=>x.id===family.id)||family).assistantName||"").trim()||"Titan";
+  const[emailOpen,setEmailOpen]=useState(false);
+  const isClient=userProfile&&userProfile.role==="client";
   return <Modal title={`Hi — I'm ${assistantName}`} onClose={onClose} wide>
     <div style={{fontSize:14,color:B.text,lineHeight:1.55,marginBottom:16}}>
       Anything I can help you find before you dive in? Ask me about your net worth, properties, loans, insurance, tasks, or documents — or head straight to the dashboard.
     </div>
     <FamilyAssistant family={family} data={data} reload={reload} compact/>
-    <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginTop:16,flexWrap:"wrap"}}>
+      {isClient?<Btn variant="ghost" onClick={()=>setEmailOpen(true)}>✉ Email my advisor</Btn>:<span/>}
       <Btn onClick={onClose}>Take me to the dashboard →</Btn>
     </div>
+    {emailOpen&&<EmailAdvisorModal family={family} userProfile={userProfile} onClose={()=>setEmailOpen(false)}/>}
+  </Modal>;
+}
+
+// Compose an email to the family's advisor and hand it to the client's mail app,
+// pre-addressed to the advisor with the client's subject and message.
+function EmailAdvisorModal({family,userProfile,onClose}){
+  const advisorName=(family.advisorName||"").trim();
+  const advisorEmail=(family.advisorEmail||"").trim();
+  const clientName=(userProfile&&(userProfile.fullName))||family.name||"";
+  const advisorFirst=advisorName?advisorName.split(" ")[0]:"";
+  const[subject,setSubject]=useState(`Message from ${family.name||clientName||"client"}`);
+  const[msg,setMsg]=useState(advisorFirst?`Hi ${advisorFirst},\n\n`:"");
+  const send=()=>{
+    if(!advisorEmail)return;
+    const url=`mailto:${encodeURIComponent(advisorEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(msg)}`;
+    const a=document.createElement("a"); a.href=url; a.target="_blank"; document.body.appendChild(a); a.click(); a.remove();
+    onClose();
+  };
+  return <Modal title="Email your advisor" onClose={onClose}>
+    {advisorEmail?<>
+      <div style={{fontSize:13,color:B.textSoft,marginBottom:14}}>To <strong style={{color:B.navy}}>{advisorName||advisorEmail}</strong>{advisorName?` · ${advisorEmail}`:""}</div>
+      <Field label="Subject"><Inp value={subject} onChange={e=>setSubject(e.target.value)}/></Field>
+      <Field label="Message"><textarea value={msg} onChange={e=>setMsg(e.target.value)} rows={7} style={{width:"100%",resize:"vertical",border:`1px solid ${B.border}`,borderRadius:8,padding:"11px 13px",fontSize:14,fontFamily:"inherit",color:B.text,background:B.white,outline:"none",lineHeight:1.5}}/></Field>
+      <div style={{fontSize:11,color:B.textMute,margin:"6px 0 16px"}}>This opens your email app with the message ready to send.</div>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
+        <button onClick={onClose} style={{background:"none",border:"none",color:B.textSoft,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+        <Btn onClick={send} disabled={!subject.trim()}>✉ Open in email app</Btn>
+      </div>
+    </>:<div style={{fontSize:14,color:B.text,lineHeight:1.5}}>No advisor email is on file for your account yet. Please contact your PCM office and we'll get you connected.</div>}
   </Modal>;
 }
 
@@ -4205,6 +4238,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
 function ClientDashboard({family,data,userProfile,logout,toast,reload}){
   const isMobile=useIsMobile();
   const[activeTab,setActiveTab]=useState("summary");
+  const[emailAdvisorOpen,setEmailAdvisorOpen]=useState(false);
   const fam=(data.families||[]).find(x=>x.id===family.id)||family;
   const rawAssistantName=(fam.assistantName||"").trim();
   const assistantName=rawAssistantName||"Titan";
@@ -4269,7 +4303,8 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
       </div>
     </Modal>}
 
-    {showAssistantGreeting&&!showNamePrompt&&<AssistantWelcome family={family} data={data} reload={reload} onClose={()=>setShowAssistantGreeting(false)}/>}
+    {showAssistantGreeting&&!showNamePrompt&&<AssistantWelcome family={family} data={data} reload={reload} userProfile={userProfile} onClose={()=>setShowAssistantGreeting(false)}/>}
+    {emailAdvisorOpen&&<EmailAdvisorModal family={family} userProfile={userProfile} onClose={()=>setEmailAdvisorOpen(false)}/>}
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
     {/* Header (navy banner with logo, family name, sign out) */}
@@ -4281,6 +4316,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?16:22,color:B.white,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.name}</div>
             <div style={{fontSize:isMobile?10:11,color:"rgba(206,182,132,0.7)",marginTop:2}}>{isMobile?"Client Portal":`Client Portal · ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`}</div>
           </div>
+          <button onClick={()=>setEmailAdvisorOpen(true)} style={{background:"rgba(206,182,132,0.2)",border:`1px solid ${B.gold}`,color:B.gold,borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0,fontWeight:600}}>{isMobile?"✉ Advisor":"✉ Email my advisor"}</button>
           <button onClick={logout} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.7)",borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Sign Out</button>
         </div>
       </div>
