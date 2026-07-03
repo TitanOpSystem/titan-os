@@ -3778,6 +3778,44 @@ function UserManagementView({userProfile,data={},toast}){
 // ── DOCUMENTS VIEW ────────────────────────────────────────────────────────────
 const DOC_CATEGORIES = ["General","Tax","Legal","Insurance","Investment","Real Estate","Estate Planning","Other"];
 
+// Loads pdf.js from CDN once (no build dependency). Used to extract PDF text
+// directly in the browser — no size, page, or server-timeout limit.
+let _pdfjsPromise=null;
+function loadPdfJs(){
+  if(typeof window!=="undefined"&&window.pdfjsLib)return Promise.resolve(window.pdfjsLib);
+  if(_pdfjsPromise)return _pdfjsPromise;
+  _pdfjsPromise=new Promise((resolve,reject)=>{
+    try{
+      const s=document.createElement("script");
+      s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+      s.onload=()=>{
+        if(window.pdfjsLib){
+          try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }catch(_e){}
+          resolve(window.pdfjsLib);
+        } else reject(new Error("pdf.js unavailable"));
+      };
+      s.onerror=()=>reject(new Error("pdf.js failed to load"));
+      document.head.appendChild(s);
+    }catch(e){reject(e);}
+  });
+  return _pdfjsPromise;
+}
+// Extract embedded text from a PDF in the browser. Returns "" for scanned/image
+// PDFs (no text layer) so callers fall back to the vision extractor.
+async function extractPdfText(arrayBuffer){
+  const pdfjs=await loadPdfJs();
+  const pdf=await pdfjs.getDocument({data:arrayBuffer}).promise;
+  const maxPages=Math.min(pdf.numPages,80);
+  let out="";
+  for(let i=1;i<=maxPages;i++){
+    const page=await pdf.getPage(i);
+    const content=await page.getTextContent();
+    out+=content.items.map(it=>it.str).join(" ")+"\n";
+    if(out.length>40000){ out=out.slice(0,40000)+"\n…[truncated]"; break; }
+  }
+  return out.trim();
+}
+
 function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload}){
   // Backward compat: if readOnly passed, default canUpload=false canDelete=false
   // If canUpload/canDelete passed explicitly, use those
@@ -3818,13 +3856,30 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
       // Non-fatal: if extraction fails, the document still uploads.
       let extractedText=null;
       const mt=file.type==="image/jpg"?"image/jpeg":file.type;
-      if(["application/pdf","image/png","image/jpeg","image/webp"].includes(mt)){
+      if(mt==="application/pdf"){
+        // Fast, unlimited browser text extraction first; vision fallback only
+        // for scanned PDFs that have no embedded text.
+        try{
+          setUploadPhase("Reading document…");
+          const buf=await file.arrayBuffer();
+          const t=await extractPdfText(buf);
+          if(t&&t.length>=20)extractedText=t;
+        }catch(_e){/* fall through to vision */}
+        if(!extractedText){
+          try{
+            setUploadPhase("Scanning for AI assistant…");
+            const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=()=>rej(new Error("read failed"));r.readAsDataURL(file);});
+            const{data:exResp,error:exErr}=await sb.functions.invoke("extract-document-text",{body:{fileBase64:b64,mediaType:mt}});
+            if(!exErr&&exResp&&exResp.text)extractedText=exResp.text;
+          }catch(_e){}
+        }
+      } else if(["image/png","image/jpeg","image/webp"].includes(mt)){
         try{
           setUploadPhase("Scanning for AI assistant…");
           const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=()=>rej(new Error("read failed"));r.readAsDataURL(file);});
           const{data:exResp,error:exErr}=await sb.functions.invoke("extract-document-text",{body:{fileBase64:b64,mediaType:mt}});
           if(!exErr&&exResp&&exResp.text)extractedText=exResp.text;
-        }catch(_e){/* keep extractedText null; upload proceeds */}
+        }catch(_e){}
       }
       // Save record
       setUploadPhase("Saving…");
@@ -3903,11 +3958,18 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
     const resp=await fetch(signed.signedUrl);
     const blob=await resp.blob();
     if(blob.size>15*1024*1024)throw new Error("File too large to scan (max 15 MB)");
-    const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=()=>rej(new Error("read failed"));r.readAsDataURL(blob);});
-    const{data:exResp,error:exErr}=await sb.functions.invoke("extract-document-text",{body:{fileBase64:b64,mediaType:mt}});
-    if(exErr)throw new Error(exErr.message||"Scan failed");
-    if(exResp&&exResp.error)throw new Error(exResp.error);
-    const text=(exResp&&exResp.text)||"";
+    let text="";
+    if(mt==="application/pdf"){
+      // Browser text extraction first — no size/timeout limit.
+      try{ const buf=await blob.arrayBuffer(); const t=await extractPdfText(buf); if(t&&t.length>=20)text=t; }catch(_e){}
+    }
+    if(!text){
+      const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=()=>rej(new Error("read failed"));r.readAsDataURL(blob);});
+      const{data:exResp,error:exErr}=await sb.functions.invoke("extract-document-text",{body:{fileBase64:b64,mediaType:mt}});
+      if(exErr)throw new Error(exErr.message||"Scan failed");
+      if(exResp&&exResp.error)throw new Error(exResp.error);
+      text=(exResp&&exResp.text)||"";
+    }
     const{error:uErr}=await sb.from("documents").update({extracted_text:text||null}).eq("id",doc.id);
     if(uErr)throw new Error(uErr.message);
     return true;
