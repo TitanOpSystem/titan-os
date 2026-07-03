@@ -721,7 +721,7 @@ function buildFamilySnapshot(family,data){
   // Include document CONTENTS (extracted at upload) so the assistant can answer
   // from inside files. Bounded by a per-document cap and a global budget so the
   // prompt stays a sane size even with dozens of documents.
-  const PER_DOC=4000, DOC_BUDGET=60000;
+  const PER_DOC=40000, DOC_BUDGET=160000;
   let docTextUsed=0;
   const documents=(data.documents||[]).filter(d=>d.familyId===fid).map(d=>{
     const out={ name:d.name||null, category:d.category||null, fileType:d.fileType||null,
@@ -3805,15 +3805,51 @@ function loadPdfJs(){
 async function extractPdfText(arrayBuffer){
   const pdfjs=await loadPdfJs();
   const pdf=await pdfjs.getDocument({data:arrayBuffer}).promise;
-  const maxPages=Math.min(pdf.numPages,80);
+  const maxPages=Math.min(pdf.numPages,400);
   let out="";
   for(let i=1;i<=maxPages;i++){
     const page=await pdf.getPage(i);
     const content=await page.getTextContent();
     out+=content.items.map(it=>it.str).join(" ")+"\n";
-    if(out.length>40000){ out=out.slice(0,40000)+"\n…[truncated]"; break; }
+    if(out.length>200000){ out=out.slice(0,200000)+"\n…[truncated]"; break; }
   }
   return out.trim();
+}
+
+// Scanned/image PDFs have no text layer. Render each page to an image in the
+// browser and send them to the vision extractor in small batches, so no single
+// request is large enough to time out. Handles long documents (e.g. trusts).
+const SCANNED_PAGE_CAP=150;   // max pages we vision-scan per document
+const SCAN_BATCH=4;           // pages per request
+async function extractScannedPdfText(arrayBuffer,onProgress){
+  const pdfjs=await loadPdfJs();
+  const pdf=await pdfjs.getDocument({data:arrayBuffer}).promise;
+  const total=Math.min(pdf.numPages,SCANNED_PAGE_CAP);
+  const renderPage=async i=>{
+    const page=await pdf.getPage(i);
+    const viewport=page.getViewport({scale:1.6});
+    const canvas=document.createElement("canvas");
+    canvas.width=viewport.width; canvas.height=viewport.height;
+    const ctx=canvas.getContext("2d");
+    await page.render({canvasContext:ctx,viewport}).promise;
+    const dataUrl=canvas.toDataURL("image/jpeg",0.8);
+    canvas.width=0; canvas.height=0; // free memory
+    return dataUrl.split(",")[1];
+  };
+  let combined="";
+  for(let start=1;start<=total;start+=SCAN_BATCH){
+    const end=Math.min(start+SCAN_BATCH-1,total);
+    if(onProgress)onProgress(start,total);
+    const images=[];
+    for(let p=start;p<=end;p++){ images.push({data:await renderPage(p),mediaType:"image/jpeg"}); }
+    const{data:exResp,error:exErr}=await sb.functions.invoke("extract-document-text",{body:{images}});
+    if(exErr)throw new Error(exErr.message||"Scan failed");
+    if(exResp&&exResp.error)throw new Error(exResp.detail||exResp.error);
+    if(exResp&&exResp.text)combined+=(combined?"\n":"")+exResp.text;
+    if(combined.length>400000){ combined=combined.slice(0,400000)+"\n…[truncated]"; break; }
+  }
+  const truncated=pdf.numPages>SCANNED_PAGE_CAP;
+  return { text:combined.trim(), pagesScanned:total, totalPages:pdf.numPages, truncated };
 }
 
 function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload}){
@@ -3857,8 +3893,8 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
       let extractedText=null;
       const mt=file.type==="image/jpg"?"image/jpeg":file.type;
       if(mt==="application/pdf"){
-        // Fast, unlimited browser text extraction first; vision fallback only
-        // for scanned PDFs that have no embedded text.
+        // Fast, unlimited browser text extraction first; batched vision scan
+        // only for scanned PDFs that have no embedded text.
         try{
           setUploadPhase("Reading document…");
           const buf=await file.arrayBuffer();
@@ -3867,10 +3903,9 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
         }catch(_e){/* fall through to vision */}
         if(!extractedText){
           try{
-            setUploadPhase("Scanning for AI assistant…");
-            const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=()=>rej(new Error("read failed"));r.readAsDataURL(file);});
-            const{data:exResp,error:exErr}=await sb.functions.invoke("extract-document-text",{body:{fileBase64:b64,mediaType:mt}});
-            if(!exErr&&exResp&&exResp.text)extractedText=exResp.text;
+            const buf2=await file.arrayBuffer();
+            const r=await extractScannedPdfText(buf2,(p,tot)=>setUploadPhase(`Scanning page ${p} of ${tot}…`));
+            if(r&&r.text)extractedText=r.text;
           }catch(_e){}
         }
       } else if(["image/png","image/jpeg","image/webp"].includes(mt)){
@@ -3950,20 +3985,25 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
   const needsScan=doc=>!!guessMedia(doc)&&!((doc.extractedText||"").trim());
   // Backfill: scan an EXISTING document in place — download it, extract text,
   // and store it on the same row. No re-upload, no duplicate.
-  const scanExisting=async doc=>{
+  const scanExisting=async (doc,onProgress)=>{
     const mt=guessMedia(doc);
     if(!mt)return false;
     const{data:signed,error:sErr}=await sb.storage.from("documents").createSignedUrl(doc.filePath,300);
     if(sErr||!signed?.signedUrl)throw new Error("Could not open file");
     const resp=await fetch(signed.signedUrl);
     const blob=await resp.blob();
-    if(blob.size>15*1024*1024)throw new Error("File too large to scan (max 15 MB)");
     let text="";
     if(mt==="application/pdf"){
-      // Browser text extraction first — no size/timeout limit.
+      // Browser text extraction first (free, no limit); batched vision scan for
+      // scanned PDFs with no text layer.
       try{ const buf=await blob.arrayBuffer(); const t=await extractPdfText(buf); if(t&&t.length>=20)text=t; }catch(_e){}
-    }
-    if(!text){
+      if(!text){
+        const buf2=await blob.arrayBuffer();
+        const r=await extractScannedPdfText(buf2,onProgress);
+        if(r&&r.text)text=r.text;
+      }
+    } else {
+      if(blob.size>15*1024*1024)throw new Error("Image too large to scan (max 15 MB)");
       const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]);r.onerror=()=>rej(new Error("read failed"));r.readAsDataURL(blob);});
       const{data:exResp,error:exErr}=await sb.functions.invoke("extract-document-text",{body:{fileBase64:b64,mediaType:mt}});
       if(exErr)throw new Error(exErr.message||"Scan failed");
@@ -3974,11 +4014,12 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
     if(uErr)throw new Error(uErr.message);
     return true;
   };
+  const[scanMsg,setScanMsg]=useState("");
   const scanOne=async doc=>{
-    setScanningId(doc.id);
-    try{ await scanExisting(doc); toast("Document scanned"); loadDocs(); if(reload)reload("documents"); }
+    setScanningId(doc.id); setScanMsg("");
+    try{ await scanExisting(doc,(p,t)=>setScanMsg(`page ${p}/${t}`)); toast("Document scanned"); loadDocs(); if(reload)reload("documents"); }
     catch(e){ toast(e.message||"Scan failed","error"); }
-    finally{ setScanningId(null); }
+    finally{ setScanningId(null); setScanMsg(""); }
   };
   const scanAllUnscanned=async()=>{
     const targets=docs.filter(needsScan);
@@ -3986,10 +4027,11 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
     setBulkScan({done:0,total:targets.length});
     let ok=0;
     for(let i=0;i<targets.length;i++){
-      try{ await scanExisting(targets[i]); ok++; }catch(_e){}
-      setBulkScan({done:i+1,total:targets.length});
+      setBulkScan({done:i,total:targets.length});
+      try{ await scanExisting(targets[i],(p,t)=>setScanMsg(`p${p}/${t}`)); ok++; }catch(_e){}
+      setScanMsg("");
     }
-    setBulkScan(null);
+    setBulkScan(null); setScanMsg("");
     toast(`Scanned ${ok} of ${targets.length} document${targets.length>1?"s":""}`);
     loadDocs(); if(reload)reload("documents");
   };
@@ -4003,7 +4045,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
         {["All",...DOC_CATEGORIES].map(c=><button key={c} onClick={()=>setFilterCat(c)} style={{background:filterCat===c?B.navy:"transparent",border:`1px solid ${filterCat===c?B.navy:B.border}`,color:filterCat===c?B.white:B.textSoft,borderRadius:20,padding:"3px 12px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{c}</button>)}
       </div>
       {allowUpload&&<Btn onClick={()=>setModal("upload")}>⬆ Upload Document</Btn>}
-      {allowUpload&&unscannedCount>0&&<Btn variant="ghost" onClick={scanAllUnscanned} disabled={!!bulkScan} title="Extract text from existing documents so the AI assistant can read them">{bulkScan?`Scanning ${bulkScan.done}/${bulkScan.total}…`:`✦ Scan ${unscannedCount} for AI`}</Btn>}
+      {allowUpload&&unscannedCount>0&&<Btn variant="ghost" onClick={scanAllUnscanned} disabled={!!bulkScan} title="Extract text from existing documents so the AI assistant can read them">{bulkScan?`Scanning ${bulkScan.done}/${bulkScan.total}${scanMsg?" · "+scanMsg:""}…`:`✦ Scan ${unscannedCount} for AI`}</Btn>}
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
       {loading?<Spinner/>:filtered.length===0?<div style={{padding:"60px 0",textAlign:"center",color:B.textMute}}><div style={{fontSize:40,marginBottom:12}}>📁</div>No documents yet.</div>:
@@ -4026,7 +4068,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,toast,reload
           <div style={{fontSize:11,color:B.textMute}}>{fmt(doc.createdAt)}</div>
           <div style={{display:"flex",gap:8,marginTop:4,alignItems:"center",flexWrap:"wrap"}}>
             <Btn small onClick={()=>download(doc)} style={{flex:1}}>⬇ Download</Btn>
-            {allowUpload&&needsScan(doc)&&<Btn small variant="ghost" onClick={()=>scanOne(doc)} disabled={scanningId===doc.id} title="Make this document readable by the AI assistant">{scanningId===doc.id?"Scanning…":"✦ Scan"}</Btn>}
+            {allowUpload&&needsScan(doc)&&<Btn small variant="ghost" onClick={()=>scanOne(doc)} disabled={scanningId===doc.id} title="Make this document readable by the AI assistant">{scanningId===doc.id?(scanMsg?`Scanning ${scanMsg}…`:"Scanning…"):"✦ Scan"}</Btn>}
             {(doc.extractedText||"").trim()&&<span title="The assistant can read this document" style={{fontSize:10,fontWeight:800,letterSpacing:"0.04em",color:B.navyMid,background:"rgba(206,182,132,0.18)",border:`1px solid ${B.gold}`,borderRadius:12,padding:"2px 7px"}}>✦ AI</span>}
             {allowUpload&&<Btn small variant="ghost" onClick={()=>openEdit(doc)}>✏ Edit</Btn>}
             {allowDelete&&<Btn small variant="danger" onClick={()=>del(doc)}>✕</Btn>}
