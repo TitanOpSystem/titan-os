@@ -401,8 +401,8 @@ const toClient=obj=>{
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
-const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","note_attachments","deadline_acks"];
-const FAMILY_SCOPED=["contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","deadline_acks"];
+const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","note_attachments","deadline_acks","family_contacts"];
+const FAMILY_SCOPED=["contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","deadline_acks","family_contacts"];
 // Display label of the signed-in user, set at login; used to stamp task completions.
 let CURRENT_USER_LABEL="";
 
@@ -919,28 +919,38 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
   const primaryName=(family.advisorName||"").trim();
   const primaryEmailRaw=(family.advisorEmail||"").trim();
   const primaryEmail=primaryEmailRaw.toLowerCase();
-  const flagged=((data&&data.contacts)||[]).filter(c=>c.familyId===family.id&&c.isAdvisor&&(c.email||"").trim());
+  const flagged=((data&&data.family_contacts)||[]).filter(c=>c.familyId===family.id&&c.isAdvisor&&(c.email||"").trim());
   const options=[];
   if(primaryEmailRaw) options.push({name:primaryName||primaryEmailRaw,email:primaryEmailRaw,primary:true});
   flagged.forEach(c=>{ if((c.email||"").trim().toLowerCase()!==primaryEmail) options.push({name:c.name||c.email,email:(c.email||"").trim(),primary:false}); });
   const clientName=(userProfile&&userProfile.fullName)||family.name||"";
+  const clientEmail=(userProfile&&userProfile.email)||"";
   const[toEmail,setToEmail]=useState(options[0]?options[0].email:"");
   const[subject,setSubject]=useState(`Message from ${family.name||clientName||"client"}`);
   const[msg,setMsg]=useState("");
+  const[sending,setSending]=useState(false);
+  const[err,setErr]=useState(null);
+  const[sent,setSent]=useState(false);
   const selected=options.find(o=>o.email===toEmail)||options[0];
   const ccPrimary=(selected&&!selected.primary&&primaryEmailRaw)?{name:primaryName||primaryEmailRaw,email:primaryEmailRaw}:null;
-  const send=()=>{
-    if(!selected)return;
-    const params=[];
-    if(ccPrimary)params.push(`cc=${encodeURIComponent(ccPrimary.email)}`);
-    params.push(`subject=${encodeURIComponent(subject)}`);
-    params.push(`body=${encodeURIComponent(msg)}`);
-    const url=`mailto:${encodeURIComponent(selected.email)}?${params.join("&")}`;
-    const a=document.createElement("a");a.href=url;a.target="_blank";document.body.appendChild(a);a.click();a.remove();
-    onClose();
+  const send=async()=>{
+    if(!selected||sending||!msg.trim())return;
+    setSending(true);setErr(null);
+    try{
+      const{data:resp,error}=await sb.functions.invoke("send-advisor-email",{body:{toEmail:selected.email,subject,message:msg}});
+      if(error)throw new Error(error.message||"Could not send.");
+      if(resp&&resp.error)throw new Error(resp.detail||resp.error);
+      setSent(true);
+    }catch(e){ setErr(e&&e.message?e.message:"Could not send the email."); }
+    finally{ setSending(false); }
   };
   return <Modal title="Email your advisor" onClose={onClose}>
-    {options.length?<>
+    {sent?<div style={{textAlign:"center",padding:"12px 0"}}>
+      <div style={{fontSize:40,marginBottom:8}}>✓</div>
+      <div style={{fontSize:16,color:B.navy,fontWeight:600,fontFamily:"'Cormorant Garamond',serif"}}>Message sent</div>
+      <div style={{fontSize:13,color:B.textSoft,marginTop:6,lineHeight:1.5}}>Your message went to <strong>{selected.name}</strong>{ccPrimary?<>, with <strong>{ccPrimary.name}</strong> copied</>:null}. They can reply directly to your email.</div>
+      <div style={{marginTop:18}}><Btn onClick={onClose}>Done</Btn></div>
+    </div>:options.length?<>
       <Field label="To">
         {options.length>1
           ? <Sel value={toEmail} onChange={e=>setToEmail(e.target.value)}>{options.map(o=><option key={o.email} value={o.email}>{o.name}{o.primary?" (primary advisor)":""} · {o.email}</option>)}</Sel>
@@ -952,10 +962,11 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
       </div>}
       <Field label="Subject"><Inp value={subject} onChange={e=>setSubject(e.target.value)}/></Field>
       <Field label="Message"><textarea value={msg} onChange={e=>setMsg(e.target.value)} rows={7} placeholder="Write your message…" style={{width:"100%",resize:"vertical",border:`1px solid ${B.border}`,borderRadius:8,padding:"11px 13px",fontSize:14,fontFamily:"inherit",color:B.text,background:B.white,outline:"none",lineHeight:1.5}}/></Field>
-      <div style={{fontSize:11,color:B.textMute,margin:"6px 0 16px"}}>This opens your email app with the message ready to send.</div>
+      <div style={{fontSize:11,color:B.textMute,margin:"6px 0 14px"}}>{clientEmail?<>Sent from your address (<strong>{clientEmail}</strong>) — your advisor can reply straight to you.</>:"Your advisor can reply straight to you."}</div>
+      {err&&<div style={{background:"#fde8e8",border:"1px solid #f5c6c6",color:"#8b1a1a",borderRadius:8,padding:"9px 12px",fontSize:12,marginBottom:12}}>⚠ {err}</div>}
       <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
         <button onClick={onClose} style={{background:"none",border:"none",color:B.textSoft,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-        <Btn onClick={send} disabled={!subject.trim()}>✉ Open in email app</Btn>
+        <Btn onClick={send} disabled={sending||!subject.trim()||!msg.trim()}>{sending?"Sending…":"✉ Send email"}</Btn>
       </div>
     </>:<div style={{fontSize:14,color:B.text,lineHeight:1.5}}>No advisor email is on file for your account yet. Please contact your PCM office and we'll get you connected.</div>}
   </Modal>;
@@ -1090,6 +1101,13 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
     const{error}=await sb.from("contacts").update({is_advisor:!c.isAdvisor}).eq("id",c.id);
     if(error)toast(error.message,"error");else{toast(!c.isAdvisor?"Marked as an emailable advisor":"Removed as advisor option");reload("contacts");}
   };
+  const[editFC,setEditFC]=useState(null);
+  const famContacts=(data.family_contacts||[]).filter(fc=>fc.familyId===family.id);
+  const addFamilyContact=async(f)=>{const{error}=await sb.from("family_contacts").insert({family_id:family.id,name:f.name,role:f.role||null,company:f.company||null,email:f.email||null,phone:f.phone||null,is_advisor:!!f.isAdvisor,notes:f.notes||null});if(error)toast(error.message,"error");else{toast("Contact added");reload("family_contacts");}};
+  const editFamilyContact=async(f)=>{const{error}=await sb.from("family_contacts").update({name:f.name,role:f.role||null,company:f.company||null,email:f.email||null,phone:f.phone||null,is_advisor:!!f.isAdvisor,notes:f.notes||null}).eq("id",editFC.id);if(error)toast(error.message,"error");else{toast("Contact updated");reload("family_contacts");}};
+  const delFamilyContact=async(id)=>{const{error}=await sb.from("family_contacts").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Contact removed");reload("family_contacts");}};
+  const toggleFCAdvisor=async(c)=>{if(!c.email){toast("Add an email to this contact first — the client emails them here.","error");return;}const{error}=await sb.from("family_contacts").update({is_advisor:!c.isAdvisor}).eq("id",c.id);if(error)toast(error.message,"error");else{toast(!c.isAdvisor?"Marked as an emailable advisor":"Removed as advisor option");reload("family_contacts");}};
+
   // Add property
   const addProperty=async(f)=>{
     const row={family_id:family.id,owner_name:f.ownerName||null,address:f.address,property_type:f.propertyType,purchase_price:f.purchasePrice||null,purchase_date:f.purchaseDate||null,current_value:f.currentValue||null,lender:f.lender||null,loan_balance:f.loanBalance||null,interest_rate:f.interestRate||null,loan_payment:f.loanPayment||null,loan_maturity_date:f.loanMaturityDate||null,loan_type:f.loanType,rental_income:f.rentalIncome||null,property_taxes:f.propertyTaxes||null,utilities:f.utilities||null,insurance_company:f.insuranceCompany||null,insurance_premium:f.insurancePremium||null,insurance_expiration:f.insuranceExpiration||null,flood_insurance:!!f.floodInsurance,flood_insurance_company:f.floodInsuranceCompany||null,flood_insurance_premium:f.floodInsurancePremium||null,flood_insurance_expiration:f.floodInsuranceExpiration||null,hoa_fee:Number(f.hoaFee)||0,property_management_fee_pct:Number(f.propertyManagementFeePct)||0,include_mortgage_in_cashflow:f.includeMortgageInCashflow!==false,second_mortgage_balance:f.secondMortgageBalance||null,second_mortgage_payment:f.secondMortgagePayment||null,notes:f.notes||null};
@@ -1213,12 +1231,35 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <Badge scheme={c.type==="Business"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{c.type}</Badge>
-                  <button onClick={()=>toggleMemberAdvisor(c)} title={c.isAdvisor?"Client can email this advisor — click to remove":"Make this contact an advisor the client can email"} style={{background:c.isAdvisor?"rgba(206,182,132,0.22)":"none",border:`1px solid ${c.isAdvisor?B.gold:B.border}`,color:c.isAdvisor?B.navy:B.textMute,cursor:"pointer",fontSize:11,fontWeight:600,borderRadius:20,padding:"2px 9px",fontFamily:"inherit"}}>{c.isAdvisor?"★ Advisor":"☆ Advisor"}</button>
                   <button onClick={()=>{setEditM(c);setModal("member");}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit member">✎</button>
                   <button onClick={()=>delMember(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
                 </div>
               </div>)}
             </div>
+            {/* Advisors & Contacts (professional contacts linked to this family) */}
+            <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Advisors & Contacts</div>
+                <Btn small onClick={()=>{setEditFC(null);setModal("familyContact");}}>+ Add</Btn>
+              </div>
+              <GoldLine/>
+              {famContacts.length===0?<Empty text="No contacts yet — add advisors, CPA, attorney…"/>:famContacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`,gap:8}}>
+                <div style={{minWidth:0}}>
+                  <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{c.name}{c.role&&<span style={{fontWeight:400,color:B.textSoft,fontSize:11,marginLeft:6}}>· {c.role}</span>}</div>
+                  <div style={{fontSize:11,color:B.textSoft,marginTop:2,display:"flex",gap:10,flexWrap:"wrap"}}>
+                    {c.company&&<span>{c.company}</span>}
+                    {c.email&&<span>✉ {c.email}</span>}
+                    {c.phone&&<span>📞 {c.phone}</span>}
+                  </div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                  <button onClick={()=>toggleFCAdvisor(c)} title={c.isAdvisor?"Client can email this advisor — click to remove":"Make this contact an advisor the client can email"} style={{background:c.isAdvisor?"rgba(206,182,132,0.22)":"none",border:`1px solid ${c.isAdvisor?B.gold:B.border}`,color:c.isAdvisor?B.navy:B.textMute,cursor:"pointer",fontSize:11,fontWeight:600,borderRadius:20,padding:"2px 9px",fontFamily:"inherit"}}>{c.isAdvisor?"★ Advisor":"☆ Advisor"}</button>
+                  <button onClick={()=>{setEditFC(c);setModal("familyContact");}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit contact">✎</button>
+                  <button onClick={()=>delFamilyContact(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
+                </div>
+              </div>)}
+            </div>
+
             {/* Upcoming Tasks */}
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -1513,6 +1554,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
       {/* Modals */}
       {showWelcome&&<AssistantWelcome family={family} data={data} reload={reload} onClose={()=>setShowWelcome(false)}/>}
+      {modal==="familyContact"&&<Modal title={editFC?"Edit Contact":"Add Contact"} onClose={()=>{setModal(null);setEditFC(null);}}><FamilyContactForm initial={editFC?{name:editFC.name||"",role:editFC.role||"",company:editFC.company||"",email:editFC.email||"",phone:editFC.phone||"",isAdvisor:!!editFC.isAdvisor,notes:editFC.notes||""}:null} onSave={async f=>{editFC?await editFamilyContact(f):await addFamilyContact(f);setModal(null);setEditFC(null);}} onClose={()=>{setModal(null);setEditFC(null);}}/></Modal>}
       {modal==="member"&&<Modal title={editM?"Edit Member":"Add Member"} onClose={()=>{setModal(null);setEditM(null);}}>
         <MemberForm initial={editM?{name:editM.name||"",email:editM.email||"",phone:editM.phone||"",company:editM.company||"",type:editM.type||"Individual",dob:editM.dob||"",anniversary:editM.anniversary||"",address:editM.address||"",isAdvisor:!!editM.isAdvisor}:null} onSave={async f=>{editM?await editMember(f):await addMember(f);setModal(null);setEditM(null);}} onClose={()=>{setModal(null);setEditM(null);}}/>
       </Modal>}
@@ -1530,6 +1572,34 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 }
 
 // ── MEMBER FORM ───────────────────────────────────────────────────────────────
+function FamilyContactForm({initial,onSave,onClose}){
+  const[f,setF]=useState(initial||{name:"",role:"",company:"",email:"",phone:"",isAdvisor:false,notes:""});
+  const[saving,setSaving]=useState(false);
+  const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  const save=async()=>{if(!f.name.trim())return;setSaving(true);await onSave(f);onClose();};
+  return <div>
+    <Field label="Name"><Inp placeholder="John Smith" value={f.name} onChange={set("name")}/></Field>
+    <Grid2>
+      <Field label="Role / Title"><Inp placeholder="CPA · Estate Attorney · Wealth Advisor" value={f.role||""} onChange={set("role")}/></Field>
+      <Field label="Company / Firm"><Inp placeholder="Smith & Co." value={f.company||""} onChange={set("company")}/></Field>
+    </Grid2>
+    <Grid2>
+      <Field label="Email"><Inp type="email" placeholder="john@firm.com" value={f.email||""} onChange={set("email")}/></Field>
+      <Field label="Phone"><Inp placeholder="+1 555 000" value={f.phone||""} onChange={set("phone")}/></Field>
+    </Grid2>
+    <Field label="Notes"><Inp placeholder="Optional" value={f.notes||""} onChange={set("notes")}/></Field>
+    <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.isAdvisor?"rgba(206,182,132,0.15)":B.bg,borderRadius:8,border:`1px solid ${f.isAdvisor?B.gold:B.border}`,marginBottom:4}}>
+      <input type="checkbox" checked={!!f.isAdvisor} onChange={e=>setF(p=>({...p,isAdvisor:e.target.checked}))} style={{width:16,height:16,accentColor:B.navy}}/>
+      <span style={{fontSize:13,color:B.navy,fontWeight:600}}>Client can email this contact</span>
+      <span style={{fontSize:11,color:B.textMute}}>appears in the client's "Email my advisor"</span>
+    </label>
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
+      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn onClick={save} disabled={saving}>{saving?"Saving…":initial?"Save Changes":"Add Contact"}</Btn>
+    </div>
+  </div>;
+}
+
 function MemberForm({initial,onSave,onClose}){
   const[f,setF]=useState(initial||{name:"",email:"",phone:"",company:"",type:"Individual",dob:"",anniversary:"",address:"",isAdvisor:false});
   const[saving,setSaving]=useState(false);
@@ -1550,11 +1620,6 @@ function MemberForm({initial,onSave,onClose}){
       <Field label="Anniversary"><Inp type="date" value={f.anniversary||""} onChange={set("anniversary")}/></Field>
       <Field label="Address"><Inp placeholder="123 Main St, Tampa, FL" value={f.address||""} onChange={set("address")}/></Field>
     </Grid2>
-    <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.isAdvisor?"rgba(206,182,132,0.15)":B.bg,borderRadius:8,border:`1px solid ${f.isAdvisor?B.gold:B.border}`,marginBottom:4}}>
-      <input type="checkbox" checked={!!f.isAdvisor} onChange={e=>setF(p=>({...p,isAdvisor:e.target.checked}))} style={{width:16,height:16,accentColor:B.navy}}/>
-      <span style={{fontSize:13,color:B.navy,fontWeight:600}}>Advisor the client can email</span>
-      <span style={{fontSize:11,color:B.textMute}}>appears as an option in the client's "Email my advisor"</span>
-    </label>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
       <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
       <Btn onClick={save} disabled={saving}>{saving?"Saving…":initial?"Save Changes":"Add Member"}</Btn>
