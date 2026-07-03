@@ -397,12 +397,14 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
-const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","note_attachments"];
-const FAMILY_SCOPED=["contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events"];
+const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","note_attachments","deadline_acks"];
+const FAMILY_SCOPED=["contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","deadline_acks"];
+// Display label of the signed-in user, set at login; used to stamp task completions.
+let CURRENT_USER_LABEL="";
 
 
 // ── UI PRIMITIVES ─────────────────────────────────────────────────────────────
@@ -999,9 +1001,10 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
     if(error)toast(error.message,"error");else{toast("Task added");reload("tasks");}
   };
   const toggleTask=async(t)=>{
-    const{error}=await sb.from("tasks").update({done:!t.done}).eq("id",t.id);
+    const marking=!t.done;
+    const{error}=await sb.from("tasks").update(marking?{done:true,completed_at:new Date().toISOString(),completed_by:CURRENT_USER_LABEL||null}:{done:false,completed_at:null,completed_by:null}).eq("id",t.id);
     if(error){toast(error.message,"error");return;}
-    if(!t.done&&t.recurrence){
+    if(marking&&t.recurrence){
       const nd=nextRecurrence(t.dueDate,t.recurrence,t.recurrenceInterval,t.recurrenceUnit);
       if(nd){await sb.from("tasks").insert({family_id:t.familyId||family.id,contact_id:t.contactId||null,title:t.title,due_date:nd,priority:t.priority,reminder_days:t.reminderDays||7,done:false,recurrence:t.recurrence,recurrence_interval:t.recurrence==="Custom"?(t.recurrenceInterval||1):null,recurrence_unit:t.recurrence==="Custom"?(t.recurrenceUnit||"week"):null});toast("Next occurrence: "+fmt(nd));}
     }
@@ -1018,7 +1021,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
   // Add/remove members
   const addMember=async(f)=>{
-    const{error}=await sb.from("contacts").insert({family_id:family.id,name:f.name,email:f.email||null,phone:f.phone||null,company:f.company||null,type:f.type||"Individual",dob:f.dob||null,address:f.address||null,tags:null});
+    const{error}=await sb.from("contacts").insert({family_id:family.id,name:f.name,email:f.email||null,phone:f.phone||null,company:f.company||null,type:f.type||"Individual",dob:f.dob||null,anniversary:f.anniversary||null,address:f.address||null,tags:null});
     if(error)toast(error.message,"error");else{toast("Member added");reload("contacts");}
   };
   const delMember=async(id)=>{
@@ -1026,7 +1029,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
     if(error)toast(error.message,"error");else{toast("Member removed");reload("contacts");}
   };
   const editMember=async(f)=>{
-    const{error}=await sb.from("contacts").update({name:f.name,email:f.email||null,phone:f.phone||null,company:f.company||null,type:f.type||"Individual",dob:f.dob||null,address:f.address||null}).eq("id",editM.id);
+    const{error}=await sb.from("contacts").update({name:f.name,email:f.email||null,phone:f.phone||null,company:f.company||null,type:f.type||"Individual",dob:f.dob||null,anniversary:f.anniversary||null,address:f.address||null}).eq("id",editM.id);
     if(error)toast(error.message,"error");else{toast("Member updated");reload("contacts");}
   };
   // Add property
@@ -1452,7 +1455,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       {/* Modals */}
       {showWelcome&&<AssistantWelcome family={family} data={data} reload={reload} onClose={()=>setShowWelcome(false)}/>}
       {modal==="member"&&<Modal title={editM?"Edit Member":"Add Member"} onClose={()=>{setModal(null);setEditM(null);}}>
-        <MemberForm initial={editM?{name:editM.name||"",email:editM.email||"",phone:editM.phone||"",company:editM.company||"",type:editM.type||"Individual",dob:editM.dob||"",address:editM.address||""}:null} onSave={async f=>{editM?await editMember(f):await addMember(f);setModal(null);setEditM(null);}} onClose={()=>{setModal(null);setEditM(null);}}/>
+        <MemberForm initial={editM?{name:editM.name||"",email:editM.email||"",phone:editM.phone||"",company:editM.company||"",type:editM.type||"Individual",dob:editM.dob||"",anniversary:editM.anniversary||"",address:editM.address||""}:null} onSave={async f=>{editM?await editMember(f):await addMember(f);setModal(null);setEditM(null);}} onClose={()=>{setModal(null);setEditM(null);}}/>
       </Modal>}
       {modal==="task"&&<Modal title="New Task" onClose={()=>setModal(null)}><TaskForm contacts={contacts} onSave={async f=>{await addTask(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="property"&&<Modal title="Add Property" onClose={()=>setModal(null)} wide><PropertyForm canExtract={true} onSave={async f=>{await addProperty(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
@@ -1469,7 +1472,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
 // ── MEMBER FORM ───────────────────────────────────────────────────────────────
 function MemberForm({initial,onSave,onClose}){
-  const[f,setF]=useState(initial||{name:"",email:"",phone:"",company:"",type:"Individual",dob:"",address:""});
+  const[f,setF]=useState(initial||{name:"",email:"",phone:"",company:"",type:"Individual",dob:"",anniversary:"",address:""});
   const[saving,setSaving]=useState(false);
   const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const save=async()=>{if(!f.name.trim())return;setSaving(true);await onSave(f);onClose();};
@@ -1485,6 +1488,7 @@ function MemberForm({initial,onSave,onClose}){
     </Grid2>
     <Grid2>
       <Field label="Date of Birth"><Inp type="date" value={f.dob||""} onChange={set("dob")}/></Field>
+      <Field label="Anniversary"><Inp type="date" value={f.anniversary||""} onChange={set("anniversary")}/></Field>
       <Field label="Address"><Inp placeholder="123 Main St, Tampa, FL" value={f.address||""} onChange={set("address")}/></Field>
     </Grid2>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
@@ -3084,7 +3088,7 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
   },[tasks,contacts,advisors]);
 
   const add=async f=>{const{error}=await sb.from("tasks").insert({family_id:f.familyId||null,contact_id:f.contactId||null,title:f.title,due_date:f.dueDate||null,priority:f.priority,reminder_days:Number(f.reminderDays)||7,done:false,recurrence:f.recurrence||null,recurrence_interval:f.recurrence==="Custom"?(Number(f.recurrenceInterval)||1):null,recurrence_unit:f.recurrence==="Custom"?(f.recurrenceUnit||"week"):null});if(error)toast(error.message,"error");else{toast("Task added");reload("tasks");}};
-  const tog=async t=>{const{error}=await sb.from("tasks").update({done:!t.done}).eq("id",t.id);if(error){toast(error.message,"error");return;}if(!t.done&&t.recurrence){const nd=nextRecurrence(t.dueDate,t.recurrence,t.recurrenceInterval,t.recurrenceUnit);if(nd){await sb.from("tasks").insert({family_id:t.familyId||null,contact_id:t.contactId||null,title:t.title,due_date:nd,priority:t.priority,reminder_days:t.reminderDays||7,done:false,recurrence:t.recurrence,recurrence_interval:t.recurrence==="Custom"?(t.recurrenceInterval||1):null,recurrence_unit:t.recurrence==="Custom"?(t.recurrenceUnit||"week"):null});toast("Next occurrence: "+fmt(nd));}}reload("tasks");};
+  const tog=async t=>{const marking=!t.done;const{error}=await sb.from("tasks").update(marking?{done:true,completed_at:new Date().toISOString(),completed_by:CURRENT_USER_LABEL||null}:{done:false,completed_at:null,completed_by:null}).eq("id",t.id);if(error){toast(error.message,"error");return;}if(marking&&t.recurrence){const nd=nextRecurrence(t.dueDate,t.recurrence,t.recurrenceInterval,t.recurrenceUnit);if(nd){await sb.from("tasks").insert({family_id:t.familyId||null,contact_id:t.contactId||null,title:t.title,due_date:nd,priority:t.priority,reminder_days:t.reminderDays||7,done:false,recurrence:t.recurrence,recurrence_interval:t.recurrence==="Custom"?(t.recurrenceInterval||1):null,recurrence_unit:t.recurrence==="Custom"?(t.recurrenceUnit||"week"):null});toast("Next occurrence: "+fmt(nd));}}reload("tasks");};
   const del=async id=>{const{error}=await sb.from("tasks").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("tasks");}};
 
 
@@ -3142,11 +3146,15 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
     </div>
     <div style={{overflowY:"auto",flex:1}}>
       {list.length===0&&<div style={{padding:"60px 0",textAlign:"center",color:B.textMute,fontSize:14}}>No tasks here.</div>}
-      {list.map(t=>{
+      {(filter==="Done"?[...list].sort((a,b)=>new Date(b.completedAt||0)-new Date(a.completedAt||0)):list).flatMap((t,idx,arr)=>{
         const contact=gc(t.contactId);const fam=gf(t.familyId);
         const isOD=!t.done&&t.dueDate&&new Date(t.dueDate)<new Date();
         const isSoon=!t.done&&!isOD&&t.dueDate&&(new Date(t.dueDate)-new Date())/(86400000)<=30;
-        return <div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",marginBottom:8,background:B.white,border:`1px solid ${isOD?"#f5c6c6":B.borderLight}`,borderLeft:`3px solid ${isOD?"#d43030":isSoon?"#d4900a":PRIORITY_COLORS[t.priority]?.dot||B.gold}`,borderRadius:10,opacity:t.done?.55:1,boxShadow:B.shadow}}>
+        const yr=t.completedAt?new Date(t.completedAt).getFullYear():null;
+        const showYear=filter==="Done"&&yr&&(idx===0||new Date(arr[idx-1].completedAt||0).getFullYear()!==yr);
+        const nodes=[];
+        if(showYear)nodes.push(<div key={"yr"+idx} style={{fontSize:12,fontWeight:800,letterSpacing:"0.08em",color:B.textMute,textTransform:"uppercase",margin:"14px 0 8px",paddingBottom:4,borderBottom:`1px solid ${B.borderLight}`}}>Completed in {yr}</div>);
+        nodes.push(<div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",marginBottom:8,background:B.white,border:`1px solid ${isOD?"#f5c6c6":B.borderLight}`,borderLeft:`3px solid ${isOD?"#d43030":isSoon?"#d4900a":PRIORITY_COLORS[t.priority]?.dot||B.gold}`,borderRadius:10,opacity:t.done?.7:1,boxShadow:B.shadow}}>
           <input type="checkbox" checked={!!t.done} onChange={()=>tog(t)} style={{width:16,height:16,accentColor:B.navy,cursor:"pointer",flexShrink:0}}/>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontWeight:700,color:B.navy,textDecoration:t.done?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
@@ -3154,13 +3162,15 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
               {fam&&<span style={{color:B.navyMid,fontWeight:600}}>{fam.name}</span>}
               {contact&&<span>{contact.name}</span>}
               {t.dueDate&&<span style={{color:isOD?"#d43030":isSoon?"#d4900a":B.textSoft}}>{isOD?"⚠ ":isSoon?"⏰ ":""}{fmt(t.dueDate)}</span>}
-              {t.reminderDays>0&&<span style={{color:B.textMute}}>🔔 {t.reminderDays}d</span>}
+              {t.reminderDays>0&&!t.done&&<span style={{color:B.textMute}}>🔔 {t.reminderDays}d</span>}
               {t.recurrence&&<span style={{color:B.gold,fontWeight:600}}>↻ {recurLabel(t)}</span>}
+              {t.done&&t.completedAt&&<span style={{color:"#2e9e57",fontWeight:600}}>✓ Completed {fmt(t.completedAt)}{t.completedBy?` · by ${t.completedBy}`:""}</span>}
             </div>
           </div>
           <Badge scheme={PRIORITY_COLORS[t.priority]}>{t.priority}</Badge>
           <Btn small variant="danger" onClick={()=>del(t.id)}>✕</Btn>
-        </div>;
+        </div>);
+        return nodes;
       })}
     </div>
     {modal==="add"&&<Modal title="New Task" onClose={()=>setModal(null)}><GlobalTaskForm families={families} contacts={contacts} onSave={add} onClose={()=>setModal(null)}/></Modal>}
@@ -3463,7 +3473,60 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
-function Dashboard({data,userProfile}){
+// Collects every hard date across the platform into one upcoming-deadline feed:
+// task due dates, loan maturities, insurance + flood expirations, deal close
+// dates (one-time), and recurring annual birthdays + anniversaries.
+const DEADLINE_TAG={task:"Task",loan:"Loan maturity",insurance:"Insurance",flood:"Flood insurance",deal:"Deal close",birthday:"Birthday",anniversary:"Anniversary"};
+function collectDeadlines({tasks=[],properties=[],deals=[],contacts=[],families=[],acks=[],windowDays=60}){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const famName=id=>{const f=families.find(x=>x.id===id);return f?f.name:null;};
+  const toISO=dt=>`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;
+  const ackMap={}; (acks||[]).forEach(a=>{if(a&&a.itemKey)ackMap[a.itemKey]=a;});
+  const items=[];
+  const pushOnce=(dateStr,label,type,familyId,entityId)=>{
+    if(!dateStr)return; const t=new Date(dateStr); if(isNaN(t.getTime()))return;
+    const t0=new Date(t.getFullYear(),t.getMonth(),t.getDate());
+    const days=Math.round((t0-today)/86400000);
+    if(days>windowDays)return;
+    const dateISO=toISO(t0); const key=`${type}:${entityId}:${dateISO}`;
+    const ack=ackMap[key];
+    items.push({key,dateISO,days,label,type,familyName:famName(familyId),overdue:!ack&&days<0,done:!!ack,completedBy:ack?ack.completedBy:null,completedAt:ack?ack.completedAt:null,familyId,occurrenceDate:dateISO});
+  };
+  const pushAnnual=(dateStr,label,type,familyId,entityId)=>{
+    if(!dateStr)return; const t=new Date(dateStr); if(isNaN(t.getTime()))return;
+    let next=new Date(today.getFullYear(),t.getMonth(),t.getDate());
+    if(next<today) next=new Date(today.getFullYear()+1,t.getMonth(),t.getDate());
+    const days=Math.round((next-today)/86400000);
+    if(days>windowDays)return;
+    const dateISO=toISO(next); const key=`${type}:${entityId}:${dateISO}`;
+    const ack=ackMap[key];
+    items.push({key,dateISO,days,label,type,familyName:famName(familyId),overdue:false,done:!!ack,completedBy:ack?ack.completedBy:null,completedAt:ack?ack.completedAt:null,familyId,occurrenceDate:dateISO});
+  };
+  // Tasks are their own completion model (done + completed_by/at); show pending only.
+  (tasks||[]).filter(t=>!t.done&&t.dueDate).forEach(t=>{
+    const dt=new Date(t.dueDate); if(isNaN(dt.getTime()))return;
+    const t0=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate());
+    const days=Math.round((t0-today)/86400000);
+    if(days>windowDays)return;
+    items.push({key:`task:${t.id}`,dateISO:toISO(t0),days,label:t.title||"Task",type:"task",familyName:famName(t.familyId),overdue:days<0,done:false,isTask:true,task:t,familyId:t.familyId});
+  });
+  (properties||[]).forEach(p=>{
+    const addr=p.address||"property";
+    pushOnce(p.loanMaturityDate,`Loan matures — ${addr}`,"loan",p.familyId,p.id);
+    pushOnce(p.insuranceExpiration,`Insurance renews — ${addr}`,"insurance",p.familyId,p.id);
+    pushOnce(p.floodInsuranceExpiration,`Flood insurance renews — ${addr}`,"flood",p.familyId,p.id);
+  });
+  (deals||[]).filter(d=>d.stage!=="Closed Won"&&d.stage!=="Closed Lost").forEach(d=>pushOnce(d.closeDate,`Deal close — ${d.title||"deal"}`,"deal",d.familyId,d.id));
+  (contacts||[]).forEach(c=>{
+    pushAnnual(c.dob,`${c.name||"Client"} — birthday`,"birthday",c.familyId,c.id);
+    pushAnnual(c.anniversary,`${c.name||"Client"} — anniversary`,"anniversary",c.familyId,c.id);
+  });
+  // Pending first (soonest), then done items (soonest), so completed ones sink.
+  items.sort((a,b)=>(a.done?1:0)-(b.done?1:0)||a.days-b.days);
+  return items;
+}
+
+function Dashboard({data,userProfile,reload,toast}){
   const isMobile=useIsMobile();
   const{families:_families,contacts:_contacts,properties:_properties,deals:_deals,notes:_notes,tasks:_tasks,portfolio_accounts:_accts=[]}=data;
   const isAdmin=userProfile?.role==="admin";
@@ -3487,6 +3550,35 @@ function Dashboard({data,userProfile}){
   const pending=tasks.filter(t=>!t.done);
   const overdue=pending.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
   const dueSoon=pending.filter(t=>t.dueDate&&!overdue.includes(t)&&(new Date(t.dueDate)-new Date())/(86400000)<=30);
+  const _famIdSet=new Set(families.map(f=>f.id));
+  const deadlineContacts=(_contacts||[]).filter(c=>!scope||_famIdSet.has(c.familyId)||(c.advisorEmail||"").toLowerCase()===scope);
+  const _acks=data.deadline_acks||[];
+  const deadlines=collectDeadlines({tasks,properties,deals,contacts:deadlineContacts,families,acks:_acks,windowDays:60});
+  const userLabel=(userProfile&&(userProfile.fullName||userProfile.email))||"";
+  const completeDeadline=async d=>{
+    try{
+      if(d.isTask&&d.task){
+        const t=d.task;
+        const{error}=await sb.from("tasks").update({done:true,completed_at:new Date().toISOString(),completed_by:userLabel||null}).eq("id",t.id);
+        if(error)throw error;
+        if(t.recurrence){const nd=nextRecurrence(t.dueDate,t.recurrence,t.recurrenceInterval,t.recurrenceUnit);if(nd){await sb.from("tasks").insert({family_id:t.familyId||null,contact_id:t.contactId||null,title:t.title,due_date:nd,priority:t.priority,reminder_days:t.reminderDays||7,done:false,recurrence:t.recurrence,recurrence_interval:t.recurrence==="Custom"?(t.recurrenceInterval||1):null,recurrence_unit:t.recurrence==="Custom"?(t.recurrenceUnit||"week"):null});}}
+        if(reload)reload("tasks");
+        if(toast)toast("Task completed");
+      } else {
+        const{error}=await sb.from("deadline_acks").insert({family_id:d.familyId||null,item_key:d.key,item_label:d.label,item_type:d.type,occurrence_date:d.occurrenceDate||null,completed_by:userLabel||null,completed_at:new Date().toISOString()});
+        if(error)throw error;
+        if(reload)reload("deadline_acks");
+        if(toast)toast("Marked handled");
+      }
+    }catch(e){ if(toast)toast(e.message||"Could not update","error"); }
+  };
+  const undoDeadline=async d=>{
+    try{
+      const{error}=await sb.from("deadline_acks").delete().eq("item_key",d.key);
+      if(error)throw error;
+      if(reload)reload("deadline_acks");
+    }catch(e){ if(toast)toast(e.message||"Could not undo","error"); }
+  };
   const stageCounts=STAGES.map(s=>({stage:s,count:deals.filter(d=>d.stage===s).length,value:deals.filter(d=>d.stage===s).reduce((sum,d)=>sum+(Number(d.value)||0),0)}));
   const maxC=Math.max(1,...stageCounts.map(s=>s.count));
   const gf=id=>families.find(f=>f.id===id);
@@ -3524,11 +3616,11 @@ function Dashboard({data,userProfile}){
       <div style={{background:B.bgCard,borderRadius:12,padding:24,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Upcoming Deadlines</div>
         <GoldLine/>
-        {[...overdue,...dueSoon].length===0&&<Empty text="No upcoming deadlines."/>}
-        {[...overdue,...dueSoon].slice(0,6).map(t=>{const isOD=overdue.includes(t);const fam=gf(t.familyId);return <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`}}>
-          <div style={{width:7,height:7,borderRadius:"50%",background:isOD?"#d43030":"#d4900a",flexShrink:0}}/>
-          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,color:B.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>{fam&&<div style={{fontSize:11,color:B.textMute}}>{fam.name}</div>}</div>
-          <div style={{fontSize:11,color:isOD?"#d43030":"#d4900a",fontWeight:700,whiteSpace:"nowrap"}}>{isOD?"⚠ ":""}{fmt(t.dueDate)}</div>
+        {deadlines.length===0&&<Empty text="No upcoming deadlines."/>}
+        {deadlines.slice(0,10).map((d,i)=>{const soon=d.days<=14;const col=d.done?"#2e9e57":d.overdue?"#d43030":soon?"#d4900a":B.navyMid;return <div key={d.key||i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`,opacity:d.done?0.62:1}}>
+          <button onClick={()=>d.done?undoDeadline(d):completeDeadline(d)} title={d.done?"Undo":"Mark done"} style={{width:18,height:18,borderRadius:"50%",flexShrink:0,cursor:"pointer",border:`2px solid ${d.done?"#2e9e57":col}`,background:d.done?"#2e9e57":"transparent",color:"#fff",fontSize:11,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>{d.done?"✓":""}</button>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,color:B.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:d.done?"line-through":"none"}}>{d.label}</div><div style={{fontSize:11,color:B.textMute}}>{d.done?`✓ ${DEADLINE_TAG[d.type]||d.type} · done${d.completedBy?` by ${d.completedBy}`:""}`:[DEADLINE_TAG[d.type]||d.type,d.familyName].filter(Boolean).join(" · ")}</div></div>
+          <div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:11,color:col,fontWeight:700,whiteSpace:"nowrap"}}>{!d.done&&d.overdue?"⚠ ":""}{fmt(d.dateISO)}</div><div style={{fontSize:10,color:B.textMute}}>{d.done?"handled":d.overdue?`${Math.abs(d.days)}d ago`:d.days===0?"today":`in ${d.days}d`}</div></div>
         </div>;})}
       </div>
     </div>
@@ -4420,7 +4512,7 @@ export default function App(){
 
   const loadProfile=useCallback(async userId=>{
     const{data:d}=await sb.from("user_profiles").select("*").eq("id",userId).single();
-    if(d){const p={id:d.id,email:d.email,role:d.role,fullName:d.full_name,active:d.active,familyId:d.family_id};profileRef.current=p;setUserProfile(p);}
+    if(d){const p={id:d.id,email:d.email,role:d.role,fullName:d.full_name,active:d.active,familyId:d.family_id};profileRef.current=p;setUserProfile(p);CURRENT_USER_LABEL=(d.full_name||d.email||"").trim();}
   },[]);
 
   useEffect(()=>{
@@ -4573,7 +4665,7 @@ export default function App(){
 
       <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg,paddingBottom:"0"}}>
         {loading&&tab!=="families"&&tab!=="users"?<Spinner/>:<>
-          {tab==="dashboard"   &&<Dashboard data={data} userProfile={userProfile}/>}
+          {tab==="dashboard"   &&<Dashboard data={data} userProfile={userProfile} reload={reload} toast={showToast}/>}
           {tab==="families"    &&<FamiliesView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="portfolio"   &&<PortfolioView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="cm-notes"    &&<NotesView data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
