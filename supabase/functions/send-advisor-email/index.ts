@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
     const primaryEmail = (fam?.advisor_email || "").trim().toLowerCase();
     const primaryName = clean(fam?.advisor_name);
 
-    const { data: advisorContacts } = await admin.from("contacts").select("email").eq("family_id", familyId).eq("is_advisor", true);
+    const { data: advisorContacts } = await admin.from("family_contacts").select("email").eq("family_id", familyId).eq("is_advisor", true);
     const allowed = new Set<string>();
     if (primaryEmail) allowed.add(primaryEmail);
     (advisorContacts || []).forEach((c: { email: string }) => { const e = (c.email || "").trim().toLowerCase(); if (e) allowed.add(e); });
