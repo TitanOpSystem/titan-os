@@ -4459,20 +4459,29 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
 
         {/* Alert banners */}
         {overdue.length>0&&<div style={{background:"#fde8e8",border:"1px solid #f5c6c6",borderRadius:10,padding:"12px 18px",marginBottom:12,display:"flex",alignItems:"center",gap:12}}>
-          <span style={{fontSize:20}}>⚠️</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d43030" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><path d="M10.3 3.8 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
           <div><div style={{fontWeight:700,color:"#8b1a1a",fontSize:14}}>Overdue Tasks</div><div style={{fontSize:13,color:"#8b1a1a"}}>{overdue.length} task{overdue.length>1?"s":""} past due — please contact your advisor.</div></div>
         </div>}
         {soon.length>0&&<div style={{background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:10,padding:"12px 18px",marginBottom:12,display:"flex",alignItems:"center",gap:12}}>
-          <span style={{fontSize:20}}>⏰</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d4900a" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/></svg>
           <div><div style={{fontWeight:700,color:"#8a5c00",fontSize:14}}>Upcoming Deadlines</div><div style={{fontSize:13,color:"#8a5c00"}}>{soon.length} task{soon.length>1?"s":""} due within 30 days.</div></div>
         </div>}
 
         {/* Quick stats grid */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:14}}>
-          {[{l:"Properties",v:properties.length,icon:"🏠"},{l:"Portfolio Accounts",v:accounts.length,icon:"📈"},{l:"Valuables",v:valuables.length,icon:"💎"},{l:"Pending Tasks",v:tasks.length,icon:"✅"}].map(s=><div key={s.l} style={{background:B.white,borderRadius:12,padding:"20px",border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,textAlign:"center"}}>
-            <div style={{fontSize:28,marginBottom:8}}>{s.icon}</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,color:B.navy,fontWeight:600,lineHeight:1}}>{s.v}</div>
-            <div style={{fontSize:11,color:B.textMute,marginTop:4,fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase"}}>{s.l}</div>
+        <style>{`.pcm-stat-card{transition:transform .15s ease, box-shadow .15s ease;}.pcm-stat-card:hover{transform:translateY(-3px);box-shadow:0 8px 22px rgba(9,43,73,0.13);}.pcm-stat-card:active{transform:translateY(-1px);}`}</style>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:14}}>
+          {[
+            {l:"Properties",v:properties.length,tab:"properties",icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M9.5 20v-6h5v6"/></svg>},
+            {l:"Portfolio Accounts",v:accounts.length,tab:"portfolio",icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18 10 12l3.5 3.5L20 9"/><path d="M15.5 9H20v4.5"/></svg>},
+            {l:"Valuables",v:valuables.length,tab:"valuables",icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12l3 5.5-9 12.5L3 8.5z"/><path d="M3 8.5h18"/><path d="M9.5 3 8 8.5l4 12.5 4-12.5L14.5 3"/></svg>},
+            {l:"Pending Tasks",v:tasks.length,tab:"tasks",icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>}
+          ].map(s=><div key={s.l} className="pcm-stat-card" onClick={()=>setActiveTab(s.tab)} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")setActiveTab(s.tab);}} style={{background:B.white,borderRadius:14,padding:"18px 20px",border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,boxShadow:B.shadow,display:"flex",alignItems:"center",gap:14,cursor:"pointer"}}>
+            <div style={{width:46,height:46,borderRadius:"50%",background:"rgba(206,182,132,0.15)",border:`1px solid rgba(206,182,132,0.55)`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:B.navy}}>{s.icon}</div>
+            <div style={{minWidth:0,flex:1}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:30,color:B.navy,fontWeight:600,lineHeight:1}}>{s.v}</div>
+              <div style={{fontSize:10.5,color:B.textMute,marginTop:4,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase"}}>{s.l}</div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={B.textMute} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,opacity:0.55}}><path d="M9 6l6 6-6 6"/></svg>
           </div>)}
         </div>
       </div>}
