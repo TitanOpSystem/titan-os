@@ -4448,11 +4448,11 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
           <div style={{position:"absolute",right:-20,top:-20,width:200,height:200,borderRadius:"50%",background:"rgba(206,182,132,0.08)"}}/>
           <div style={{fontSize:isMobile?11:12,color:"rgba(206,182,132,0.8)",fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:8}}>Estimated Net Worth</div>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?36:52,color:B.white,fontWeight:600,lineHeight:1,marginBottom:8}}>{fmtMoney(netWorth)}</div>
-          <div style={{height:1,background:"rgba(206,182,132,0.3)",margin:"16px 0"}}/>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:20,marginTop:4}}>
-            {[{l:"Real Estate",v:fmtMoney(totalRE)},{l:"Total Debt",v:fmtMoney(totalDebt),neg:true},{l:"Portfolio",v:fmtMoney(totalAccounts)},{l:"Valuables",v:fmtMoney(totalValuables)}].map(s=><div key={s.l}>
-              <div style={{fontSize:10,color:"rgba(206,182,132,0.6)",fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}}>{s.l}</div>
-              <div style={{fontSize:20,fontFamily:"'Cormorant Garamond',serif",color:s.neg?"#f87171":B.white,fontWeight:600}}>{s.v}</div>
+          <div style={{height:1,background:"rgba(206,182,132,0.35)",margin:"18px 0"}}/>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginTop:4,position:"relative",zIndex:1}}>
+            {[{l:"Real Estate",v:fmtMoney(totalRE)},{l:"Total Debt",v:fmtMoney(totalDebt),neg:true},{l:"Portfolio",v:fmtMoney(totalAccounts)},{l:"Valuables",v:fmtMoney(totalValuables)}].map(s=><div key={s.l} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(206,182,132,0.22)",borderRadius:10,padding:"12px 14px"}}>
+              <div style={{fontSize:10,color:B.gold,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>{s.l}</div>
+              <div style={{fontSize:isMobile?19:23,fontFamily:"'Cormorant Garamond',serif",color:s.neg?"#fca5a5":B.white,fontWeight:600,lineHeight:1}}>{s.neg?"−":""}{s.v}</div>
             </div>)}
           </div>
         </div>
