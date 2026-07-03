@@ -397,7 +397,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -908,30 +908,50 @@ function AssistantWelcome({family,data,reload,onClose,userProfile}){
       {isClient?<Btn variant="ghost" onClick={()=>setEmailOpen(true)}>✉ Email my advisor</Btn>:<span/>}
       <Btn onClick={onClose}>Take me to the dashboard →</Btn>
     </div>
-    {emailOpen&&<EmailAdvisorModal family={family} userProfile={userProfile} onClose={()=>setEmailOpen(false)}/>}
+    {emailOpen&&<EmailAdvisorModal family={family} userProfile={userProfile} data={data} onClose={()=>setEmailOpen(false)}/>}
   </Modal>;
 }
 
-// Compose an email to the family's advisor and hand it to the client's mail app,
-// pre-addressed to the advisor with the client's subject and message.
-function EmailAdvisorModal({family,userProfile,onClose}){
-  const advisorName=(family.advisorName||"").trim();
-  const advisorEmail=(family.advisorEmail||"").trim();
-  const clientName=(userProfile&&(userProfile.fullName))||family.name||"";
-  const advisorFirst=advisorName?advisorName.split(" ")[0]:"";
+// Compose an email to an advisor and hand it to the client's mail app. The
+// client can pick from the primary advisor plus any family contacts flagged as
+// advisors; picking a non-primary advisor auto-CCs the primary (locked).
+function EmailAdvisorModal({family,userProfile,data,onClose}){
+  const primaryName=(family.advisorName||"").trim();
+  const primaryEmailRaw=(family.advisorEmail||"").trim();
+  const primaryEmail=primaryEmailRaw.toLowerCase();
+  const flagged=((data&&data.contacts)||[]).filter(c=>c.familyId===family.id&&c.isAdvisor&&(c.email||"").trim());
+  const options=[];
+  if(primaryEmailRaw) options.push({name:primaryName||primaryEmailRaw,email:primaryEmailRaw,primary:true});
+  flagged.forEach(c=>{ if((c.email||"").trim().toLowerCase()!==primaryEmail) options.push({name:c.name||c.email,email:(c.email||"").trim(),primary:false}); });
+  const clientName=(userProfile&&userProfile.fullName)||family.name||"";
+  const[toEmail,setToEmail]=useState(options[0]?options[0].email:"");
   const[subject,setSubject]=useState(`Message from ${family.name||clientName||"client"}`);
-  const[msg,setMsg]=useState(advisorFirst?`Hi ${advisorFirst},\n\n`:"");
+  const[msg,setMsg]=useState("");
+  const selected=options.find(o=>o.email===toEmail)||options[0];
+  const ccPrimary=(selected&&!selected.primary&&primaryEmailRaw)?{name:primaryName||primaryEmailRaw,email:primaryEmailRaw}:null;
   const send=()=>{
-    if(!advisorEmail)return;
-    const url=`mailto:${encodeURIComponent(advisorEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(msg)}`;
-    const a=document.createElement("a"); a.href=url; a.target="_blank"; document.body.appendChild(a); a.click(); a.remove();
+    if(!selected)return;
+    const params=[];
+    if(ccPrimary)params.push(`cc=${encodeURIComponent(ccPrimary.email)}`);
+    params.push(`subject=${encodeURIComponent(subject)}`);
+    params.push(`body=${encodeURIComponent(msg)}`);
+    const url=`mailto:${encodeURIComponent(selected.email)}?${params.join("&")}`;
+    const a=document.createElement("a");a.href=url;a.target="_blank";document.body.appendChild(a);a.click();a.remove();
     onClose();
   };
   return <Modal title="Email your advisor" onClose={onClose}>
-    {advisorEmail?<>
-      <div style={{fontSize:13,color:B.textSoft,marginBottom:14}}>To <strong style={{color:B.navy}}>{advisorName||advisorEmail}</strong>{advisorName?` · ${advisorEmail}`:""}</div>
+    {options.length?<>
+      <Field label="To">
+        {options.length>1
+          ? <Sel value={toEmail} onChange={e=>setToEmail(e.target.value)}>{options.map(o=><option key={o.email} value={o.email}>{o.name}{o.primary?" (primary advisor)":""} · {o.email}</option>)}</Sel>
+          : <div style={{fontSize:13,color:B.navy,padding:"9px 0"}}><strong>{selected.name}</strong> · {selected.email}</div>}
+      </Field>
+      {ccPrimary&&<div style={{fontSize:12,color:B.textSoft,background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:8,padding:"8px 12px",marginBottom:12}}>
+        <span style={{fontWeight:700,color:B.navy}}>Cc: {ccPrimary.name}</span> · {ccPrimary.email}
+        <div style={{fontSize:11,color:B.textMute,marginTop:2}}>🔒 Your primary advisor is always copied and can't be removed.</div>
+      </div>}
       <Field label="Subject"><Inp value={subject} onChange={e=>setSubject(e.target.value)}/></Field>
-      <Field label="Message"><textarea value={msg} onChange={e=>setMsg(e.target.value)} rows={7} style={{width:"100%",resize:"vertical",border:`1px solid ${B.border}`,borderRadius:8,padding:"11px 13px",fontSize:14,fontFamily:"inherit",color:B.text,background:B.white,outline:"none",lineHeight:1.5}}/></Field>
+      <Field label="Message"><textarea value={msg} onChange={e=>setMsg(e.target.value)} rows={7} placeholder="Write your message…" style={{width:"100%",resize:"vertical",border:`1px solid ${B.border}`,borderRadius:8,padding:"11px 13px",fontSize:14,fontFamily:"inherit",color:B.text,background:B.white,outline:"none",lineHeight:1.5}}/></Field>
       <div style={{fontSize:11,color:B.textMute,margin:"6px 0 16px"}}>This opens your email app with the message ready to send.</div>
       <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
         <button onClick={onClose} style={{background:"none",border:"none",color:B.textSoft,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
@@ -1054,7 +1074,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
   // Add/remove members
   const addMember=async(f)=>{
-    const{error}=await sb.from("contacts").insert({family_id:family.id,name:f.name,email:f.email||null,phone:f.phone||null,company:f.company||null,type:f.type||"Individual",dob:f.dob||null,anniversary:f.anniversary||null,address:f.address||null,tags:null});
+    const{error}=await sb.from("contacts").insert({family_id:family.id,name:f.name,email:f.email||null,phone:f.phone||null,company:f.company||null,type:f.type||"Individual",dob:f.dob||null,anniversary:f.anniversary||null,address:f.address||null,is_advisor:!!f.isAdvisor,tags:null});
     if(error)toast(error.message,"error");else{toast("Member added");reload("contacts");}
   };
   const delMember=async(id)=>{
@@ -1062,8 +1082,13 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
     if(error)toast(error.message,"error");else{toast("Member removed");reload("contacts");}
   };
   const editMember=async(f)=>{
-    const{error}=await sb.from("contacts").update({name:f.name,email:f.email||null,phone:f.phone||null,company:f.company||null,type:f.type||"Individual",dob:f.dob||null,anniversary:f.anniversary||null,address:f.address||null}).eq("id",editM.id);
+    const{error}=await sb.from("contacts").update({name:f.name,email:f.email||null,phone:f.phone||null,company:f.company||null,type:f.type||"Individual",dob:f.dob||null,anniversary:f.anniversary||null,address:f.address||null,is_advisor:!!f.isAdvisor}).eq("id",editM.id);
     if(error)toast(error.message,"error");else{toast("Member updated");reload("contacts");}
+  };
+  const toggleMemberAdvisor=async(c)=>{
+    if(!c.email){toast("Add an email to this contact first — the client emails them here.","error");return;}
+    const{error}=await sb.from("contacts").update({is_advisor:!c.isAdvisor}).eq("id",c.id);
+    if(error)toast(error.message,"error");else{toast(!c.isAdvisor?"Marked as an emailable advisor":"Removed as advisor option");reload("contacts");}
   };
   // Add property
   const addProperty=async(f)=>{
@@ -1188,6 +1213,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <Badge scheme={c.type==="Business"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{c.type}</Badge>
+                  <button onClick={()=>toggleMemberAdvisor(c)} title={c.isAdvisor?"Client can email this advisor — click to remove":"Make this contact an advisor the client can email"} style={{background:c.isAdvisor?"rgba(206,182,132,0.22)":"none",border:`1px solid ${c.isAdvisor?B.gold:B.border}`,color:c.isAdvisor?B.navy:B.textMute,cursor:"pointer",fontSize:11,fontWeight:600,borderRadius:20,padding:"2px 9px",fontFamily:"inherit"}}>{c.isAdvisor?"★ Advisor":"☆ Advisor"}</button>
                   <button onClick={()=>{setEditM(c);setModal("member");}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit member">✎</button>
                   <button onClick={()=>delMember(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
                 </div>
@@ -1488,7 +1514,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       {/* Modals */}
       {showWelcome&&<AssistantWelcome family={family} data={data} reload={reload} onClose={()=>setShowWelcome(false)}/>}
       {modal==="member"&&<Modal title={editM?"Edit Member":"Add Member"} onClose={()=>{setModal(null);setEditM(null);}}>
-        <MemberForm initial={editM?{name:editM.name||"",email:editM.email||"",phone:editM.phone||"",company:editM.company||"",type:editM.type||"Individual",dob:editM.dob||"",anniversary:editM.anniversary||"",address:editM.address||""}:null} onSave={async f=>{editM?await editMember(f):await addMember(f);setModal(null);setEditM(null);}} onClose={()=>{setModal(null);setEditM(null);}}/>
+        <MemberForm initial={editM?{name:editM.name||"",email:editM.email||"",phone:editM.phone||"",company:editM.company||"",type:editM.type||"Individual",dob:editM.dob||"",anniversary:editM.anniversary||"",address:editM.address||"",isAdvisor:!!editM.isAdvisor}:null} onSave={async f=>{editM?await editMember(f):await addMember(f);setModal(null);setEditM(null);}} onClose={()=>{setModal(null);setEditM(null);}}/>
       </Modal>}
       {modal==="task"&&<Modal title="New Task" onClose={()=>setModal(null)}><TaskForm contacts={contacts} onSave={async f=>{await addTask(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
       {modal==="property"&&<Modal title="Add Property" onClose={()=>setModal(null)} wide><PropertyForm canExtract={true} onSave={async f=>{await addProperty(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
@@ -1505,7 +1531,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
 // ── MEMBER FORM ───────────────────────────────────────────────────────────────
 function MemberForm({initial,onSave,onClose}){
-  const[f,setF]=useState(initial||{name:"",email:"",phone:"",company:"",type:"Individual",dob:"",anniversary:"",address:""});
+  const[f,setF]=useState(initial||{name:"",email:"",phone:"",company:"",type:"Individual",dob:"",anniversary:"",address:"",isAdvisor:false});
   const[saving,setSaving]=useState(false);
   const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
   const save=async()=>{if(!f.name.trim())return;setSaving(true);await onSave(f);onClose();};
@@ -1524,6 +1550,11 @@ function MemberForm({initial,onSave,onClose}){
       <Field label="Anniversary"><Inp type="date" value={f.anniversary||""} onChange={set("anniversary")}/></Field>
       <Field label="Address"><Inp placeholder="123 Main St, Tampa, FL" value={f.address||""} onChange={set("address")}/></Field>
     </Grid2>
+    <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.isAdvisor?"rgba(206,182,132,0.15)":B.bg,borderRadius:8,border:`1px solid ${f.isAdvisor?B.gold:B.border}`,marginBottom:4}}>
+      <input type="checkbox" checked={!!f.isAdvisor} onChange={e=>setF(p=>({...p,isAdvisor:e.target.checked}))} style={{width:16,height:16,accentColor:B.navy}}/>
+      <span style={{fontSize:13,color:B.navy,fontWeight:600}}>Advisor the client can email</span>
+      <span style={{fontSize:11,color:B.textMute}}>appears as an option in the client's "Email my advisor"</span>
+    </label>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
       <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
       <Btn onClick={save} disabled={saving}>{saving?"Saving…":initial?"Save Changes":"Add Member"}</Btn>
@@ -4304,7 +4335,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
     </Modal>}
 
     {showAssistantGreeting&&!showNamePrompt&&<AssistantWelcome family={family} data={data} reload={reload} userProfile={userProfile} onClose={()=>setShowAssistantGreeting(false)}/>}
-    {emailAdvisorOpen&&<EmailAdvisorModal family={family} userProfile={userProfile} onClose={()=>setEmailAdvisorOpen(false)}/>}
+    {emailAdvisorOpen&&<EmailAdvisorModal family={family} userProfile={userProfile} data={data} onClose={()=>setEmailAdvisorOpen(false)}/>}
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
     {/* Header (navy banner with logo, family name, sign out) */}
