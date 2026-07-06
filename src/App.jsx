@@ -6,6 +6,10 @@ import { PCM_LOGO, PCM_MARK } from "./logo.js";
 import { PDFDocument } from "pdf-lib";
 import { PCM_AGREEMENT_TEMPLATE_B64 } from "./pcmAgreementTemplate.js";
 import { PCM_ACH_TEMPLATE_B64 } from "./pcmAchTemplate.js";
+import { PCM_CHECKLIST_TEMPLATE_B64 } from "./pcmChecklistTemplate.js";
+import { PCM_WIRE_TEMPLATE_B64 } from "./pcmWireTemplate.js";
+import { PCM_PFS_TEMPLATE_B64 } from "./pcmPfsTemplate.js";
+import { PCM_LIFESTYLE_TEMPLATE_B64 } from "./pcmLifestyleTemplate.js";
 // PCM tree emblem (transparent PNG) — used as the icon on document cards in place of file-type emoji.
 // PCM Platform v5.0 — build 20260429
 
@@ -4709,59 +4713,95 @@ function ResIconBadge({name}){
 }
 
 // Client documents that can be generated, pre-filled, and opened per family.
-const RESOURCE_DOCS=[
-  {id:"agreement",label:"Client Services Agreement",icon:"doc",desc:"$5,000/mo advisory agreement · 6-month minimum"},
-  {id:"ach",       label:"Auto-Debit (ACH) Authorization",icon:"bank",desc:"Recurring monthly fee authorization"},
-];
+// Each entry maps its own PDF field names to a small set of editable inputs;
+// unmapped fields in the underlying PDF are left blank for manual entry.
+const DOC_CONFIGS={
+  agreement:{
+    label:"Client Services Agreement",icon:"doc",
+    desc:"$5,000/mo advisory agreement · 6-month minimum",
+    template:PCM_AGREEMENT_TEMPLATE_B64,
+    fields:[
+      {key:"client_name",   label:"Client / Family Name", pdfField:"client_name",    default:(f)=>f.name||""},
+      {key:"effective_date",label:"Effective Date",       pdfField:"effective_date", type:"date", default:()=>new Date().toISOString().slice(0,10)},
+      {key:"client_address",label:"Client Address",       pdfField:"client_address", default:(f,c)=>c?.address||""},
+      {key:"governing_state",label:"Governing State",     pdfField:"governing_state",placeholder:"e.g. Florida", default:()=>""},
+    ],
+  },
+  ach:{
+    label:"Auto-Debit (ACH) Authorization",icon:"bank",
+    desc:"Recurring monthly fee authorization",
+    template:PCM_ACH_TEMPLATE_B64,
+    fields:[
+      {key:"client_name",         label:"Client / Family Name",  pdfField:"client_name",          default:(f)=>f.name||""},
+      {key:"account_holder_name",label:"Account Holder Name",   pdfField:"account_holder_name",  default:(f,c)=>c?.name||f.name||""},
+      {key:"billing_address",    label:"Billing Address",       pdfField:"billing_address",      default:(f,c)=>c?.address||""},
+      {key:"phone",              label:"Phone",                 pdfField:"phone",                default:(f,c)=>c?.phone||""},
+      {key:"email",              label:"Email",                 pdfField:"email",                default:(f,c)=>c?.email||""},
+      {key:"monthly_fee",        label:"Monthly Fee",           pdfField:"monthly_fee",          default:()=>"$5,000.00"},
+      {key:"billing_date",       label:"Billing Date",          pdfField:"billing_date",         placeholder:"e.g. 1st", default:()=>"1st"},
+    ],
+  },
+  checklist:{
+    label:"Client Data Completeness Checklist",icon:"check",
+    desc:"Audit checklist for onboarding & reviews",
+    template:PCM_CHECKLIST_TEMPLATE_B64,
+    fields:[
+      {key:"family_client",label:"Family / Client Name", pdfField:"family_client", default:(f)=>f.name||""},
+      {key:"advisor_name", label:"Advisor",               pdfField:"advisor_name",  default:(f,c,u)=>u?.fullName||u?.email||""},
+      {key:"date_reviewed",label:"Date Reviewed",         pdfField:"date_reviewed", type:"date", default:()=>new Date().toISOString().slice(0,10)},
+    ],
+  },
+  wire:{
+    label:"Wire Transfer Instructions",icon:"transfer",
+    desc:"Fillable remittance form for outgoing/incoming wires",
+    template:PCM_WIRE_TEMPLATE_B64,
+    note:"Pre-fills the client as beneficiary — the most common case. If your client is sending funds instead, adjust the sender/beneficiary fields directly in the opened PDF.",
+    fields:[
+      {key:"ben_name",   label:"Beneficiary Name",    pdfField:"ben_name_6",   default:(f)=>f.name||""},
+      {key:"ben_address",label:"Beneficiary Address", pdfField:"ben_address_8",default:(f,c)=>c?.address||""},
+      {key:"wire_date",  label:"Wire Date",           pdfField:"wire_date_14", type:"date", default:()=>new Date().toISOString().slice(0,10)},
+    ],
+  },
+  pfs:{
+    label:"Personal Financial Statement",icon:"doc",
+    desc:"Fillable assets, liabilities, income & expense statement",
+    template:PCM_PFS_TEMPLATE_B64,
+    fields:[
+      {key:"prepared_for",label:"Prepared For",   pdfField:"Text1",              default:(f)=>f.name||""},
+      {key:"as_of",       label:"Statement Date", pdfField:"as of mmddyyyy1",    type:"date", default:()=>new Date().toISOString().slice(0,10)},
+    ],
+  },
+  lifestyle:{
+    label:"Lifestyle Expense Worksheet",icon:"chart",
+    desc:"Fillable monthly/annual expense worksheet for clients",
+    template:PCM_LIFESTYLE_TEMPLATE_B64,
+    fields:[
+      {key:"as_of",label:"As Of Date", pdfField:"Date", type:"date", default:()=>new Date().toISOString().slice(0,10)},
+    ],
+  },
+};
 
-// General advisor tools & reference documents. Edit freely — for files kept in
-// Supabase Storage, swap `url` for a signed-URL lookup the same way documents
-// are opened elsewhere in the app; for static files, drop them in /public and
-// reference the root-relative path as shown below.
+// Static reference material — not tied to a specific family.
 const RESOURCE_LINKS=[
   {label:"Advisor User Guide",icon:"book",desc:"Full platform walkthrough for advisors",url:"/resources/PCM_Advisor_User_Guide.pdf"},
-  {label:"Client Data Completeness Checklist",icon:"check",desc:"Audit checklist for onboarding & reviews",url:"/resources/PCM_Advisor_Data_Checklist.pdf"},
-  {label:"Wire Transfer Instructions",icon:"transfer",desc:"Fillable remittance form for outgoing/incoming wires",url:"/resources/PCM_Wire_Instructions_Fillable.pdf"},
-  {label:"Personal Financial Statement",icon:"doc",desc:"Fillable assets, liabilities, income & expense statement",url:"/resources/PCM_Personal_Financial_Statement.pdf"},
-  {label:"Lifestyle Expense Worksheet",icon:"chart",desc:"Fillable monthly/annual expense worksheet for clients",url:"/resources/PCM_Lifestyle_Expense_Worksheet.pdf"},
 ];
 
-function FillClientDocModal({docId,family,contact,onClose,toast}){
-  const isAgreement=docId==="agreement";
-  const[fields,setFields]=useState({
-    client_name:family.name||"",
-    client_address:contact?.address||"",
-    effective_date:new Date().toISOString().slice(0,10),
-    governing_state:"",
-    account_holder_name:contact?.name||family.name||"",
-    billing_address:contact?.address||"",
-    phone:contact?.phone||"",
-    email:contact?.email||"",
-    monthly_fee:"$5,000.00",
-    billing_date:"1st",
+function FillClientDocModal({docId,family,contact,userProfile,onClose,toast}){
+  const config=DOC_CONFIGS[docId];
+  const[values,setValues]=useState(()=>{
+    const init={};
+    config.fields.forEach(f=>{ init[f.key]=f.default?f.default(family,contact,userProfile):""; });
+    return init;
   });
   const[generating,setGenerating]=useState(false);
-  const set=k=>e=>setFields(f=>({...f,[k]:e.target.value}));
+  const set=k=>e=>setValues(v=>({...v,[k]:e.target.value}));
 
   const generate=async()=>{
     setGenerating(true);
     try{
-      const url=isAgreement
-        ? await fillPdfTemplate(PCM_AGREEMENT_TEMPLATE_B64,{
-            effective_date:fields.effective_date,
-            client_name:fields.client_name,
-            client_address:fields.client_address,
-            governing_state:fields.governing_state,
-          })
-        : await fillPdfTemplate(PCM_ACH_TEMPLATE_B64,{
-            client_name:fields.client_name,
-            account_holder_name:fields.account_holder_name,
-            billing_address:fields.billing_address,
-            phone:fields.phone,
-            email:fields.email,
-            monthly_fee:fields.monthly_fee,
-            billing_date:fields.billing_date,
-          });
+      const pdfValues={};
+      config.fields.forEach(f=>{ pdfValues[f.pdfField]=values[f.key]; });
+      const url=await fillPdfTemplate(config.template,pdfValues);
       window.open(url,"_blank","noopener,noreferrer");
       toast("Document generated and opened in a new tab");
       onClose();
@@ -4772,24 +4812,15 @@ function FillClientDocModal({docId,family,contact,onClose,toast}){
     }
   };
 
-  return <Modal title={isAgreement?"Client Services Agreement":"Auto-Debit Authorization"} onClose={onClose}>
+  return <Modal title={config.label} onClose={onClose}>
     <div style={{fontSize:13,color:B.textSoft,marginBottom:16,lineHeight:1.5}}>
-      Review and adjust the details below, then generate the PDF. It opens in a new tab, pre-filled and ready to sign.
+      Review and adjust the details below, then generate the PDF. It opens in a new tab, pre-filled and ready to use.
     </div>
+    {config.note&&<div style={{fontSize:12,color:"#8a5c00",background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"10px 12px",marginBottom:16,lineHeight:1.5}}>{config.note}</div>}
     <Grid2>
-      <Field label="Client / Family Name"><Inp value={fields.client_name} onChange={set("client_name")}/></Field>
-      {isAgreement?<>
-        <Field label="Effective Date"><Inp type="date" value={fields.effective_date} onChange={set("effective_date")}/></Field>
-        <Field label="Client Address"><Inp value={fields.client_address} onChange={set("client_address")}/></Field>
-        <Field label="Governing State"><Inp placeholder="e.g. Florida" value={fields.governing_state} onChange={set("governing_state")}/></Field>
-      </>:<>
-        <Field label="Account Holder Name"><Inp value={fields.account_holder_name} onChange={set("account_holder_name")}/></Field>
-        <Field label="Billing Address"><Inp value={fields.billing_address} onChange={set("billing_address")}/></Field>
-        <Field label="Phone"><Inp value={fields.phone} onChange={set("phone")}/></Field>
-        <Field label="Email"><Inp value={fields.email} onChange={set("email")}/></Field>
-        <Field label="Monthly Fee"><Inp value={fields.monthly_fee} onChange={set("monthly_fee")}/></Field>
-        <Field label="Billing Date"><Inp placeholder="e.g. 1st" value={fields.billing_date} onChange={set("billing_date")}/></Field>
-      </>}
+      {config.fields.map(f=><Field key={f.key} label={f.label}>
+        <Inp type={f.type||"text"} placeholder={f.placeholder} value={values[f.key]} onChange={set(f.key)}/>
+      </Field>)}
     </Grid2>
     <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:8}}>
       <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
@@ -4818,7 +4849,7 @@ function ResourcesView({data,userProfile,toast}){
       </Field>
       {family
         ? <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(240px,1fr))",gap:14,marginTop:10}}>
-            {RESOURCE_DOCS.map(d=><button key={d.id} onClick={()=>setActiveDoc(d.id)}
+            {Object.entries(DOC_CONFIGS).map(([id,d])=><button key={id} onClick={()=>setActiveDoc(id)}
               style={{textAlign:"left",background:B.white,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,borderRadius:12,padding:18,cursor:"pointer",boxShadow:B.shadow,fontFamily:"inherit",display:"flex",alignItems:"center",gap:14}}>
               <ResIconBadge name={d.icon}/>
               <div style={{minWidth:0}}>
@@ -4842,7 +4873,7 @@ function ResourcesView({data,userProfile,toast}){
       </button>)}
     </div>
 
-    {activeDoc&&family&&<FillClientDocModal docId={activeDoc} family={family} contact={primaryContact} onClose={()=>setActiveDoc(null)} toast={toast}/>}
+    {activeDoc&&family&&<FillClientDocModal docId={activeDoc} family={family} contact={primaryContact} userProfile={userProfile} onClose={()=>setActiveDoc(null)} toast={toast}/>}
   </div>;
 }
 
