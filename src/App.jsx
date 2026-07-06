@@ -4691,10 +4691,27 @@ async function fillPdfTemplate(templateB64,fieldValues,checkboxValues={}){
   return URL.createObjectURL(blob);
 }
 
+// Line icons matching the stat-card style used elsewhere (stroke=currentColor,
+// 24x24 viewBox) — swapped in for the old emoji glyphs on Resources tiles.
+const ResIcon=({name})=>{
+  const paths={
+    doc:<><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/></>,
+    bank:<><path d="M3 10 12 4l9 6"/><path d="M4 10v9"/><path d="M9 10v9"/><path d="M15 10v9"/><path d="M20 10v9"/><path d="M2 21h20"/></>,
+    book:<><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5V4.5"/></>,
+    check:<><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="m4 6 1 1 2-2"/><path d="m4 12 1 1 2-2"/><path d="m4 18 1 1 2-2"/></>,
+    transfer:<><path d="M7 7h12l-3.5-3.5"/><path d="M17 17H5l3.5 3.5"/></>,
+    chart:<><path d="M4 20V10"/><path d="M11 20V4"/><path d="M18 20v-7"/><path d="M2 20h20"/></>,
+  };
+  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name]||paths.doc}</svg>;
+};
+function ResIconBadge({name}){
+  return <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(206,182,132,0.15)",border:"1px solid rgba(206,182,132,0.55)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:B.navy}}><ResIcon name={name}/></div>;
+}
+
 // Client documents that can be generated, pre-filled, and opened per family.
 const RESOURCE_DOCS=[
-  {id:"agreement",label:"Client Services Agreement",icon:"📄",desc:"$5,000/mo advisory agreement · 6-month minimum"},
-  {id:"ach",       label:"Auto-Debit (ACH) Authorization",icon:"🏦",desc:"Recurring monthly fee authorization"},
+  {id:"agreement",label:"Client Services Agreement",icon:"doc",desc:"$5,000/mo advisory agreement · 6-month minimum"},
+  {id:"ach",       label:"Auto-Debit (ACH) Authorization",icon:"bank",desc:"Recurring monthly fee authorization"},
 ];
 
 // General advisor tools & reference documents. Edit freely — for files kept in
@@ -4702,11 +4719,11 @@ const RESOURCE_DOCS=[
 // are opened elsewhere in the app; for static files, drop them in /public and
 // reference the root-relative path as shown below.
 const RESOURCE_LINKS=[
-  {label:"Advisor User Guide",icon:"📘",desc:"Full platform walkthrough for advisors",url:"/resources/PCM_Advisor_User_Guide.pdf"},
-  {label:"Client Data Completeness Checklist",icon:"✅",desc:"Audit checklist for onboarding & reviews",url:"/resources/PCM_Advisor_Data_Checklist.pdf"},
-  {label:"Wire Transfer Instructions",icon:"🏦",desc:"Fillable remittance form for outgoing/incoming wires",url:"/resources/PCM_Wire_Instructions_Fillable.pdf"},
-  {label:"Personal Financial Statement",icon:"📋",desc:"Fillable assets, liabilities, income & expense statement",url:"/resources/PCM_Personal_Financial_Statement.pdf"},
-  {label:"Lifestyle Expense Worksheet",icon:"📊",desc:"Fillable monthly/annual expense worksheet for clients",url:"/resources/PCM_Lifestyle_Expense_Worksheet.pdf"},
+  {label:"Advisor User Guide",icon:"book",desc:"Full platform walkthrough for advisors",url:"/resources/PCM_Advisor_User_Guide.pdf"},
+  {label:"Client Data Completeness Checklist",icon:"check",desc:"Audit checklist for onboarding & reviews",url:"/resources/PCM_Advisor_Data_Checklist.pdf"},
+  {label:"Wire Transfer Instructions",icon:"transfer",desc:"Fillable remittance form for outgoing/incoming wires",url:"/resources/PCM_Wire_Instructions_Fillable.pdf"},
+  {label:"Personal Financial Statement",icon:"doc",desc:"Fillable assets, liabilities, income & expense statement",url:"/resources/PCM_Personal_Financial_Statement.pdf"},
+  {label:"Lifestyle Expense Worksheet",icon:"chart",desc:"Fillable monthly/annual expense worksheet for clients",url:"/resources/PCM_Lifestyle_Expense_Worksheet.pdf"},
 ];
 
 function FillClientDocModal({docId,family,contact,onClose,toast}){
@@ -4800,19 +4817,28 @@ function ResourcesView({data,userProfile,toast}){
         </Sel>
       </Field>
       {family
-        ? <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:6}}>
-            {RESOURCE_DOCS.map(d=><Btn key={d.id} variant="gold" onClick={()=>setActiveDoc(d.id)}>{d.icon} {d.label}</Btn>)}
+        ? <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(240px,1fr))",gap:14,marginTop:10}}>
+            {RESOURCE_DOCS.map(d=><button key={d.id} onClick={()=>setActiveDoc(d.id)}
+              style={{textAlign:"left",background:B.white,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,borderRadius:12,padding:18,cursor:"pointer",boxShadow:B.shadow,fontFamily:"inherit",display:"flex",alignItems:"center",gap:14}}>
+              <ResIconBadge name={d.icon}/>
+              <div style={{minWidth:0}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:B.navy,fontWeight:600,marginBottom:3}}>{d.label}</div>
+                <div style={{fontSize:11.5,color:B.textSoft}}>{d.desc}</div>
+              </div>
+            </button>)}
           </div>
         : <Empty text="Select a family above to generate a document for them."/>}
     </div>
 
     <SectionLabel>Tools & Documents</SectionLabel>
-    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(220px,1fr))",gap:14}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(240px,1fr))",gap:14}}>
       {RESOURCE_LINKS.map(r=><button key={r.label} onClick={()=>window.open(r.url,"_blank","noopener,noreferrer")}
-        style={{textAlign:"left",background:B.white,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,borderRadius:12,padding:18,cursor:"pointer",boxShadow:B.shadow,fontFamily:"inherit"}}>
-        <div style={{fontSize:22,marginBottom:8}}>{r.icon}</div>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:B.navy,fontWeight:600,marginBottom:4}}>{r.label}</div>
-        <div style={{fontSize:12,color:B.textSoft}}>{r.desc}</div>
+        style={{textAlign:"left",background:B.white,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,borderRadius:12,padding:18,cursor:"pointer",boxShadow:B.shadow,fontFamily:"inherit",display:"flex",alignItems:"center",gap:14}}>
+        <ResIconBadge name={r.icon}/>
+        <div style={{minWidth:0}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:B.navy,fontWeight:600,marginBottom:3}}>{r.label}</div>
+          <div style={{fontSize:11.5,color:B.textSoft}}>{r.desc}</div>
+        </div>
       </button>)}
     </div>
 
