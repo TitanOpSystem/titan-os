@@ -3,6 +3,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { PCM_LOGO, PCM_MARK } from "./logo.js";
+import { PDFDocument } from "pdf-lib";
+import { PCM_AGREEMENT_TEMPLATE_B64 } from "./pcmAgreementTemplate.js";
+import { PCM_ACH_TEMPLATE_B64 } from "./pcmAchTemplate.js";
 // PCM tree emblem (transparent PNG) — used as the icon on document cards in place of file-type emoji.
 // PCM Platform v5.0 — build 20260429
 
@@ -4660,6 +4663,163 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
 }
 
 
+// ── RESOURCES (advisor tools + client document generation) ─────────────────
+// Decodes a base64 PDF template and returns raw bytes for pdf-lib to load.
+function b64ToBytes(b64){
+  const bin=atob(b64);
+  const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+  return bytes;
+}
+
+// Loads a fillable PDF template, sets text/checkbox field values by name, and
+// returns a blob: URL for the filled copy. Unknown field names are skipped
+// silently so this stays resilient if a template's fields are tweaked later.
+async function fillPdfTemplate(templateB64,fieldValues,checkboxValues={}){
+  const bytes=b64ToBytes(templateB64);
+  const pdfDoc=await PDFDocument.load(bytes);
+  const form=pdfDoc.getForm();
+  Object.entries(fieldValues).forEach(([name,value])=>{
+    try{ form.getTextField(name).setText(value||""); }catch(e){/* field not in this template — skip */}
+  });
+  Object.entries(checkboxValues).forEach(([name,checked])=>{
+    try{ const f=form.getCheckBox(name); if(checked)f.check(); else f.uncheck(); }catch(e){}
+  });
+  form.updateFieldAppearances();
+  const outBytes=await pdfDoc.save();
+  const blob=new Blob([outBytes],{type:"application/pdf"});
+  return URL.createObjectURL(blob);
+}
+
+// Client documents that can be generated, pre-filled, and opened per family.
+const RESOURCE_DOCS=[
+  {id:"agreement",label:"Client Services Agreement",icon:"📄",desc:"$5,000/mo advisory agreement · 6-month minimum"},
+  {id:"ach",       label:"Auto-Debit (ACH) Authorization",icon:"🏦",desc:"Recurring monthly fee authorization"},
+];
+
+// General advisor tools & reference documents. Edit freely — for files kept in
+// Supabase Storage, swap `url` for a signed-URL lookup the same way documents
+// are opened elsewhere in the app; for static files, drop them in /public and
+// reference the root-relative path as shown below.
+const RESOURCE_LINKS=[
+  {label:"Advisor User Guide",icon:"📘",desc:"Full platform walkthrough for advisors",url:"/resources/PCM_Advisor_User_Guide.pdf"},
+  {label:"Client Data Completeness Checklist",icon:"✅",desc:"Audit checklist for onboarding & reviews",url:"/resources/PCM_Advisor_Data_Checklist.pdf"},
+  {label:"Wire Transfer Instructions",icon:"🏦",desc:"Fillable remittance form for outgoing/incoming wires",url:"/resources/PCM_Wire_Instructions_Fillable.pdf"},
+  {label:"Personal Financial Statement",icon:"📋",desc:"Fillable assets, liabilities, income & expense statement",url:"/resources/PCM_Personal_Financial_Statement.pdf"},
+  {label:"Lifestyle Expense Worksheet",icon:"📊",desc:"Fillable monthly/annual expense worksheet for clients",url:"/resources/PCM_Lifestyle_Expense_Worksheet.pdf"},
+];
+
+function FillClientDocModal({docId,family,contact,onClose,toast}){
+  const isAgreement=docId==="agreement";
+  const[fields,setFields]=useState({
+    client_name:family.name||"",
+    client_address:contact?.address||"",
+    effective_date:new Date().toISOString().slice(0,10),
+    governing_state:"",
+    account_holder_name:contact?.name||family.name||"",
+    billing_address:contact?.address||"",
+    phone:contact?.phone||"",
+    email:contact?.email||"",
+    monthly_fee:"$5,000.00",
+    billing_date:"1st",
+  });
+  const[generating,setGenerating]=useState(false);
+  const set=k=>e=>setFields(f=>({...f,[k]:e.target.value}));
+
+  const generate=async()=>{
+    setGenerating(true);
+    try{
+      const url=isAgreement
+        ? await fillPdfTemplate(PCM_AGREEMENT_TEMPLATE_B64,{
+            effective_date:fields.effective_date,
+            client_name:fields.client_name,
+            client_address:fields.client_address,
+            governing_state:fields.governing_state,
+          })
+        : await fillPdfTemplate(PCM_ACH_TEMPLATE_B64,{
+            client_name:fields.client_name,
+            account_holder_name:fields.account_holder_name,
+            billing_address:fields.billing_address,
+            phone:fields.phone,
+            email:fields.email,
+            monthly_fee:fields.monthly_fee,
+            billing_date:fields.billing_date,
+          });
+      window.open(url,"_blank","noopener,noreferrer");
+      toast("Document generated and opened in a new tab");
+      onClose();
+    }catch(e){
+      toast("Couldn't generate the PDF — "+(e.message||"unknown error"),"error");
+    }finally{
+      setGenerating(false);
+    }
+  };
+
+  return <Modal title={isAgreement?"Client Services Agreement":"Auto-Debit Authorization"} onClose={onClose}>
+    <div style={{fontSize:13,color:B.textSoft,marginBottom:16,lineHeight:1.5}}>
+      Review and adjust the details below, then generate the PDF. It opens in a new tab, pre-filled and ready to sign.
+    </div>
+    <Grid2>
+      <Field label="Client / Family Name"><Inp value={fields.client_name} onChange={set("client_name")}/></Field>
+      {isAgreement?<>
+        <Field label="Effective Date"><Inp type="date" value={fields.effective_date} onChange={set("effective_date")}/></Field>
+        <Field label="Client Address"><Inp value={fields.client_address} onChange={set("client_address")}/></Field>
+        <Field label="Governing State"><Inp placeholder="e.g. Florida" value={fields.governing_state} onChange={set("governing_state")}/></Field>
+      </>:<>
+        <Field label="Account Holder Name"><Inp value={fields.account_holder_name} onChange={set("account_holder_name")}/></Field>
+        <Field label="Billing Address"><Inp value={fields.billing_address} onChange={set("billing_address")}/></Field>
+        <Field label="Phone"><Inp value={fields.phone} onChange={set("phone")}/></Field>
+        <Field label="Email"><Inp value={fields.email} onChange={set("email")}/></Field>
+        <Field label="Monthly Fee"><Inp value={fields.monthly_fee} onChange={set("monthly_fee")}/></Field>
+        <Field label="Billing Date"><Inp placeholder="e.g. 1st" value={fields.billing_date} onChange={set("billing_date")}/></Field>
+      </>}
+    </Grid2>
+    <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:8}}>
+      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn onClick={generate} disabled={generating}>{generating?"Generating…":"Generate & Open →"}</Btn>
+    </div>
+  </Modal>;
+}
+
+function ResourcesView({data,userProfile,toast}){
+  const isMobile=useIsMobile();
+  const[familyId,setFamilyId]=useState("");
+  const[activeDoc,setActiveDoc]=useState(null);
+  const families=data.families||[];
+  const family=families.find(f=>f.id===familyId)||null;
+  const contacts=(data.contacts||[]).filter(c=>c.familyId===familyId);
+  const primaryContact=contacts.find(c=>!c.isAdvisor)||contacts[0]||null;
+
+  return <div style={{padding:isMobile?16:28,overflowY:"auto",height:"100%"}}>
+    <SectionLabel>Client Documents</SectionLabel>
+    <div style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,padding:20,marginBottom:28}}>
+      <Field label="Select Client / Family">
+        <Sel value={familyId} onChange={e=>setFamilyId(e.target.value)}>
+          <option value="">Choose a family…</option>
+          {families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+        </Sel>
+      </Field>
+      {family
+        ? <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:6}}>
+            {RESOURCE_DOCS.map(d=><Btn key={d.id} variant="gold" onClick={()=>setActiveDoc(d.id)}>{d.icon} {d.label}</Btn>)}
+          </div>
+        : <Empty text="Select a family above to generate a document for them."/>}
+    </div>
+
+    <SectionLabel>Tools & Documents</SectionLabel>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(220px,1fr))",gap:14}}>
+      {RESOURCE_LINKS.map(r=><button key={r.label} onClick={()=>window.open(r.url,"_blank","noopener,noreferrer")}
+        style={{textAlign:"left",background:B.white,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,borderRadius:12,padding:18,cursor:"pointer",boxShadow:B.shadow,fontFamily:"inherit"}}>
+        <div style={{fontSize:22,marginBottom:8}}>{r.icon}</div>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:B.navy,fontWeight:600,marginBottom:4}}>{r.label}</div>
+        <div style={{fontSize:12,color:B.textSoft}}>{r.desc}</div>
+      </button>)}
+    </div>
+
+    {activeDoc&&family&&<FillClientDocModal docId={activeDoc} family={family} contact={primaryContact} onClose={()=>setActiveDoc(null)} toast={toast}/>}
+  </div>;
+}
+
 // ── NAV ───────────────────────────────────────────────────────────────────────
 const NAV_SECTIONS=[
   {section:"CLIENT MANAGEMENT",items:[
@@ -4674,6 +4834,9 @@ const NAV_SECTIONS=[
     {id:"p-pipeline",label:"Pipeline", icon:"◆"},
     {id:"p-notes",   label:"Notes",    icon:"◧"},
     {id:"p-tasks",   label:"Tasks",    icon:"◻"},
+  ]},
+  {section:"RESOURCES",items:[
+    {id:"resources",label:"Resources",icon:"▥"},
   ]},
   {section:"ADMIN",items:[
     {id:"users",label:"Users",icon:"⊕"},
@@ -4859,6 +5022,7 @@ export default function App(){
           {tab==="cm-notes"    &&<NotesView data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="cm-tasks"    &&<TasksView data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="users"       &&<UserManagementView userProfile={userProfile} data={data} toast={showToast}/>}
+          {tab==="resources"   &&<ResourcesView data={data} userProfile={userProfile} toast={showToast}/>}
           {tab==="p-contacts"  &&<ProspectContactsView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="p-pipeline"  &&<ProspectPipelineView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="p-notes"     &&<NotesView data={{...data,notes:data.notes.filter(n=>!n.familyId),families:[]}} reload={reload} toast={showToast} userProfile={userProfile} prospectMode={true}/>}
