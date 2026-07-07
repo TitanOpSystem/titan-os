@@ -4712,9 +4712,20 @@ function ResIconBadge({name}){
   return <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(206,182,132,0.15)",border:"1px solid rgba(206,182,132,0.55)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:B.navy}}><ResIcon name={name}/></div>;
 }
 
+// Best-effort guess at a US state from a free-text address string (e.g.
+// "123 Main St, Tampa, FL 33602" -> "FL"). Just a starting point in the
+// field — advisors can always overwrite it before generating.
+function guessState(address){
+  if(!address)return"";
+  const m=address.match(/,\s*([A-Za-z]{2})\s*\d{0,5}\s*$/);
+  return m?m[1].toUpperCase():"";
+}
+
 // Client documents that can be generated, pre-filled, and opened per family.
-// Each entry maps its own PDF field names to a small set of editable inputs;
-// unmapped fields in the underlying PDF are left blank for manual entry.
+// Each default(family, contact, userProfile, bankAccount) pulls from real
+// platform data where it exists; unmapped fields are left blank for manual
+// entry — notably bank account/routing numbers, which this platform does not
+// store anywhere (by design, until RLS + encryption are in place).
 const DOC_CONFIGS={
   agreement:{
     label:"Client Services Agreement",icon:"doc",
@@ -4722,9 +4733,12 @@ const DOC_CONFIGS={
     template:PCM_AGREEMENT_TEMPLATE_B64,
     fields:[
       {key:"client_name",   label:"Client / Family Name", pdfField:"client_name",    default:(f)=>f.name||""},
+      {key:"monthly_fee",   label:"Monthly Fee",          pdfField:"monthly_fee",    default:()=>"5,000.00",
+        derives:{key:"annual_fee",compute:(v)=>{ const n=parseFloat(String(v).replace(/[^0-9.]/g,""))||0; return (n*12).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }}},
+      {key:"annual_fee",    label:"Annual Fee",           pdfField:"annual_fee",     default:()=>"60,000.00"},
       {key:"effective_date",label:"Effective Date",       pdfField:"effective_date", type:"date", default:()=>new Date().toISOString().slice(0,10)},
       {key:"client_address",label:"Client Address",       pdfField:"client_address", default:(f,c)=>c?.address||""},
-      {key:"governing_state",label:"Governing State",     pdfField:"governing_state",placeholder:"e.g. Florida", default:()=>""},
+      {key:"governing_state",label:"Governing State",     pdfField:"governing_state",placeholder:"e.g. Florida", default:(f,c)=>guessState(c?.address)},
     ],
   },
   ach:{
@@ -4737,6 +4751,8 @@ const DOC_CONFIGS={
       {key:"billing_address",    label:"Billing Address",       pdfField:"billing_address",      default:(f,c)=>c?.address||""},
       {key:"phone",              label:"Phone",                 pdfField:"phone",                default:(f,c)=>c?.phone||""},
       {key:"email",              label:"Email",                 pdfField:"email",                default:(f,c)=>c?.email||""},
+      {key:"bank_name",          label:"Bank Name",             pdfField:"bank_name",            default:(f,c,u,a)=>a?.institution||""},
+      {key:"account_type",       label:"Account Type",          pdfField:null, type:"select", options:["Checking","Savings"], default:(f,c,u,a)=>a?.accountType==="Savings"?"Savings":"Checking"},
       {key:"monthly_fee",        label:"Monthly Fee",           pdfField:"monthly_fee",          default:()=>"$5,000.00"},
       {key:"billing_date",       label:"Billing Date",          pdfField:"billing_date",         placeholder:"e.g. 1st", default:()=>"1st"},
     ],
@@ -4747,7 +4763,7 @@ const DOC_CONFIGS={
     template:PCM_CHECKLIST_TEMPLATE_B64,
     fields:[
       {key:"family_client",label:"Family / Client Name", pdfField:"family_client", default:(f)=>f.name||""},
-      {key:"advisor_name", label:"Advisor",               pdfField:"advisor_name",  default:(f,c,u)=>u?.fullName||u?.email||""},
+      {key:"advisor_name", label:"Advisor",               pdfField:"advisor_name",  default:(f,c,u)=>f.advisorName||u?.fullName||u?.email||""},
       {key:"date_reviewed",label:"Date Reviewed",         pdfField:"date_reviewed", type:"date", default:()=>new Date().toISOString().slice(0,10)},
     ],
   },
@@ -4755,11 +4771,12 @@ const DOC_CONFIGS={
     label:"Wire Transfer Instructions",icon:"transfer",
     desc:"Fillable remittance form for outgoing/incoming wires",
     template:PCM_WIRE_TEMPLATE_B64,
-    note:"Pre-fills the client as beneficiary — the most common case. If your client is sending funds instead, adjust the sender/beneficiary fields directly in the opened PDF.",
+    note:"Pre-fills the client as sender, using whatever bank is on file for them — the most common case. If your client is the beneficiary instead, fill in that section directly in the opened PDF. Account and routing numbers are never stored in the platform, so those stay blank here on purpose.",
     fields:[
-      {key:"ben_name",   label:"Beneficiary Name",    pdfField:"ben_name_6",   default:(f)=>f.name||""},
-      {key:"ben_address",label:"Beneficiary Address", pdfField:"ben_address_8",default:(f,c)=>c?.address||""},
-      {key:"wire_date",  label:"Wire Date",           pdfField:"wire_date_14", type:"date", default:()=>new Date().toISOString().slice(0,10)},
+      {key:"sender_name",   label:"Sender Name",     pdfField:"sender_name_1",   default:(f,c)=>c?.name||f.name||""},
+      {key:"sender_address",label:"Sender Address",  pdfField:"sender_address_2",default:(f,c)=>c?.address||""},
+      {key:"sender_bank",   label:"Originating Bank",pdfField:"sender_bank_3",   default:(f,c,u,a)=>a?.institution||""},
+      {key:"wire_date",     label:"Wire Date",       pdfField:"wire_date_14",    type:"date", default:()=>new Date().toISOString().slice(0,10)},
     ],
   },
   pfs:{
@@ -4786,22 +4803,35 @@ const RESOURCE_LINKS=[
   {label:"Advisor User Guide",icon:"book",desc:"Full platform walkthrough for advisors",url:"/resources/PCM_Advisor_User_Guide.pdf"},
 ];
 
-function FillClientDocModal({docId,family,contact,userProfile,onClose,toast}){
+function FillClientDocModal({docId,family,contact,userProfile,bankAccount,onClose,toast}){
   const config=DOC_CONFIGS[docId];
   const[values,setValues]=useState(()=>{
     const init={};
-    config.fields.forEach(f=>{ init[f.key]=f.default?f.default(family,contact,userProfile):""; });
+    config.fields.forEach(f=>{ init[f.key]=f.default?f.default(family,contact,userProfile,bankAccount):""; });
     return init;
   });
   const[generating,setGenerating]=useState(false);
-  const set=k=>e=>setValues(v=>({...v,[k]:e.target.value}));
+  const set=k=>e=>{
+    const val=e.target.value;
+    setValues(v=>{
+      const next={...v,[k]:val};
+      const src=config.fields.find(f=>f.key===k);
+      if(src?.derives) next[src.derives.key]=src.derives.compute(val);
+      return next;
+    });
+  };
 
   const generate=async()=>{
     setGenerating(true);
     try{
       const pdfValues={};
-      config.fields.forEach(f=>{ pdfValues[f.pdfField]=values[f.key]; });
-      const url=await fillPdfTemplate(config.template,pdfValues);
+      config.fields.forEach(f=>{ if(f.pdfField)pdfValues[f.pdfField]=values[f.key]; });
+      const checkboxValues={};
+      if(docId==="ach"){
+        checkboxValues.acct_checking=values.account_type==="Checking";
+        checkboxValues.acct_savings=values.account_type==="Savings";
+      }
+      const url=await fillPdfTemplate(config.template,pdfValues,checkboxValues);
       window.open(url,"_blank","noopener,noreferrer");
       toast("Document generated and opened in a new tab");
       onClose();
@@ -4819,7 +4849,9 @@ function FillClientDocModal({docId,family,contact,userProfile,onClose,toast}){
     {config.note&&<div style={{fontSize:12,color:"#8a5c00",background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"10px 12px",marginBottom:16,lineHeight:1.5}}>{config.note}</div>}
     <Grid2>
       {config.fields.map(f=><Field key={f.key} label={f.label}>
-        <Inp type={f.type||"text"} placeholder={f.placeholder} value={values[f.key]} onChange={set(f.key)}/>
+        {f.type==="select"
+          ? <Sel value={values[f.key]} onChange={set(f.key)}>{f.options.map(o=><option key={o} value={o}>{o}</option>)}</Sel>
+          : <Inp type={f.type||"text"} placeholder={f.placeholder} value={values[f.key]} onChange={set(f.key)}/>}
       </Field>)}
     </Grid2>
     <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:8}}>
@@ -4837,6 +4869,13 @@ function ResourcesView({data,userProfile,toast}){
   const family=families.find(f=>f.id===familyId)||null;
   const contacts=(data.contacts||[]).filter(c=>c.familyId===familyId);
   const primaryContact=contacts.find(c=>!c.isAdvisor)||contacts[0]||null;
+  // Prefer an actual bank-type account (Checking/Savings/Money Market) for
+  // sender/institution defaults — falls back to the highest-balance account
+  // of any type if the family has no plain bank account on file.
+  const familyAccounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===familyId);
+  const bankAccount=familyAccounts.find(a=>["Checking","Savings","Money Market"].includes(a.accountType))
+    || [...familyAccounts].sort((a,b)=>(Number(b.currentBalance)||0)-(Number(a.currentBalance)||0))[0]
+    || null;
 
   return <div style={{padding:isMobile?16:28,overflowY:"auto",height:"100%"}}>
     <SectionLabel>Client Documents</SectionLabel>
@@ -4873,7 +4912,7 @@ function ResourcesView({data,userProfile,toast}){
       </button>)}
     </div>
 
-    {activeDoc&&family&&<FillClientDocModal docId={activeDoc} family={family} contact={primaryContact} userProfile={userProfile} onClose={()=>setActiveDoc(null)} toast={toast}/>}
+    {activeDoc&&family&&<FillClientDocModal docId={activeDoc} family={family} contact={primaryContact} userProfile={userProfile} bankAccount={bankAccount} onClose={()=>setActiveDoc(null)} toast={toast}/>}
   </div>;
 }
 
