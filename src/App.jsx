@@ -4739,6 +4739,12 @@ const DOC_CONFIGS={
       {key:"effective_date",label:"Effective Date",       pdfField:"effective_date", type:"date", default:()=>new Date().toISOString().slice(0,10)},
       {key:"client_address",label:"Client Address",       pdfField:"client_address", default:(f,c)=>c?.address||""},
       {key:"governing_state",label:"Governing State",     pdfField:"governing_state",placeholder:"e.g. Florida", default:(f,c)=>guessState(c?.address)},
+      {key:"svc_portfolio",   label:"Include: Portfolio oversight",     pdfField:null, type:"checkbox", default:()=>true},
+      {key:"svc_property",    label:"Include: Property & asset tracking", pdfField:null, type:"checkbox", default:()=>true},
+      {key:"svc_documents",   label:"Include: Document management",     pdfField:null, type:"checkbox", default:()=>true},
+      {key:"svc_planning",    label:"Include: Financial planning",      pdfField:null, type:"checkbox", default:()=>true},
+      {key:"svc_portal",      label:"Include: Client portal & Ask Titan",pdfField:null, type:"checkbox", default:()=>true},
+      {key:"svc_bookkeeping", label:"Include: Bookkeeping, bill pay & reporting", pdfField:null, type:"checkbox", default:()=>true},
     ],
   },
   ach:{
@@ -4820,13 +4826,20 @@ function FillClientDocModal({docId,family,contact,userProfile,bankAccount,onClos
       return next;
     });
   };
+  const toggle=k=>()=>setValues(v=>({...v,[k]:!v[k]}));
+
+  const regularFields=config.fields.filter(f=>f.type!=="checkbox");
+  const checkboxFields=config.fields.filter(f=>f.type==="checkbox");
 
   const generate=async()=>{
     setGenerating(true);
     try{
       const pdfValues={};
-      config.fields.forEach(f=>{ if(f.pdfField)pdfValues[f.pdfField]=values[f.key]; });
       const checkboxValues={};
+      config.fields.forEach(f=>{
+        if(f.type==="checkbox") checkboxValues[f.key]=!!values[f.key];
+        else if(f.pdfField) pdfValues[f.pdfField]=values[f.key];
+      });
       if(docId==="ach"){
         checkboxValues.acct_checking=values.account_type==="Checking";
         checkboxValues.acct_savings=values.account_type==="Savings";
@@ -4848,12 +4861,22 @@ function FillClientDocModal({docId,family,contact,userProfile,bankAccount,onClos
     </div>
     {config.note&&<div style={{fontSize:12,color:"#8a5c00",background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"10px 12px",marginBottom:16,lineHeight:1.5}}>{config.note}</div>}
     <Grid2>
-      {config.fields.map(f=><Field key={f.key} label={f.label}>
+      {regularFields.map(f=><Field key={f.key} label={f.label}>
         {f.type==="select"
           ? <Sel value={values[f.key]} onChange={set(f.key)}>{f.options.map(o=><option key={o} value={o}>{o}</option>)}</Sel>
           : <Inp type={f.type||"text"} placeholder={f.placeholder} value={values[f.key]} onChange={set(f.key)}/>}
       </Field>)}
     </Grid2>
+    {checkboxFields.length>0&&<div style={{marginTop:6,marginBottom:8}}>
+      <label style={{display:"block",fontSize:11,color:B.textSoft,marginBottom:8,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>Services Included</label>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        {checkboxFields.map(f=><label key={f.key} onClick={toggle(f.key)}
+          style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"9px 12px",background:values[f.key]?"#e8f0f8":B.bg,borderRadius:8,border:`1px solid ${values[f.key]?B.navyMid:B.border}`}}>
+          <input type="checkbox" checked={!!values[f.key]} onChange={toggle(f.key)} style={{width:15,height:15,accentColor:B.navy,flexShrink:0}}/>
+          <span style={{fontSize:12.5,color:B.navy,fontWeight:600}}>{f.label.replace(/^Include:\s*/,"")}</span>
+        </label>)}
+      </div>
+    </div>}
     <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:8}}>
       <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
       <Btn onClick={generate} disabled={generating}>{generating?"Generating…":"Generate & Open →"}</Btn>
