@@ -436,7 +436,9 @@ function Modal({title,onClose,wide,children}){
 }
 
 const inp={width:"100%",background:B.bg,border:`1px solid ${B.border}`,borderRadius:8,padding:"9px 13px",color:B.text,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit"};
-const Inp=p=><input style={inp} {...p}/>;
+// Merge (not replace) any caller-supplied style, so passing e.g. style={{flex:1}}
+// for layout doesn't strip the standard background/border/padding everywhere else.
+const Inp=p=><input {...p} style={{...inp,...(p.style||{})}}/>;
 // Formats numbers as US dollars with commas while user types. Stores the raw numeric value (no commas) on change.
 function MoneyInput({value,onChange,placeholder,style,disabled}){
   // Format number for display: 1234567.89 → "1,234,567.89"
@@ -470,7 +472,7 @@ function MoneyInput({value,onChange,placeholder,style,disabled}){
   };
   return <input type="text" inputMode="decimal" style={style||inp} disabled={disabled} value={fmt(value)} onChange={handleChange} placeholder={placeholder||"0"}/>;
 }
-const Sel=({children,...p})=><select style={{...inp,cursor:"pointer"}} {...p}>{children}</select>;
+const Sel=({children,...p})=><select {...p} style={{...inp,cursor:"pointer",...(p.style||{})}}>{children}</select>;
 function AdvisorScopeBar({userProfile,value,onChange,label="Advisor"}){
   const[advisors,setAdvisors]=useState([]);
   const isAdmin=userProfile?.role==="admin";
