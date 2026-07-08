@@ -864,11 +864,11 @@ div.body{font-size:14px;white-space:pre-wrap;}
     setBusy(true);
     try{
       const{data:resp,error:fnErr}=await sb.functions.invoke("family-ai-assistant",{body:{question,snapshot,history,assistantName}});
-      if(fnErr)throw new Error(fnErr.message||"Could not reach the assistant.");
-      if(resp&&resp.error)throw new Error(resp.error);
+      if(fnErr)throw new Error("Please contact your Advisor for that information.");
+      if(resp&&resp.error)throw new Error("Please contact your Advisor for that information.");
       setMessages(m=>[...m,{role:"assistant",content:(resp&&resp.answer)||"No response."}]);
     }catch(e){
-      setError(e&&e.message?e.message:"Something went wrong reaching the assistant.");
+      setError("Please contact your Advisor for that information.");
     }finally{
       setBusy(false);
     }
