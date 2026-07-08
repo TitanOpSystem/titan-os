@@ -964,7 +964,7 @@ function AssistantWelcome({family,data,reload,onClose,userProfile,toast}){
 // Compose an email to your designated advisor (or anyone else) and send it
 // through the platform. Defaults to the primary advisor on the relationship;
 // the dropdown otherwise only offers contacts flagged as an advisor under
-// Financial Partners & Contacts — never other advisors from the firm at
+// Team Member & Contacts — never other advisors from the firm at
 // large. The primary advisor is ALWAYS cc'd (locked) unless they're already
 // the direct recipient — this cannot be turned off client-side, and the
 // server enforces it independently regardless of what's submitted.
@@ -974,7 +974,7 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
   const primaryEmailRaw=(family.advisorEmail||"").trim();
   const primaryEmail=primaryEmailRaw.toLowerCase();
 
-  // Dropdown options: the primary advisor first, then any Financial Partners &
+  // Dropdown options: the primary advisor first, then any Team Member &
   // Contacts entry flagged as an advisor for this family.
   const flagged=((data&&data.family_contacts)||[]).filter(c=>c.familyId===family.id&&c.isAdvisor&&(c.email||"").trim());
   const options=useMemo(()=>{
@@ -1035,9 +1035,11 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
       <div style={{marginTop:18}}><Btn onClick={onClose}>Done</Btn></div>
     </div>:<>
       <Field label="To">
-        {options.length>0
+        {options.length>1
           ? <Sel value={toEmail} onChange={e=>setToEmail(e.target.value)}>{options.map(o=><option key={o.email} value={o.email}>{o.name}{o.primary?" (primary advisor)":""} · {o.email}</option>)}</Sel>
-          : <div style={{fontSize:13,color:B.textMute,padding:"9px 0"}}>No designated advisor is on file yet — add one under Financial Partners & Contacts, or add someone below.</div>}
+          : options.length===1
+          ? <div style={{fontSize:13,color:B.navy,padding:"9px 0"}}><strong>{options[0].name}</strong> · {options[0].email}</div>
+          : <div style={{fontSize:13,color:B.textMute,padding:"9px 0"}}>No designated advisor is on file yet — add one under Team Member & Contacts, or add someone below.</div>}
       </Field>
       {customs.length>0&&<div style={{marginBottom:10}}>
         {customs.map(c=><div key={c.email} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 10px",background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:8,marginBottom:6}}>
@@ -1342,14 +1344,14 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 </div>
               </div>)}
             </div>
-            {/* Financial Partners & Contacts (professional contacts linked to this family) */}
+            {/* Team Member & Contacts (professional contacts linked to this family) */}
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Financial Partners & Contacts</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Team Member & Contacts</div>
                 <Btn small onClick={()=>{setEditFC(null);setModal("familyContact");}}>+ Add</Btn>
               </div>
               <GoldLine/>
-              {famContacts.length===0?<Empty text="No contacts yet — add financial partners, CPA, attorney…"/>:famContacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`,gap:8}}>
+              {famContacts.length===0?<Empty text="No contacts yet — add team members, CPA, attorney…"/>:famContacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`,gap:8}}>
                 <div style={{minWidth:0}}>
                   <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{c.name}{c.role&&<span style={{fontWeight:400,color:B.textSoft,fontSize:11,marginLeft:6}}>· {c.role}</span>}</div>
                   <div style={{fontSize:11,color:B.textSoft,marginTop:2,display:"flex",gap:10,flexWrap:"wrap"}}>
