@@ -961,63 +961,123 @@ function AssistantWelcome({family,data,reload,onClose,userProfile,toast}){
   </Modal>;
 }
 
-// Compose an email to an advisor and hand it to the client's mail app. The
-// client can pick from the primary advisor plus any family contacts flagged as
-// advisors; picking a non-primary advisor auto-CCs the primary (locked).
+// Compose an email to an advisor (or anyone else) and send it through the
+// platform. The client can pick any active PCM advisor/admin from the staff
+// directory, any family contact flagged as an advisor, and/or type in an
+// arbitrary email address. The primary advisor is ALWAYS cc'd (locked) unless
+// they're already a direct recipient — this cannot be turned off client-side,
+// and the server enforces it independently regardless of what's submitted.
+const EMAIL_RE=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function EmailAdvisorModal({family,userProfile,data,onClose}){
   const primaryName=(family.advisorName||"").trim();
   const primaryEmailRaw=(family.advisorEmail||"").trim();
   const primaryEmail=primaryEmailRaw.toLowerCase();
+
+  const[directory,setDirectory]=useState([]); // PCM staff advisors/admins
+  useEffect(()=>{
+    sb.from("user_profiles").select("email,full_name,role").in("role",["advisor","admin"]).eq("active",true)
+      .then(({data:rows,error})=>{ if(!error&&rows)setDirectory(rows); });
+  },[]);
+
   const flagged=((data&&data.family_contacts)||[]).filter(c=>c.familyId===family.id&&c.isAdvisor&&(c.email||"").trim());
-  const options=[];
-  if(primaryEmailRaw) options.push({name:primaryName||primaryEmailRaw,email:primaryEmailRaw,primary:true});
-  flagged.forEach(c=>{ if((c.email||"").trim().toLowerCase()!==primaryEmail) options.push({name:c.name||c.email,email:(c.email||"").trim(),primary:false}); });
+
+  // Everyone selectable besides the (separately-handled, always-cc'd) primary.
+  const otherOptions=useMemo(()=>{
+    const seen=new Set(primaryEmail?[primaryEmail]:[]);
+    const out=[];
+    directory.forEach(d=>{ const e=(d.email||"").trim().toLowerCase(); if(e&&!seen.has(e)){seen.add(e);out.push({name:d.fullName||d.full_name||d.email,email:(d.email||"").trim(),role:d.role});} });
+    flagged.forEach(c=>{ const e=(c.email||"").trim().toLowerCase(); if(e&&!seen.has(e)){seen.add(e);out.push({name:c.name||c.email,email:(c.email||"").trim(),role:"family contact"});} });
+    return out;
+  },[directory,flagged,primaryEmail]);
+
   const clientName=(userProfile&&userProfile.fullName)||family.name||"";
   const clientEmail=(userProfile&&userProfile.email)||"";
-  const[toEmail,setToEmail]=useState(options[0]?options[0].email:"");
+  const[checked,setChecked]=useState(()=>new Set());
+  const[customs,setCustoms]=useState([]); // [{name,email}]
+  const[customName,setCustomName]=useState("");
+  const[customEmail,setCustomEmail]=useState("");
+  const[addErr,setAddErr]=useState(null);
   const[subject,setSubject]=useState(`Message from ${family.name||clientName||"client"}`);
   const[msg,setMsg]=useState("");
   const[sending,setSending]=useState(false);
   const[err,setErr]=useState(null);
   const[sent,setSent]=useState(false);
-  const selected=options.find(o=>o.email===toEmail)||options[0];
-  const ccPrimary=(selected&&!selected.primary&&primaryEmailRaw)?{name:primaryName||primaryEmailRaw,email:primaryEmailRaw}:null;
+
+  const toggle=email=>setChecked(s=>{ const n=new Set(s); n.has(email)?n.delete(email):n.add(email); return n; });
+
+  const addCustom=()=>{
+    const email=customEmail.trim().toLowerCase();
+    setAddErr(null);
+    if(!email||!EMAIL_RE.test(email)){ setAddErr("Enter a valid email address."); return; }
+    if(email===primaryEmail||checked.has(email)||customs.some(c=>c.email===email)){ setAddErr("That person is already included."); return; }
+    setCustoms(list=>[...list,{name:customName.trim()||email,email}]);
+    setCustomName("");setCustomEmail("");
+  };
+  const removeCustom=email=>setCustoms(list=>list.filter(c=>c.email!==email));
+
+  // Final recipient list: whatever's checked/added, or — if nothing's been
+  // picked — the primary advisor themselves (matches the old single-recipient default).
+  const pickedOthers=[...otherOptions.filter(o=>checked.has(o.email)),...customs];
+  const recipients=pickedOthers.length?pickedOthers:(primaryEmailRaw?[{name:primaryName||primaryEmailRaw,email:primaryEmail}]:[]);
+  const ccPrimary=(pickedOthers.length&&primaryEmailRaw)?{name:primaryName||primaryEmailRaw,email:primaryEmail}:null;
+
   const send=async()=>{
-    if(!selected||sending||!msg.trim())return;
+    if(!recipients.length||sending||!msg.trim())return;
     setSending(true);setErr(null);
     try{
-      const{data:resp,error}=await sb.functions.invoke("send-advisor-email",{body:{toEmail:selected.email,subject,message:msg}});
+      const{data:resp,error}=await sb.functions.invoke("send-advisor-email",{body:{toEmails:recipients.map(r=>r.email),subject,message:msg}});
       if(error)throw new Error(error.message||"Could not send.");
       if(resp&&resp.error)throw new Error(resp.detail||resp.error);
       setSent(true);
     }catch(e){ setErr(e&&e.message?e.message:"Could not send the email."); }
     finally{ setSending(false); }
   };
+
   return <Modal title="Email your advisor" onClose={onClose}>
     {sent?<div style={{textAlign:"center",padding:"12px 0"}}>
       <div style={{fontSize:40,marginBottom:8}}>✓</div>
       <div style={{fontSize:16,color:B.navy,fontWeight:600,fontFamily:"'Cormorant Garamond',serif"}}>Message sent</div>
-      <div style={{fontSize:13,color:B.textSoft,marginTop:6,lineHeight:1.5}}>Your message went to <strong>{selected.name}</strong>{ccPrimary?<>, with <strong>{ccPrimary.name}</strong> copied</>:null}. They can reply directly to your email.</div>
+      <div style={{fontSize:13,color:B.textSoft,marginTop:6,lineHeight:1.5}}>Your message went to <strong>{recipients.map(r=>r.name).join(", ")}</strong>{ccPrimary?<>, with <strong>{ccPrimary.name}</strong> copied</>:null}. They can reply directly to your email.</div>
       <div style={{marginTop:18}}><Btn onClick={onClose}>Done</Btn></div>
-    </div>:options.length?<>
+    </div>:<>
       <Field label="To">
-        {options.length>1
-          ? <Sel value={toEmail} onChange={e=>setToEmail(e.target.value)}>{options.map(o=><option key={o.email} value={o.email}>{o.name}{o.primary?" (primary advisor)":""} · {o.email}</option>)}</Sel>
-          : <div style={{fontSize:13,color:B.navy,padding:"9px 0"}}><strong>{selected.name}</strong> · {selected.email}</div>}
+        {otherOptions.length>0&&<div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
+          {otherOptions.map(o=><label key={o.email} onClick={()=>toggle(o.email)} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"8px 12px",background:checked.has(o.email)?"#e8f0f8":B.bg,borderRadius:8,border:`1px solid ${checked.has(o.email)?B.navyMid:B.border}`}}>
+            <input type="checkbox" checked={checked.has(o.email)} onChange={()=>toggle(o.email)} style={{width:15,height:15,accentColor:B.navy,flexShrink:0}}/>
+            <div style={{minWidth:0,flex:1}}>
+              <span style={{fontSize:13,color:B.navy,fontWeight:600}}>{o.name}</span>
+              <span style={{fontSize:11,color:B.textMute}}> · {o.email}{o.role?` · ${o.role}`:""}</span>
+            </div>
+          </label>)}
+        </div>}
+        {customs.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+          {customs.map(c=><span key={c.email} style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(206,182,132,0.18)",border:`1px solid ${B.gold}`,borderRadius:20,padding:"4px 6px 4px 12px",fontSize:12,color:B.navy}}>
+            {c.name}
+            <button onClick={()=>removeCustom(c.email)} title="Remove" style={{background:"none",border:"none",color:B.textSoft,cursor:"pointer",fontSize:13,padding:"0 2px",lineHeight:1}}>✕</button>
+          </span>)}
+        </div>}
+        <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+          <Inp placeholder="Name (optional)" value={customName} onChange={e=>setCustomName(e.target.value)} style={{flex:1}}/>
+          <Inp placeholder="email@example.com" value={customEmail} onChange={e=>setCustomEmail(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addCustom();}}} style={{flex:1}}/>
+          <Btn small variant="ghost" onClick={addCustom}>+ Add</Btn>
+        </div>
+        {addErr&&<div style={{fontSize:11,color:"#8b1a1a",marginTop:5}}>{addErr}</div>}
+        <div style={{fontSize:11,color:B.textMute,marginTop:6}}>Add anyone else you'd like included — your accountant, attorney, or family member.</div>
       </Field>
       {ccPrimary&&<div style={{fontSize:12,color:B.textSoft,background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:8,padding:"8px 12px",marginBottom:12}}>
         <span style={{fontWeight:700,color:B.navy}}>Cc: {ccPrimary.name}</span> · {ccPrimary.email}
         <div style={{fontSize:11,color:B.textMute,marginTop:2}}>🔒 Your primary advisor is always copied and can't be removed.</div>
       </div>}
+      {!ccPrimary&&!primaryEmailRaw&&<div style={{fontSize:11,color:B.textMute,marginBottom:12}}>No primary advisor is on file for your account yet — this will go out without an automatic copy.</div>}
       <Field label="Subject"><Inp value={subject} onChange={e=>setSubject(e.target.value)}/></Field>
       <Field label="Message"><textarea value={msg} onChange={e=>setMsg(e.target.value)} rows={7} placeholder="Write your message…" style={{width:"100%",resize:"vertical",border:`1px solid ${B.border}`,borderRadius:8,padding:"11px 13px",fontSize:14,fontFamily:"inherit",color:B.text,background:B.white,outline:"none",lineHeight:1.5}}/></Field>
-      <div style={{fontSize:11,color:B.textMute,margin:"6px 0 14px"}}>{clientEmail?<>Sent from your address (<strong>{clientEmail}</strong>) — your advisor can reply straight to you.</>:"Your advisor can reply straight to you."}</div>
+      <div style={{fontSize:11,color:B.textMute,margin:"6px 0 14px"}}>{clientEmail?<>Sent from your address (<strong>{clientEmail}</strong>) — recipients can reply straight to you.</>:"Recipients can reply straight to you."}</div>
       {err&&<div style={{background:"#fde8e8",border:"1px solid #f5c6c6",color:"#8b1a1a",borderRadius:8,padding:"9px 12px",fontSize:12,marginBottom:12}}>⚠ {err}</div>}
       <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
         <button onClick={onClose} style={{background:"none",border:"none",color:B.textSoft,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-        <Btn onClick={send} disabled={sending||!subject.trim()||!msg.trim()}>{sending?"Sending…":"✉ Send email"}</Btn>
+        <Btn onClick={send} disabled={sending||!recipients.length||!subject.trim()||!msg.trim()}>{sending?"Sending…":"✉ Send email"}</Btn>
       </div>
-    </>:<div style={{fontSize:14,color:B.text,lineHeight:1.5}}>No advisor email is on file for your account yet. Please contact your PCM office and we'll get you connected.</div>}
+    </>}
   </Modal>;
 }
 
