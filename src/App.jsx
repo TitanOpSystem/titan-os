@@ -961,38 +961,35 @@ function AssistantWelcome({family,data,reload,onClose,userProfile,toast}){
   </Modal>;
 }
 
-// Compose an email to an advisor (or anyone else) and send it through the
-// platform. The client can pick any active PCM advisor/admin from the staff
-// directory, any family contact flagged as an advisor, and/or type in an
-// arbitrary email address. The primary advisor is ALWAYS cc'd (locked) unless
-// they're already a direct recipient — this cannot be turned off client-side,
-// and the server enforces it independently regardless of what's submitted.
+// Compose an email to your designated advisor (or anyone else) and send it
+// through the platform. Defaults to the primary advisor on the relationship;
+// the dropdown otherwise only offers contacts flagged as an advisor under
+// Financial Partners & Contacts — never other advisors from the firm at
+// large. The primary advisor is ALWAYS cc'd (locked) unless they're already
+// the direct recipient — this cannot be turned off client-side, and the
+// server enforces it independently regardless of what's submitted.
 const EMAIL_RE=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function EmailAdvisorModal({family,userProfile,data,onClose}){
   const primaryName=(family.advisorName||"").trim();
   const primaryEmailRaw=(family.advisorEmail||"").trim();
   const primaryEmail=primaryEmailRaw.toLowerCase();
 
-  const[directory,setDirectory]=useState([]); // PCM staff advisors/admins
-  useEffect(()=>{
-    sb.from("user_profiles").select("email,full_name,role").in("role",["advisor","admin"]).eq("active",true)
-      .then(({data:rows,error})=>{ if(!error&&rows)setDirectory(rows); });
-  },[]);
-
+  // Dropdown options: the primary advisor first, then any Financial Partners &
+  // Contacts entry flagged as an advisor for this family.
   const flagged=((data&&data.family_contacts)||[]).filter(c=>c.familyId===family.id&&c.isAdvisor&&(c.email||"").trim());
-
-  // Everyone selectable besides the (separately-handled, always-cc'd) primary.
-  const otherOptions=useMemo(()=>{
-    const seen=new Set(primaryEmail?[primaryEmail]:[]);
+  const options=useMemo(()=>{
+    const seen=new Set();
     const out=[];
-    directory.forEach(d=>{ const e=(d.email||"").trim().toLowerCase(); if(e&&!seen.has(e)){seen.add(e);out.push({name:d.fullName||d.full_name||d.email,email:(d.email||"").trim(),role:d.role});} });
-    flagged.forEach(c=>{ const e=(c.email||"").trim().toLowerCase(); if(e&&!seen.has(e)){seen.add(e);out.push({name:c.name||c.email,email:(c.email||"").trim(),role:"family contact"});} });
+    if(primaryEmailRaw){ seen.add(primaryEmail); out.push({name:primaryName||primaryEmailRaw,email:primaryEmail,primary:true}); }
+    flagged.forEach(c=>{ const e=(c.email||"").trim().toLowerCase(); if(e&&!seen.has(e)){ seen.add(e); out.push({name:c.name||c.email,email:e,primary:false}); } });
     return out;
-  },[directory,flagged,primaryEmail]);
+  },[flagged,primaryEmail,primaryEmailRaw,primaryName]);
 
   const clientName=(userProfile&&userProfile.fullName)||family.name||"";
   const clientEmail=(userProfile&&userProfile.email)||"";
-  const[checked,setChecked]=useState(()=>new Set());
+  const[toEmail,setToEmail]=useState(options[0]?options[0].email:"");
+  const selected=options.find(o=>o.email===toEmail)||options[0]||null;
+
   const[customs,setCustoms]=useState([]); // [{name,email}]
   const[customName,setCustomName]=useState("");
   const[customEmail,setCustomEmail]=useState("");
@@ -1003,23 +1000,20 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
   const[err,setErr]=useState(null);
   const[sent,setSent]=useState(false);
 
-  const toggle=email=>setChecked(s=>{ const n=new Set(s); n.has(email)?n.delete(email):n.add(email); return n; });
-
   const addCustom=()=>{
     const email=customEmail.trim().toLowerCase();
     setAddErr(null);
     if(!email||!EMAIL_RE.test(email)){ setAddErr("Enter a valid email address."); return; }
-    if(email===primaryEmail||checked.has(email)||customs.some(c=>c.email===email)){ setAddErr("That person is already included."); return; }
+    if((selected&&email===selected.email)||customs.some(c=>c.email===email)){ setAddErr("That person is already included."); return; }
     setCustoms(list=>[...list,{name:customName.trim()||email,email}]);
     setCustomName("");setCustomEmail("");
   };
   const removeCustom=email=>setCustoms(list=>list.filter(c=>c.email!==email));
 
-  // Final recipient list: whatever's checked/added, or — if nothing's been
-  // picked — the primary advisor themselves (matches the old single-recipient default).
-  const pickedOthers=[...otherOptions.filter(o=>checked.has(o.email)),...customs];
-  const recipients=pickedOthers.length?pickedOthers:(primaryEmailRaw?[{name:primaryName||primaryEmailRaw,email:primaryEmail}]:[]);
-  const ccPrimary=(pickedOthers.length&&primaryEmailRaw)?{name:primaryName||primaryEmailRaw,email:primaryEmail}:null;
+  // Final recipients: the dropdown selection plus anyone added manually.
+  const seenR=new Set();
+  const recipients=[selected,...customs].filter(Boolean).filter(r=>{ if(seenR.has(r.email))return false; seenR.add(r.email); return true; });
+  const ccPrimary=(primaryEmailRaw&&!recipients.some(r=>r.email===primaryEmail))?{name:primaryName||primaryEmailRaw,email:primaryEmail}:null;
 
   const send=async()=>{
     if(!recipients.length||sending||!msg.trim())return;
@@ -1041,28 +1035,26 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
       <div style={{marginTop:18}}><Btn onClick={onClose}>Done</Btn></div>
     </div>:<>
       <Field label="To">
-        {otherOptions.length>0&&<div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
-          {otherOptions.map(o=><label key={o.email} onClick={()=>toggle(o.email)} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"8px 12px",background:checked.has(o.email)?"#e8f0f8":B.bg,borderRadius:8,border:`1px solid ${checked.has(o.email)?B.navyMid:B.border}`}}>
-            <input type="checkbox" checked={checked.has(o.email)} onChange={()=>toggle(o.email)} style={{width:15,height:15,accentColor:B.navy,flexShrink:0}}/>
-            <div style={{minWidth:0,flex:1}}>
-              <span style={{fontSize:13,color:B.navy,fontWeight:600}}>{o.name}</span>
-              <span style={{fontSize:11,color:B.textMute}}> · {o.email}{o.role?` · ${o.role}`:""}</span>
-            </div>
-          </label>)}
-        </div>}
-        {customs.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
-          {customs.map(c=><span key={c.email} style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(206,182,132,0.18)",border:`1px solid ${B.gold}`,borderRadius:20,padding:"4px 6px 4px 12px",fontSize:12,color:B.navy}}>
-            {c.name}
-            <button onClick={()=>removeCustom(c.email)} title="Remove" style={{background:"none",border:"none",color:B.textSoft,cursor:"pointer",fontSize:13,padding:"0 2px",lineHeight:1}}>✕</button>
-          </span>)}
-        </div>}
-        <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+        {options.length>0
+          ? <Sel value={toEmail} onChange={e=>setToEmail(e.target.value)}>{options.map(o=><option key={o.email} value={o.email}>{o.name}{o.primary?" (primary advisor)":""} · {o.email}</option>)}</Sel>
+          : <div style={{fontSize:13,color:B.textMute,padding:"9px 0"}}>No designated advisor is on file yet — add one under Financial Partners & Contacts, or add someone below.</div>}
+      </Field>
+      {customs.length>0&&<div style={{marginBottom:10}}>
+        {customs.map(c=><div key={c.email} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 10px",background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:8,marginBottom:6}}>
+          <div style={{minWidth:0}}>
+            <span style={{fontSize:13,color:B.navy,fontWeight:600}}>{c.name}</span>
+            <span style={{fontSize:11,color:B.textMute}}> · {c.email}</span>
+          </div>
+          <button onClick={()=>removeCustom(c.email)} title="Remove" style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13,flexShrink:0}}>✕</button>
+        </div>)}
+      </div>}
+      <Field label="Add Someone Else (optional)">
+        <div style={{display:"flex",gap:8}}>
           <Inp placeholder="Name (optional)" value={customName} onChange={e=>setCustomName(e.target.value)} style={{flex:1}}/>
           <Inp placeholder="email@example.com" value={customEmail} onChange={e=>setCustomEmail(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addCustom();}}} style={{flex:1}}/>
           <Btn small variant="ghost" onClick={addCustom}>+ Add</Btn>
         </div>
         {addErr&&<div style={{fontSize:11,color:"#8b1a1a",marginTop:5}}>{addErr}</div>}
-        <div style={{fontSize:11,color:B.textMute,marginTop:6}}>Add anyone else you'd like included — your accountant, attorney, or family member.</div>
       </Field>
       {ccPrimary&&<div style={{fontSize:12,color:B.textSoft,background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:8,padding:"8px 12px",marginBottom:12}}>
         <span style={{fontWeight:700,color:B.navy}}>Cc: {ccPrimary.name}</span> · {ccPrimary.email}
@@ -1350,14 +1342,14 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 </div>
               </div>)}
             </div>
-            {/* Advisors & Contacts (professional contacts linked to this family) */}
+            {/* Financial Partners & Contacts (professional contacts linked to this family) */}
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Advisors & Contacts</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Financial Partners & Contacts</div>
                 <Btn small onClick={()=>{setEditFC(null);setModal("familyContact");}}>+ Add</Btn>
               </div>
               <GoldLine/>
-              {famContacts.length===0?<Empty text="No contacts yet — add advisors, CPA, attorney…"/>:famContacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`,gap:8}}>
+              {famContacts.length===0?<Empty text="No contacts yet — add financial partners, CPA, attorney…"/>:famContacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`,gap:8}}>
                 <div style={{minWidth:0}}>
                   <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{c.name}{c.role&&<span style={{fontWeight:400,color:B.textSoft,fontSize:11,marginLeft:6}}>· {c.role}</span>}</div>
                   <div style={{fontSize:11,color:B.textSoft,marginTop:2,display:"flex",gap:10,flexWrap:"wrap"}}>
