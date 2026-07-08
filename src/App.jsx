@@ -783,7 +783,7 @@ const ASSISTANT_SUGGESTIONS=[
   "Which loans mature within the next 12 months?",
 ];
 
-function FamilyAssistant({family,data,reload,compact}){
+function FamilyAssistant({family,data,reload,compact,toast}){
   const isMobile=useIsMobile();
   // Read the family from the live data set so a rename reflects immediately
   // (the `family` prop passed by parents can be a stale snapshot).
@@ -815,6 +815,42 @@ function FamilyAssistant({family,data,reload,compact}){
   };
 
   useEffect(()=>{ if(scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight; },[messages,busy]);
+
+  // Print / email / share a single answer. Kept local to this component since
+  // they close over assistantName and the family name for the header/subject.
+  const printAnswer=(content)=>{
+    const w=window.open("","_blank","width=680,height=820");
+    if(!w)return;
+    const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${esc(assistantName)} — Answer</title><style>
+body{font-family:'DM Sans',Helvetica,Arial,sans-serif;color:#092b49;padding:36px;line-height:1.6;}
+h1{font-family:Georgia,serif;font-size:20px;margin:0 0 4px;}
+p.meta{color:#5a6e84;font-size:12px;margin:0 0 24px;}
+div.body{font-size:14px;white-space:pre-wrap;}
+</style></head><body><h1>${esc(fam.name||"Family")} — ${esc(assistantName)}</h1><p class="meta">${esc(new Date().toLocaleString())}</p><div class="body">${esc(content)}</div></body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(()=>w.print(),250);
+  };
+
+  const emailAnswer=(content)=>{
+    const subject=encodeURIComponent(`${assistantName} — ${fam.name||"Family"} answer`);
+    const body=encodeURIComponent(content);
+    window.location.href=`mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const shareAnswer=async(content)=>{
+    if(navigator.share){
+      try{ await navigator.share({title:`${assistantName} — Answer`,text:content}); }catch(e){ /* user cancelled */ }
+      return;
+    }
+    try{
+      await navigator.clipboard.writeText(content);
+      toast&&toast("Copied — paste it into Messages, WhatsApp, or any app");
+    }catch(e){
+      toast&&toast("Couldn't share automatically — copy the text manually","error");
+    }
+  };
 
   const ask=async(q)=>{
     const question=((q!=null?q:input)||"").trim();
@@ -874,7 +910,14 @@ function FamilyAssistant({family,data,reload,compact}){
           </div>
         : <div key={i} style={{display:"flex",gap:10,marginBottom:14,alignItems:"flex-start"}}>
             <div style={{width:26,height:26,borderRadius:"50%",background:`linear-gradient(135deg,${B.navy},${B.navyMid})`,color:B.gold,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,flexShrink:0,marginTop:1}}>✦</div>
-            <div style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:"14px 14px 14px 4px",padding:"11px 15px",fontSize:14,color:B.text,maxWidth:"88%",lineHeight:1.5,whiteSpace:"pre-wrap"}}>{renderRich(m.content)}</div>
+            <div style={{maxWidth:"88%"}}>
+              <div style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:"14px 14px 14px 4px",padding:"11px 15px",fontSize:14,color:B.text,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{renderRich(m.content)}</div>
+              <div style={{display:"flex",gap:14,marginTop:6,paddingLeft:4}}>
+                <button onClick={()=>printAnswer(m.content)} title="Print this answer" style={{background:"none",border:"none",color:B.textMute,fontSize:11,cursor:"pointer",fontFamily:"inherit",padding:0,display:"flex",alignItems:"center",gap:4}}>🖨 Print</button>
+                <button onClick={()=>emailAnswer(m.content)} title="Email this answer" style={{background:"none",border:"none",color:B.textMute,fontSize:11,cursor:"pointer",fontFamily:"inherit",padding:0,display:"flex",alignItems:"center",gap:4}}>✉ Email</button>
+                <button onClick={()=>shareAnswer(m.content)} title="Share this answer" style={{background:"none",border:"none",color:B.textMute,fontSize:11,cursor:"pointer",fontFamily:"inherit",padding:0,display:"flex",alignItems:"center",gap:4}}>↗ Share</button>
+              </div>
+            </div>
           </div>)}
 
       {busy&&<div style={{display:"flex",gap:10,alignItems:"center",color:B.textSoft,fontSize:13}}>
@@ -901,7 +944,7 @@ function FamilyAssistant({family,data,reload,compact}){
 // welcome popup appears once per login (per family) rather than on every view.
 const _greetedFamilies=new Set();
 
-function AssistantWelcome({family,data,reload,onClose,userProfile}){
+function AssistantWelcome({family,data,reload,onClose,userProfile,toast}){
   const assistantName=(((data.families||[]).find(x=>x.id===family.id)||family).assistantName||"").trim()||"Titan";
   const[emailOpen,setEmailOpen]=useState(false);
   const isClient=userProfile&&userProfile.role==="client";
@@ -909,7 +952,7 @@ function AssistantWelcome({family,data,reload,onClose,userProfile}){
     <div style={{fontSize:14,color:B.text,lineHeight:1.55,marginBottom:16}}>
       Anything I can help you find before you dive in? Ask me about your net worth, properties, loans, insurance, tasks, or documents — or head straight to the dashboard.
     </div>
-    <FamilyAssistant family={family} data={data} reload={reload} compact/>
+    <FamilyAssistant family={family} data={data} reload={reload} compact toast={toast}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginTop:16,flexWrap:"wrap"}}>
       {isClient?<Btn variant="ghost" onClick={()=>setEmailOpen(true)}>✉ Email my advisor</Btn>:<span/>}
       <Btn onClick={onClose}>Take me to the dashboard →</Btn>
@@ -1578,11 +1621,11 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
       </div>}
 
       {activeTab==="asktitan"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
-        <FamilyAssistant family={family} data={data} reload={reload}/>
+        <FamilyAssistant family={family} data={data} reload={reload} toast={toast}/>
       </div>}
 
       {/* Modals */}
-      {showWelcome&&<AssistantWelcome family={family} data={data} reload={reload} onClose={()=>setShowWelcome(false)}/>}
+      {showWelcome&&<AssistantWelcome family={family} data={data} reload={reload} onClose={()=>setShowWelcome(false)} toast={toast}/>}
       {modal==="familyContact"&&<Modal title={editFC?"Edit Contact":"Add Contact"} onClose={()=>{setModal(null);setEditFC(null);}}><FamilyContactForm initial={editFC?{name:editFC.name||"",role:editFC.role||"",company:editFC.company||"",email:editFC.email||"",phone:editFC.phone||"",isAdvisor:!!editFC.isAdvisor,notes:editFC.notes||""}:null} onSave={async f=>{editFC?await editFamilyContact(f):await addFamilyContact(f);setModal(null);setEditFC(null);}} onClose={()=>{setModal(null);setEditFC(null);}}/></Modal>}
       {modal==="member"&&<Modal title={editM?"Edit Member":"Add Member"} onClose={()=>{setModal(null);setEditM(null);}}>
         <MemberForm initial={editM?{name:editM.name||"",email:editM.email||"",phone:editM.phone||"",company:editM.company||"",type:editM.type||"Individual",dob:editM.dob||"",anniversary:editM.anniversary||"",address:editM.address||"",isAdvisor:!!editM.isAdvisor}:null} onSave={async f=>{editM?await editMember(f):await addMember(f);setModal(null);setEditM(null);}} onClose={()=>{setModal(null);setEditM(null);}}/>
@@ -4453,7 +4496,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
       </div>
     </Modal>}
 
-    {showAssistantGreeting&&!showNamePrompt&&<AssistantWelcome family={family} data={data} reload={reload} userProfile={userProfile} onClose={()=>setShowAssistantGreeting(false)}/>}
+    {showAssistantGreeting&&!showNamePrompt&&<AssistantWelcome family={family} data={data} reload={reload} userProfile={userProfile} onClose={()=>setShowAssistantGreeting(false)} toast={toast}/>}
     {emailAdvisorOpen&&<EmailAdvisorModal family={family} userProfile={userProfile} data={data} onClose={()=>setEmailAdvisorOpen(false)}/>}
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
@@ -4654,7 +4697,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
       </div>}
 
       {/* ASK AI */}
-      {activeTab==="assistant"&&<FamilyAssistant family={family} data={data} reload={reload}/>}
+      {activeTab==="assistant"&&<FamilyAssistant family={family} data={data} reload={reload} toast={toast}/>}
 
     </div>
 
