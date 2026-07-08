@@ -1363,7 +1363,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                   </div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-                  <button onClick={()=>toggleFCAdvisor(c)} title={c.isAdvisor?"Client can email this advisor — click to remove":"Make this contact an advisor the client can email"} style={{background:c.isAdvisor?"rgba(206,182,132,0.22)":"none",border:`1px solid ${c.isAdvisor?B.gold:B.border}`,color:c.isAdvisor?B.navy:B.textMute,cursor:"pointer",fontSize:11,fontWeight:600,borderRadius:20,padding:"2px 9px",fontFamily:"inherit"}}>{c.isAdvisor?"★ Advisor":"☆ Advisor"}</button>
+                  <button onClick={()=>toggleFCAdvisor(c)} title={c.isAdvisor?"Client can email this contact — click to remove":"Let the client email this contact"} style={{background:c.isAdvisor?"rgba(206,182,132,0.22)":"none",border:`1px solid ${c.isAdvisor?B.gold:B.border}`,color:c.isAdvisor?B.navy:B.textMute,cursor:"pointer",fontSize:13,fontWeight:600,borderRadius:20,width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",padding:0,fontFamily:"inherit"}}>{c.isAdvisor?"★":"☆"}</button>
                   <button onClick={()=>{setEditFC(c);setModal("familyContact");}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit contact">✎</button>
                   <button onClick={()=>delFamilyContact(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
                 </div>
