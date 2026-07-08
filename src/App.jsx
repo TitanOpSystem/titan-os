@@ -4001,6 +4001,26 @@ function UserManagementView({userProfile,data={},toast}){
     toast(`Password reset email sent to ${u.email}`);
   };
 
+  // Set a temporary password directly, with no email going out — the admin
+  // shares it with the person themselves (e.g. over the phone).
+  const[pwUser,setPwUser]=useState(null);
+  const[tempPassword,setTempPassword]=useState("");
+  const[settingPw,setSettingPw]=useState(false);
+  const[pwErr,setPwErr]=useState(null);
+  const[pwDone,setPwDone]=useState(false);
+  const openSetPassword=u=>{ setPwUser(u); setTempPassword(Math.random().toString(36).slice(2,10)+"Aa1!"); setPwErr(null); setPwDone(false); };
+  const setTempPasswordNow=async()=>{
+    if(!pwUser||tempPassword.length<8)return setPwErr("Password must be at least 8 characters.");
+    setSettingPw(true);setPwErr(null);
+    try{
+      const{data:resp,error}=await sb.functions.invoke("admin-set-password",{body:{targetUserId:pwUser.id,newPassword:tempPassword}});
+      if(error)throw new Error(error.message||"Could not set password.");
+      if(resp&&resp.error)throw new Error(resp.error);
+      setPwDone(true);
+    }catch(e){ setPwErr(e&&e.message?e.message:"Could not set password."); }
+    finally{ setSettingPw(false); }
+  };
+
   if(!userProfile)return <Spinner/>;
   if(userProfile.role!=="admin")return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",flexDirection:"column",gap:12,color:B.textMute}}>
@@ -4053,6 +4073,7 @@ function UserManagementView({userProfile,data={},toast}){
               {u.id!==userProfile?.id&&<>
                 <Btn small variant={u.active?"danger":"ghost"} onClick={()=>toggleActive(u)}>{u.active?"Deactivate":"Activate"}</Btn>
                 <Btn small variant="ghost" onClick={()=>resetPass(u)}>Reset PW</Btn>
+                <Btn small variant="ghost" onClick={()=>openSetPassword(u)}>Set Temp PW</Btn>
               </>}
             </div>
           </div>
@@ -4144,6 +4165,38 @@ function UserManagementView({userProfile,data={},toast}){
             <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
               <Btn variant="ghost" onClick={()=>setModal(null)}>Cancel</Btn>
               <Btn onClick={createUser} disabled={creating||!newEmail||!newPassword}>{creating?"Creating…":"Create User"}</Btn>
+            </div>
+          </div>
+        )}
+      </Modal>}
+
+      {/* Set Temporary Password Modal */}
+      {pwUser&&<Modal title={pwDone?"Password Set":"Set Temporary Password"} onClose={()=>setPwUser(null)}>
+        {pwDone?(
+          <div style={{textAlign:"center",padding:"10px 0"}}>
+            <div style={{fontSize:48,marginBottom:16}}>✅</div>
+            <div style={{fontSize:13,color:B.textSoft,marginBottom:20}}>Share this password with <strong>{pwUser.email}</strong> yourself — no email was sent.</div>
+            <div style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 20px",marginBottom:20}}>
+              <span style={{fontSize:18,fontWeight:700,color:B.navy,fontFamily:"monospace"}}>{tempPassword}</span>
+            </div>
+            <div style={{background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#8a5c00",marginBottom:20,textAlign:"left"}}>
+              ⚠️ Save this now — it cannot be retrieved later. Encourage them to change it after logging in.
+            </div>
+            <Btn onClick={()=>setPwUser(null)}>Done</Btn>
+          </div>
+        ):(
+          <div>
+            <div style={{fontSize:13,color:B.textSoft,marginBottom:14,lineHeight:1.5}}>Set a new password for <strong>{pwUser.full_name||pwUser.email}</strong> directly — no reset email will be sent. You'll need to share it with them yourself.</div>
+            <Field label="New Password">
+              <div style={{display:"flex",gap:8}}>
+                <Inp placeholder="Min 8 characters" value={tempPassword} onChange={e=>setTempPassword(e.target.value)} style={{flex:1}}/>
+                <Btn variant="ghost" onClick={()=>setTempPassword(Math.random().toString(36).slice(2,10)+"Aa1!")}>Generate</Btn>
+              </div>
+            </Field>
+            {pwErr&&<div style={{background:"#fde8e8",border:"1px solid #f5c6c6",color:"#8b1a1a",borderRadius:8,padding:"9px 12px",fontSize:12,marginBottom:12}}>⚠ {pwErr}</div>}
+            <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
+              <Btn variant="ghost" onClick={()=>setPwUser(null)}>Cancel</Btn>
+              <Btn onClick={setTempPasswordNow} disabled={settingPw||tempPassword.length<8}>{settingPw?"Setting…":"Set Password"}</Btn>
             </div>
           </div>
         )}
