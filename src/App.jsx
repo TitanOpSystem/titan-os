@@ -590,8 +590,11 @@ function LoginScreen(){
       resize();
       window.addEventListener("resize",resize);
 
-      const TOTAL_MS=2400;      // hard cap — form + logo reveal no matter what
-      const LOGO_FADE_AT=1200;  // logo starts fading in while cubes are still flying
+      const FLIGHT_MS=1500;               // cubes fly in and converge
+      const HOLD_MS=500;                  // then hold, settled, for a beat
+      const GROW_MS=650;                  // logo grows in as cubes fade out
+      const LOGO_START=FLIGHT_MS+HOLD_MS; // when the grow/reveal begins
+      const TOTAL_MS=LOGO_START+GROW_MS+150; // hard cap — form reveal no matter what
 
       // Target = around the logo slot's own box (falls back to screen
       // centre if for some reason it isn't measurable yet) — no pixel
@@ -616,9 +619,8 @@ function LoginScreen(){
           color:Math.random()<0.6?B.navy:B.gold,
           size:3+Math.random()*3,
           rotSeed:(Math.random()>0.5?1:-1)*(1.2+Math.random()*1.8),
-          delay:Math.random()*500,
-          dur:TOTAL_MS-500+Math.random()*500,
-          fadeFrom:0.7+Math.random()*0.2,
+          delay:Math.random()*350,
+          dur:FLIGHT_MS-350+Math.random()*350,
         });
       }
 
@@ -627,6 +629,9 @@ function LoginScreen(){
       const render=(now)=>{
         if(cancelled)return;
         const elapsed=now-startTime;
+        // Cubes fly + settle, sit fully formed through the hold, then all
+        // fade together (in lockstep) once the logo starts growing in.
+        const globalFade=elapsed<=LOGO_START?1:Math.max(0,1-(elapsed-LOGO_START)/GROW_MS);
         ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
         for(const p of particles){
           const t=Math.min(1,Math.max(0,(elapsed-p.delay)/p.dur));
@@ -635,16 +640,15 @@ function LoginScreen(){
           const y=p.sy+(p.ty-p.sy)*e;
           const rot=p.rotSeed*(1-e)*Math.PI*0.9;
           const scale=1+(1-e)*0.7;
-          let alpha=0.85;
-          if(t>p.fadeFrom)alpha=0.85*Math.max(0,1-(t-p.fadeFrom)/(1-p.fadeFrom));
-          _drawIntroCube(ctx,x,y,p.size*scale,rot,p.color,alpha);
+          const alpha=(0.8+e*0.2)*globalFade;
+          if(alpha>0.01)_drawIntroCube(ctx,x,y,p.size*scale,rot,p.color,alpha);
         }
         if(elapsed<TOTAL_MS)rafId=requestAnimationFrame(render);
         else ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
       };
       rafId=requestAnimationFrame(render);
 
-      logoTimer=setTimeout(()=>{if(!cancelled)setLogoVisible(true);},LOGO_FADE_AT);
+      logoTimer=setTimeout(()=>{if(!cancelled)setLogoVisible(true);},LOGO_START);
       doneTimer=setTimeout(()=>{
         if(cancelled)return;
         goDone();
@@ -688,7 +692,7 @@ function LoginScreen(){
       <div style={{background:B.white,borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:420,boxShadow:B.shadowMd,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,position:"relative",zIndex:1,margin:"0 16px"}}>
         <div style={{textAlign:"center",marginBottom:introDone?32:0}}>
           <div ref={logoSlotRef} style={{position:"relative",height:110,display:"flex",justifyContent:"center",alignItems:"center",marginBottom:introDone?20:0}}>
-            <div style={{opacity:logoVisible?1:0,transition:"opacity .7s ease"}}><PCMLogo/></div>
+            <div style={{opacity:logoVisible?1:0,transform:logoVisible?"scale(1)":"scale(0.4)",transition:"opacity .65s ease, transform .65s cubic-bezier(0.34,1.56,0.64,1)"}}><PCMLogo/></div>
           </div>
           {introDone&&<>
             <div style={{height:1,background:`linear-gradient(90deg,transparent,${B.gold},transparent)`,marginBottom:18}}/>
