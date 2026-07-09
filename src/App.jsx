@@ -548,7 +548,7 @@ function _sampleLogoPoints(img,displayW,stride){
   for(let y=0;y<displayH;y+=stride){
     for(let x=0;x<displayW;x+=stride){
       const i=(y*displayW+x)*4;
-      if(data[i+3]>140)pts.push({x,y,r:data[i],g:data[i+1],b:data[i+2]});
+      if(data[i+3]>90)pts.push({x,y,r:data[i],g:data[i+1],b:data[i+2]});
     }
   }
   return{points:pts,w:displayW,h:displayH};
@@ -647,8 +647,8 @@ function LoginScreen(){
           const img=await _loadImage(PCM_LOGO);
           if(cancelled)return;
           const displayW=rect?Math.min(Math.round(rect.width),340):300;
-          const sampled=_sampleLogoPoints(img,displayW,2);
-          const points=_subsamplePoints(sampled.points,900);
+          const sampled=_sampleLogoPoints(img,displayW,1);
+          const points=_subsamplePoints(sampled.points,2700);
           if(points.length===0)return;
           const offsetX=rect?rect.left+(rect.width-sampled.w)/2:W/2-sampled.w/2;
           const offsetY=rect?rect.top+(rect.height-sampled.h)/2:H/2-sampled.h/2;
