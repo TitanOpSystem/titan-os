@@ -515,6 +515,92 @@ function PCMLogo({dark=false,compact=false}){
   return <img src={PCM_LOGO} alt="PCM Family Office" style={{height:110,width:"auto",display:"block",margin:"0 auto"}}/>;
 }
 
+// ── LOGIN INTRO (particle-cube logo assembly + synthesized sound) ──────────
+// Pure helper functions (no React/DOM-framework state) that power a one-time
+// "cubes fly in from across the screen and assemble into the PCM logo" intro
+// on the login screen, with a synthesized swell + bell-chime sting (Web Audio
+// oscillators — no external audio files, nothing to license).
+function _rgbToHex(r,g,b){return "#"+[r,g,b].map(v=>v.toString(16).padStart(2,"0")).join("");}
+function _easeOutCubic(t){return 1-Math.pow(1-t,3);}
+function _loadImage(src){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>res(img);img.onerror=rej;img.src=src;});}
+function _sampleLogoPoints(img,displayW,stride){
+  const ratio=img.height/img.width;
+  const displayH=Math.round(displayW*ratio);
+  const off=document.createElement("canvas");
+  off.width=displayW;off.height=displayH;
+  const octx=off.getContext("2d");
+  octx.drawImage(img,0,0,displayW,displayH);
+  const data=octx.getImageData(0,0,displayW,displayH).data;
+  const pts=[];
+  for(let y=0;y<displayH;y+=stride){
+    for(let x=0;x<displayW;x+=stride){
+      const i=(y*displayW+x)*4;
+      if(data[i+3]>140)pts.push({x,y,r:data[i],g:data[i+1],b:data[i+2]});
+    }
+  }
+  return{points:pts,w:displayW,h:displayH};
+}
+function _subsamplePoints(points,max){
+  if(points.length<=max)return points;
+  const out=[];const step=points.length/max;
+  for(let k=0;k<max;k++)out.push(points[Math.floor(k*step)]);
+  return out;
+}
+function _drawIntroCube(ctx,x,y,s,rot,hex,alpha){
+  ctx.save();ctx.translate(x,y);ctx.rotate(rot);ctx.globalAlpha=alpha;
+  ctx.fillStyle=hex;ctx.fillRect(-s/2,-s/2,s,s);
+  ctx.fillStyle="rgba(255,255,255,0.35)";ctx.fillRect(-s/2,-s/2,s,s*0.3);
+  ctx.fillStyle="rgba(0,0,0,0.22)";ctx.fillRect(-s/2,s/2-s*0.28,s,s*0.28);
+  ctx.restore();
+}
+function _buildIntroReverb(actx,duration,decay){
+  const rate=actx.sampleRate;const length=Math.floor(rate*duration);
+  const impulse=actx.createBuffer(2,length,rate);
+  for(let ch=0;ch<2;ch++){
+    const data=impulse.getChannelData(ch);
+    for(let i=0;i<length;i++)data[i]=(Math.random()*2-1)*Math.pow(1-i/length,decay);
+  }
+  const conv=actx.createConvolver();conv.buffer=impulse;return conv;
+}
+function _playIntroSwell(actx,reverb,duration){
+  const t0=actx.currentTime;
+  const master=actx.createGain();
+  master.gain.setValueAtTime(0.0001,t0);
+  master.gain.exponentialRampToValueAtTime(0.22,t0+duration*0.65);
+  master.gain.exponentialRampToValueAtTime(0.0001,t0+duration+0.4);
+  const filter=actx.createBiquadFilter();
+  filter.type="lowpass";filter.Q.value=0.3;
+  filter.frequency.setValueAtTime(300,t0);
+  filter.frequency.linearRampToValueAtTime(1400,t0+duration*0.9);
+  master.connect(filter);filter.connect(actx.destination);filter.connect(reverb);
+  [110,164.81,220,220.5].forEach((f,idx)=>{
+    const o=actx.createOscillator();
+    o.type=idx===0?"sine":"triangle";
+    o.frequency.value=f;o.detune.value=(idx-1.5)*3;
+    o.connect(master);o.start(t0);o.stop(t0+duration+0.6);
+  });
+}
+function _playIntroResolve(actx,reverb){
+  const t0=actx.currentTime;
+  const master=actx.createGain();master.gain.value=0.9;
+  master.connect(actx.destination);master.connect(reverb);
+  [1,1.5,2.01,3.0].forEach((p,idx)=>{
+    const o=actx.createOscillator();o.type="sine";o.frequency.value=220*p;
+    const g=actx.createGain();const peak=0.16/(idx+1);
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.linearRampToValueAtTime(peak,t0+0.12);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+2.6+idx*0.2);
+    o.connect(g);g.connect(master);o.start(t0);o.stop(t0+3);
+  });
+  const sub=actx.createOscillator();sub.type="sine";
+  sub.frequency.setValueAtTime(82,t0);sub.frequency.linearRampToValueAtTime(55,t0+1.4);
+  const subGain=actx.createGain();
+  subGain.gain.setValueAtTime(0.0001,t0);
+  subGain.gain.linearRampToValueAtTime(0.2,t0+0.18);
+  subGain.gain.exponentialRampToValueAtTime(0.0001,t0+2.2);
+  sub.connect(subGain);subGain.connect(master);sub.start(t0);sub.stop(t0+2.4);
+}
+
 // ── LOGIN SCREEN ──────────────────────────────────────────────────────────────
 function LoginScreen(){
   const[mode,setMode]=useState("login");
@@ -523,6 +609,114 @@ function LoginScreen(){
   const[error,setError]=useState("");
   const[loading,setLoading]=useState(false);
   const[resetSent,setResetSent]=useState(false);
+
+  // Cube-assembly intro: plays once per browser session, then this behaves
+  // exactly like the plain login screen. If sessionStorage is unavailable
+  // (privacy mode, sandboxed frame) it falls back straight to "done" so the
+  // sign-in form is never blocked by the animation.
+  const[introPhase,setIntroPhase]=useState(()=>{
+    try{return sessionStorage.getItem("pcmIntroSeen")==="1"?"done":"idle";}
+    catch(_e){return "done";}
+  });
+  const canvasRef=useRef(null);
+  const logoSlotRef=useRef(null);
+  const audioRef=useRef(null);
+
+  const beginIntro=()=>{
+    try{
+      const AudioCtx=window.AudioContext||window.webkitAudioContext;
+      const actx=new AudioCtx();
+      const reverb=_buildIntroReverb(actx,3.2,2.2);
+      const reverbWet=actx.createGain();reverbWet.gain.value=0.32;
+      reverb.connect(reverbWet);reverbWet.connect(actx.destination);
+      audioRef.current={actx,reverb};
+    }catch(_e){audioRef.current=null;}
+    setIntroPhase("playing");
+  };
+
+  useEffect(()=>{
+    if(introPhase!=="playing")return;
+    let cancelled=false;
+    let rafId=null;
+    const canvas=canvasRef.current;
+    if(!canvas){setIntroPhase("done");return;}
+    const ctx=canvas.getContext("2d");
+    const dpr=window.devicePixelRatio||1;
+    const resize=()=>{
+      canvas.width=window.innerWidth*dpr;canvas.height=window.innerHeight*dpr;
+      canvas.style.width=window.innerWidth+"px";canvas.style.height=window.innerHeight+"px";
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+    };
+    resize();
+    window.addEventListener("resize",resize);
+    const FLIGHT_MS=2600;
+
+    const finish=()=>{
+      if(cancelled)return;
+      if(audioRef.current){try{_playIntroResolve(audioRef.current.actx,audioRef.current.reverb);}catch(_e){}}
+      ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+      try{sessionStorage.setItem("pcmIntroSeen","1");}catch(_e){}
+      setTimeout(()=>{if(!cancelled)setIntroPhase("done");},50);
+    };
+
+    (async()=>{
+      const img=await _loadImage(PCM_LOGO).catch(()=>null);
+      if(cancelled)return;
+      if(!img||!logoSlotRef.current){finish();return;}
+      const displayW=300;
+      const sampled=_sampleLogoPoints(img,displayW,3);
+      const points=_subsamplePoints(sampled.points,850);
+      const slotRect=logoSlotRef.current.getBoundingClientRect();
+      const offsetX=slotRect.left+(slotRect.width-sampled.w)/2;
+      const offsetY=slotRect.top+(slotRect.height-sampled.h)/2;
+      const W=window.innerWidth,H=window.innerHeight;
+      const particles=points.map(pt=>{
+        const angle=Math.random()*Math.PI*2;
+        const radius=Math.max(W,H)*(0.55+Math.random()*0.55);
+        const cx=W/2,cy=H/2;
+        return{
+          sx:cx+Math.cos(angle)*radius,sy:cy+Math.sin(angle)*radius,
+          tx:offsetX+pt.x,ty:offsetY+pt.y,
+          color:_rgbToHex(pt.r,pt.g,pt.b),
+          size:3+Math.random()*2.5,
+          rotSeed:(Math.random()>0.5?1:-1)*(1.2+Math.random()*1.8),
+          delay:Math.random()*500,
+          dur:FLIGHT_MS-500+Math.random()*400,
+        };
+      });
+      if(particles.length===0){finish();return;}
+      const startTime=performance.now();
+      if(audioRef.current){try{_playIntroSwell(audioRef.current.actx,audioRef.current.reverb,FLIGHT_MS/1000);}catch(_e){}}
+      const render=(now)=>{
+        if(cancelled)return;
+        ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+        let allDone=true;
+        for(const p of particles){
+          const local=now-startTime-p.delay;
+          let t=local/p.dur;
+          if(t<0){t=0;allDone=false;}
+          if(t<1)allDone=false;
+          t=Math.min(1,Math.max(0,t));
+          const e=_easeOutCubic(t);
+          const x=p.sx+(p.tx-p.sx)*e;
+          const y=p.sy+(p.ty-p.sy)*e;
+          const rot=p.rotSeed*(1-e)*Math.PI*0.9;
+          const scale=1+(1-e)*0.7;
+          const alpha=0.8+e*0.2;
+          _drawIntroCube(ctx,x,y,p.size*scale,rot,p.color,alpha);
+        }
+        if(!allDone)rafId=requestAnimationFrame(render);
+        else finish();
+      };
+      rafId=requestAnimationFrame(render);
+    })();
+
+    return()=>{
+      cancelled=true;
+      if(rafId)cancelAnimationFrame(rafId);
+      window.removeEventListener("resize",resize);
+    };
+  },[introPhase]);
 
   const handleLogin=async()=>{
     if(!email||!password)return setError("Please enter your email and password.");
@@ -539,18 +733,28 @@ function LoginScreen(){
     if(e)setError(e.message);else setResetSent(true);
   };
 
+  const introDone=introPhase==="done";
   return(
     <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
       <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
       <div style={{position:"fixed",inset:0,backgroundImage:`radial-gradient(circle at 20% 80%,rgba(206,182,132,0.16) 0%,transparent 50%)`,pointerEvents:"none"}}/>
+      {!introDone&&<canvas ref={canvasRef} style={{position:"fixed",inset:0,zIndex:5,pointerEvents:"none"}}/>}
       <div style={{background:B.white,borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:420,boxShadow:B.shadowMd,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,position:"relative",zIndex:1,margin:"0 16px"}}>
-        <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{display:"flex",justifyContent:"center",marginBottom:20}}><PCMLogo/></div>
-          <div style={{height:1,background:`linear-gradient(90deg,transparent,${B.gold},transparent)`,marginBottom:18}}/>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>{mode==="reset"?"Reset Password":"Client Portal"}</div>
-          <div style={{fontSize:11,color:B.textMute,letterSpacing:"0.1em",marginTop:3}}>{mode==="reset"?"ENTER YOUR EMAIL":"SECURE ACCESS"}</div>
+        <div style={{textAlign:"center",marginBottom:introDone?32:0}}>
+          <div ref={logoSlotRef} style={{position:"relative",height:110,display:"flex",justifyContent:"center",alignItems:"center",marginBottom:introDone?20:0}}>
+            {introDone&&<PCMLogo/>}
+            {introPhase==="idle"&&<button onClick={beginIntro} style={{background:"none",border:"none",cursor:"pointer",padding:0,width:"100%",display:"flex",flexDirection:"column",alignItems:"center",gap:10}} aria-label="Enter the PCM Family Office client portal">
+              <div style={{opacity:0.3}}><PCMLogo/></div>
+              <div style={{fontSize:10,color:B.textMute,letterSpacing:"0.14em",fontWeight:700}}>CLICK TO ENTER</div>
+            </button>}
+          </div>
+          {introDone&&<>
+            <div style={{height:1,background:`linear-gradient(90deg,transparent,${B.gold},transparent)`,marginBottom:18}}/>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>{mode==="reset"?"Reset Password":"Client Portal"}</div>
+            <div style={{fontSize:11,color:B.textMute,letterSpacing:"0.1em",marginTop:3}}>{mode==="reset"?"ENTER YOUR EMAIL":"SECURE ACCESS"}</div>
+          </>}
         </div>
-        {resetSent?(
+        {introDone&&(resetSent?(
           <div style={{textAlign:"center"}}>
             <div style={{fontSize:40,marginBottom:12}}>📧</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,marginBottom:8}}>Check your email</div>
@@ -569,8 +773,8 @@ function LoginScreen(){
               {mode==="login"?<button onClick={()=>{setMode("reset");setError("");}} style={{background:"none",border:"none",color:B.textSoft,fontSize:12,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>Forgot your password?</button>:<button onClick={()=>{setMode("login");setError("");}} style={{background:"none",border:"none",color:B.textSoft,fontSize:12,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>Back to sign in</button>}
             </div>
           </>
-        )}
-        <div style={{textAlign:"center",marginTop:24,fontSize:11,color:B.textMute}}>PCM Family Office · DISCOVER · SIMPLIFY · EXECUTE</div>
+        ))}
+        {introDone&&<div style={{textAlign:"center",marginTop:24,fontSize:11,color:B.textMute}}>PCM Family Office · DISCOVER · SIMPLIFY · EXECUTE</div>}
       </div>
     </div>
   );
