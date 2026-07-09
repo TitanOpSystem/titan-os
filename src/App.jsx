@@ -590,8 +590,8 @@ function LoginScreen(){
       resize();
       window.addEventListener("resize",resize);
 
-      const TOTAL_MS=2900;      // hard cap — form + logo reveal no matter what
-      const LOGO_FADE_AT=1700;  // logo starts fading in while cubes are still flying (this is the extra half-second hold on top of the original 1200ms)
+      const TOTAL_MS=3900;      // hard cap — form + logo reveal no matter what
+      const LOGO_FADE_AT=2700;  // logo starts fading in while cubes are still flying (original 1200ms + 500ms + another 1000ms hold)
 
       // Target = around the logo slot's own box (falls back to screen
       // centre if for some reason it isn't measurable yet) — no pixel
