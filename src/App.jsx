@@ -517,15 +517,16 @@ function PCMLogo({dark=false,compact=false}){
 
 // ── LOGIN INTRO (tumbling cubes) ────────────────────────────────────────────
 // Pure helper functions (no React/DOM-framework state) that power a one-time
-// "cubes fly in from across the screen while the PCM logo fades in" intro on
-// the login screen. Silent by design — browsers block audio autoplay until
-// the visitor interacts, and there's no reliable way to sync a pre-scheduled
-// sound to an unpredictable first click, so we dropped audio rather than
-// risk a garbled/mistimed sting. Deliberately does NOT sample the logo's
-// exact pixels into a mosaic either — that was fragile (occasionally hung
-// and never revealed the sign-in form). Cubes just converge loosely toward
-// the logo's position as a decorative burst while the crisp logo image
-// fades in normally underneath/over it.
+// "cubes fly in from across the screen and form the word PCM, then hold,
+// then grow into the crisp logo" intro on the login screen. Silent by
+// design — browsers block audio autoplay until the visitor interacts, and
+// there's no reliable way to sync a pre-scheduled sound to an unpredictable
+// first click, so we dropped audio rather than risk a garbled/mistimed
+// sting. The target shape is sampled from canvas-rendered TEXT (fillText),
+// not from the actual logo image — that's a fully synchronous operation
+// (no Image() load, no await, nothing that can hang), unlike the earlier
+// pixel-perfect-logo-mosaic attempt which depended on an async image load
+// finishing before the shape could be built.
 function _easeOutCubic(t){return 1-Math.pow(1-t,3);}
 function _drawIntroCube(ctx,x,y,s,rot,hex,alpha){
   ctx.save();ctx.translate(x,y);ctx.rotate(rot);ctx.globalAlpha=alpha;
@@ -533,6 +534,35 @@ function _drawIntroCube(ctx,x,y,s,rot,hex,alpha){
   ctx.fillStyle="rgba(255,255,255,0.35)";ctx.fillRect(-s/2,-s/2,s,s*0.3);
   ctx.fillStyle="rgba(0,0,0,0.22)";ctx.fillRect(-s/2,s/2-s*0.28,s,s*0.28);
   ctx.restore();
+}
+function _sampleTextPoints(text,heightPx,stride){
+  const off=document.createElement("canvas");
+  const octx=off.getContext("2d");
+  const font=`700 ${heightPx}px 'Cormorant Garamond', Georgia, serif`;
+  octx.font=font;
+  const measured=Math.ceil(octx.measureText(text).width);
+  const w=measured+40,h=Math.ceil(heightPx*1.35);
+  off.width=w;off.height=h;
+  octx.font=font; // canvas resize resets context state, so re-set it
+  octx.fillStyle="#000";
+  octx.textBaseline="middle";
+  octx.textAlign="left";
+  octx.fillText(text,20,h/2);
+  const data=octx.getImageData(0,0,w,h).data;
+  const pts=[];
+  for(let y=0;y<h;y+=stride){
+    for(let x=0;x<w;x+=stride){
+      const i=(y*w+x)*4;
+      if(data[i+3]>140)pts.push({x,y});
+    }
+  }
+  return{points:pts,w,h};
+}
+function _subsamplePoints(points,max){
+  if(points.length<=max)return points;
+  const out=[];const step=points.length/max;
+  for(let k=0;k<max;k++)out.push(points[Math.floor(k*step)]);
+  return out;
 }
 
 // ── LOGIN SCREEN ──────────────────────────────────────────────────────────────
@@ -590,39 +620,37 @@ function LoginScreen(){
       resize();
       window.addEventListener("resize",resize);
 
-      const FLIGHT_MS=1500;               // cubes fly in and converge
-      const HOLD_MS=500;                  // then hold, settled, for a beat
-      const GROW_MS=650;                  // logo grows in as cubes fade out
-      const LOGO_START=FLIGHT_MS+HOLD_MS; // when the grow/reveal begins
+      const FLIGHT_MS=2400;                // cubes fly in and converge — slow, deliberate
+      const HOLD_MS=500;                   // then hold, settled, for a beat
+      const GROW_MS=650;                   // logo grows in as cubes fade out
+      const LOGO_START=FLIGHT_MS+HOLD_MS;  // when the grow/reveal begins
       const TOTAL_MS=LOGO_START+GROW_MS+150; // hard cap — form reveal no matter what
 
-      // Target = around the logo slot's own box (falls back to screen
-      // centre if for some reason it isn't measurable yet) — no pixel
-      // sampling of the logo image, so nothing here depends on image
-      // loading succeeding.
+      // Target shape = the word "PCM" rendered to an offscreen canvas and
+      // sampled into points (synchronous — no image loading involved, so
+      // nothing here can hang). Falls back to the logo slot's own box
+      // centre if it isn't measurable yet.
       const rect=logoSlotRef.current?logoSlotRef.current.getBoundingClientRect():null;
       const W=window.innerWidth,H=window.innerHeight;
-      const tcx=rect?rect.left+rect.width/2:W/2;
-      const tcy=rect?rect.top+rect.height/2:H/2;
-      const spreadX=rect?Math.max(rect.width*0.55,60):120;
-      const spreadY=rect?Math.max(rect.height*0.9,40):50;
+      const sampled=_sampleTextPoints("PCM",Math.round((rect?rect.height:110)*0.72),2);
+      const shapePoints=_subsamplePoints(sampled.points,650);
+      const offsetX=rect?rect.left+(rect.width-sampled.w)/2:W/2-sampled.w/2;
+      const offsetY=rect?rect.top+(rect.height-sampled.h)/2:H/2-sampled.h/2;
 
-      const COUNT=380;
-      const particles=[];
-      for(let i=0;i<COUNT;i++){
+      const particles=shapePoints.map(pt=>{
         const angle=Math.random()*Math.PI*2;
         const radius=Math.max(W,H)*(0.55+Math.random()*0.55);
-        particles.push({
+        return{
           sx:W/2+Math.cos(angle)*radius, sy:H/2+Math.sin(angle)*radius,
-          tx:tcx+(Math.random()-0.5)*2*spreadX,
-          ty:tcy+(Math.random()-0.5)*2*spreadY,
+          tx:offsetX+pt.x,
+          ty:offsetY+pt.y,
           color:Math.random()<0.6?B.navy:B.gold,
-          size:3+Math.random()*3,
+          size:3+Math.random()*2.5,
           rotSeed:(Math.random()>0.5?1:-1)*(1.2+Math.random()*1.8),
-          delay:Math.random()*350,
-          dur:FLIGHT_MS-350+Math.random()*350,
-        });
-      }
+          delay:Math.random()*600,
+          dur:FLIGHT_MS-600+Math.random()*600,
+        };
+      });
 
       const startTime=performance.now();
 
