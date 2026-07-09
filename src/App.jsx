@@ -559,11 +559,18 @@ function _subsamplePoints(points,max){
   for(let k=0;k<max;k++)out.push(points[Math.floor(k*step)]);
   return out;
 }
-function _drawIntroCube(ctx,x,y,s,rot,hex,alpha){
+// `bevel` (0-1) fades the light/dark cube shading out as a cube settles into
+// place — at bevel=0 it's a flat color tile. Thousands of tiny tiles with
+// the bevel left on look like a woven quilt once assembled, so callers
+// should ramp this down to 0 as convergence progress approaches 1, keeping
+// the beveled 3D look only while cubes are still tumbling mid-flight.
+function _drawIntroCube(ctx,x,y,s,rot,hex,alpha,bevel){
   ctx.save();ctx.translate(x,y);ctx.rotate(rot);ctx.globalAlpha=alpha;
   ctx.fillStyle=hex;ctx.fillRect(-s/2,-s/2,s,s);
-  ctx.fillStyle="rgba(255,255,255,0.35)";ctx.fillRect(-s/2,-s/2,s,s*0.3);
-  ctx.fillStyle="rgba(0,0,0,0.22)";ctx.fillRect(-s/2,s/2-s*0.28,s,s*0.28);
+  if(bevel>0.01){
+    ctx.fillStyle=`rgba(255,255,255,${(0.35*bevel).toFixed(3)})`;ctx.fillRect(-s/2,-s/2,s,s*0.3);
+    ctx.fillStyle=`rgba(0,0,0,${(0.22*bevel).toFixed(3)})`;ctx.fillRect(-s/2,s/2-s*0.28,s,s*0.28);
+  }
   ctx.restore();
 }
 
@@ -660,7 +667,7 @@ function LoginScreen(){
               sx:W/2+Math.cos(angle)*radius, sy:H/2+Math.sin(angle)*radius,
               tx:offsetX+pt.x, ty:offsetY+pt.y,
               color:_rgbToHex(pt.r,pt.g,pt.b),
-              size:2.5+Math.random()*2,
+              size:3+Math.random()*1,
               rotSeed:(Math.random()>0.5?1:-1)*(1.2+Math.random()*1.8),
               delay:Math.random()*600,
               dur:FLIGHT_MS-600+Math.random()*600,
@@ -684,7 +691,8 @@ function LoginScreen(){
               const rot=p.rotSeed*(1-e)*Math.PI*0.9;
               const scale=1+(1-e)*0.7;
               const alpha=(0.8+e*0.2)*globalFade;
-              if(alpha>0.01)_drawIntroCube(ctx,x,y,p.size*scale,rot,p.color,alpha);
+              const bevel=Math.max(0,1-e*1.4); // flattens to a clean color tile as it settles
+              if(alpha>0.01)_drawIntroCube(ctx,x,y,p.size*scale,rot,p.color,alpha,bevel);
             }
             if(elapsed<TOTAL_MS&&!cancelled)rafId=requestAnimationFrame(render);
             else ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
