@@ -688,11 +688,19 @@ function LoginScreen(){
       }
 
       const startTime=performance.now();
-      if(audio){try{_playIntroSwell(audio.actx,audio.reverb,TOTAL_MS/1000);}catch(_e){}}
+      const firstDelay=particles.reduce((m,p)=>Math.min(m,p.delay),Infinity);
+      let swellFired=false;
 
       const render=(now)=>{
         if(cancelled)return;
         const elapsed=now-startTime;
+        // Fire the swell the instant the first cube actually starts moving,
+        // rather than on an independent clock — the sound is triggered by
+        // that first box coming in, not just running alongside it.
+        if(!swellFired&&elapsed>=firstDelay){
+          swellFired=true;
+          if(audio){try{_playIntroSwell(audio.actx,audio.reverb,TOTAL_MS/1000);}catch(_e){}}
+        }
         ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
         for(const p of particles){
           const t=Math.min(1,Math.max(0,(elapsed-p.delay)/p.dur));
