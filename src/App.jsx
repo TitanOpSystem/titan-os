@@ -517,60 +517,21 @@ function PCMLogo({dark=false,compact=false}){
 
 // ── LOGIN INTRO (tumbling cubes) ────────────────────────────────────────────
 // Pure helper functions (no React/DOM-framework state) that power a one-time
-// "cubes fly in from across the screen and assemble the real PCM logo, hold,
-// then it grows into the crisp static logo" intro on the login screen.
-// Silent by design — browsers block audio autoplay until the visitor
-// interacts, and there's no reliable way to sync a pre-scheduled sound to
-// an unpredictable first click, so we dropped audio rather than risk a
-// garbled/mistimed sting.
-//
-// IMPORTANT — why this doesn't hang the sign-in form the way an earlier
-// version once did: the target shape below is sampled from the actual logo
-// image, which requires loading it first (async). That load/sample step is
-// wrapped in its own try/catch and is purely cosmetic — the timers that
-// reveal the logo and the rest of the sign-in form are scheduled
-// synchronously, independent of whether the image ever loads or the
-// sampling ever succeeds. Worst case, no cubes are drawn and the logo just
-// grows in on schedule anyway; the form can never again get stuck waiting
-// on this.
+// "cubes fly in from across the screen while the PCM logo fades in" intro on
+// the login screen. Silent by design — browsers block audio autoplay until
+// the visitor interacts, and there's no reliable way to sync a pre-scheduled
+// sound to an unpredictable first click, so we dropped audio rather than
+// risk a garbled/mistimed sting. Deliberately does NOT sample the logo's
+// exact pixels into a mosaic either — that was fragile (occasionally hung
+// and never revealed the sign-in form). Cubes just converge loosely toward
+// the logo's position as a decorative burst while the crisp logo image
+// fades in normally underneath/over it.
 function _easeOutCubic(t){return 1-Math.pow(1-t,3);}
-function _rgbToHex(r,g,b){return "#"+[r,g,b].map(v=>v.toString(16).padStart(2,"0")).join("");}
-function _loadImage(src){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>res(img);img.onerror=rej;img.src=src;});}
-function _sampleLogoPoints(img,displayW,stride){
-  const ratio=img.height/img.width;
-  const displayH=Math.round(displayW*ratio);
-  const off=document.createElement("canvas");
-  off.width=displayW;off.height=displayH;
-  const octx=off.getContext("2d");
-  octx.drawImage(img,0,0,displayW,displayH);
-  const data=octx.getImageData(0,0,displayW,displayH).data;
-  const pts=[];
-  for(let y=0;y<displayH;y+=stride){
-    for(let x=0;x<displayW;x+=stride){
-      const i=(y*displayW+x)*4;
-      if(data[i+3]>90)pts.push({x,y,r:data[i],g:data[i+1],b:data[i+2]});
-    }
-  }
-  return{points:pts,w:displayW,h:displayH};
-}
-function _subsamplePoints(points,max){
-  if(points.length<=max)return points;
-  const out=[];const step=points.length/max;
-  for(let k=0;k<max;k++)out.push(points[Math.floor(k*step)]);
-  return out;
-}
-// `bevel` (0-1) fades the light/dark cube shading out as a cube settles into
-// place — at bevel=0 it's a flat color tile. Thousands of tiny tiles with
-// the bevel left on look like a woven quilt once assembled, so callers
-// should ramp this down to 0 as convergence progress approaches 1, keeping
-// the beveled 3D look only while cubes are still tumbling mid-flight.
-function _drawIntroCube(ctx,x,y,s,rot,hex,alpha,bevel){
+function _drawIntroCube(ctx,x,y,s,rot,hex,alpha){
   ctx.save();ctx.translate(x,y);ctx.rotate(rot);ctx.globalAlpha=alpha;
   ctx.fillStyle=hex;ctx.fillRect(-s/2,-s/2,s,s);
-  if(bevel>0.01){
-    ctx.fillStyle=`rgba(255,255,255,${(0.35*bevel).toFixed(3)})`;ctx.fillRect(-s/2,-s/2,s,s*0.3);
-    ctx.fillStyle=`rgba(0,0,0,${(0.22*bevel).toFixed(3)})`;ctx.fillRect(-s/2,s/2-s*0.28,s,s*0.28);
-  }
+  ctx.fillStyle="rgba(255,255,255,0.35)";ctx.fillRect(-s/2,-s/2,s,s*0.3);
+  ctx.fillStyle="rgba(0,0,0,0.22)";ctx.fillRect(-s/2,s/2-s*0.28,s,s*0.28);
   ctx.restore();
 }
 
@@ -629,81 +590,65 @@ function LoginScreen(){
       resize();
       window.addEventListener("resize",resize);
 
-      const FLIGHT_MS=2400;                // cubes fly in and converge — slow, deliberate
-      const HOLD_MS=500;                   // then hold, settled, for a beat
-      const GROW_MS=650;                   // logo grows in as cubes fade out
-      const LOGO_START=FLIGHT_MS+HOLD_MS;  // when the grow/reveal begins
-      const TOTAL_MS=LOGO_START+GROW_MS+150; // hard cap — form reveal no matter what
+      const TOTAL_MS=2900;      // hard cap — form + logo reveal no matter what
+      const LOGO_FADE_AT=1700;  // logo starts fading in while cubes are still flying (this is the extra half-second hold on top of the original 1200ms)
 
-      // These two timers are the ONLY thing that controls whether the logo
-      // and sign-in form appear. They're scheduled right here, synchronously,
-      // completely independent of the image-loading/particle code below —
-      // so nothing that follows can ever delay or block the reveal.
-      logoTimer=setTimeout(()=>{if(!cancelled)setLogoVisible(true);},LOGO_START);
-      doneTimer=setTimeout(()=>{if(!cancelled)goDone();},TOTAL_MS);
-
-      const W=window.innerWidth,H=window.innerHeight;
+      // Target = around the logo slot's own box (falls back to screen
+      // centre if for some reason it isn't measurable yet) — no pixel
+      // sampling of the logo image, so nothing here depends on image
+      // loading succeeding.
       const rect=logoSlotRef.current?logoSlotRef.current.getBoundingClientRect():null;
+      const W=window.innerWidth,H=window.innerHeight;
+      const tcx=rect?rect.left+rect.width/2:W/2;
+      const tcy=rect?rect.top+rect.height/2:H/2;
+      const spreadX=rect?Math.max(rect.width*0.55,60):120;
+      const spreadY=rect?Math.max(rect.height*0.9,40):50;
 
-      // Best-effort visual: sample the real logo's pixels and fly cubes
-      // toward them so they actually assemble the PCM mark. Purely cosmetic
-      // — if this fails or takes a moment, the timers above still fire on
-      // schedule and the visitor still gets a working sign-in screen.
-      (async()=>{
-        try{
-          const img=await _loadImage(PCM_LOGO);
-          if(cancelled)return;
-          const displayW=rect?Math.min(Math.round(rect.width),340):300;
-          const sampled=_sampleLogoPoints(img,displayW,1);
-          const points=_subsamplePoints(sampled.points,2700);
-          if(points.length===0)return;
-          const offsetX=rect?rect.left+(rect.width-sampled.w)/2:W/2-sampled.w/2;
-          const offsetY=rect?rect.top+(rect.height-sampled.h)/2:H/2-sampled.h/2;
+      const COUNT=380;
+      const particles=[];
+      for(let i=0;i<COUNT;i++){
+        const angle=Math.random()*Math.PI*2;
+        const radius=Math.max(W,H)*(0.55+Math.random()*0.55);
+        particles.push({
+          sx:W/2+Math.cos(angle)*radius, sy:H/2+Math.sin(angle)*radius,
+          tx:tcx+(Math.random()-0.5)*2*spreadX,
+          ty:tcy+(Math.random()-0.5)*2*spreadY,
+          color:Math.random()<0.6?B.navy:B.gold,
+          size:3+Math.random()*3,
+          rotSeed:(Math.random()>0.5?1:-1)*(1.2+Math.random()*1.8),
+          delay:Math.random()*500,
+          dur:TOTAL_MS-500+Math.random()*500,
+          fadeFrom:0.7+Math.random()*0.2,
+        });
+      }
 
-          const particles=points.map(pt=>{
-            const angle=Math.random()*Math.PI*2;
-            const radius=Math.max(W,H)*(0.55+Math.random()*0.55);
-            return{
-              sx:W/2+Math.cos(angle)*radius, sy:H/2+Math.sin(angle)*radius,
-              tx:offsetX+pt.x, ty:offsetY+pt.y,
-              color:_rgbToHex(pt.r,pt.g,pt.b),
-              size:3+Math.random()*1,
-              rotSeed:(Math.random()>0.5?1:-1)*(1.2+Math.random()*1.8),
-              delay:Math.random()*600,
-              dur:FLIGHT_MS-600+Math.random()*600,
-            };
-          });
+      const startTime=performance.now();
 
-          const startTime=performance.now();
-          const render=(now)=>{
-            if(cancelled)return;
-            const elapsed=now-startTime;
-            // Cubes fly + settle into the logo shape, hold through the
-            // pause, then all fade together in lockstep once the crisp
-            // logo starts growing in.
-            const globalFade=elapsed<=LOGO_START?1:Math.max(0,1-(elapsed-LOGO_START)/GROW_MS);
-            ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
-            for(const p of particles){
-              const t=Math.min(1,Math.max(0,(elapsed-p.delay)/p.dur));
-              const e=_easeOutCubic(t);
-              const x=p.sx+(p.tx-p.sx)*e;
-              const y=p.sy+(p.ty-p.sy)*e;
-              const rot=p.rotSeed*(1-e)*Math.PI*0.9;
-              const scale=1+(1-e)*0.7;
-              const alpha=(0.8+e*0.2)*globalFade;
-              const bevel=Math.max(0,1-e*1.4); // flattens to a clean color tile as it settles
-              if(alpha>0.01)_drawIntroCube(ctx,x,y,p.size*scale,rot,p.color,alpha,bevel);
-            }
-            if(elapsed<TOTAL_MS&&!cancelled)rafId=requestAnimationFrame(render);
-            else ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
-          };
-          rafId=requestAnimationFrame(render);
-        }catch(_e){
-          // Image failed to load/sample — no cubes drawn, but the reveal
-          // timers scheduled above already guarantee the form still shows
-          // up on time regardless.
+      const render=(now)=>{
+        if(cancelled)return;
+        const elapsed=now-startTime;
+        ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+        for(const p of particles){
+          const t=Math.min(1,Math.max(0,(elapsed-p.delay)/p.dur));
+          const e=_easeOutCubic(t);
+          const x=p.sx+(p.tx-p.sx)*e;
+          const y=p.sy+(p.ty-p.sy)*e;
+          const rot=p.rotSeed*(1-e)*Math.PI*0.9;
+          const scale=1+(1-e)*0.7;
+          let alpha=0.85;
+          if(t>p.fadeFrom)alpha=0.85*Math.max(0,1-(t-p.fadeFrom)/(1-p.fadeFrom));
+          _drawIntroCube(ctx,x,y,p.size*scale,rot,p.color,alpha);
         }
-      })();
+        if(elapsed<TOTAL_MS)rafId=requestAnimationFrame(render);
+        else ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+      };
+      rafId=requestAnimationFrame(render);
+
+      logoTimer=setTimeout(()=>{if(!cancelled)setLogoVisible(true);},LOGO_FADE_AT);
+      doneTimer=setTimeout(()=>{
+        if(cancelled)return;
+        goDone();
+      },TOTAL_MS);
     }catch(_e){
       // Anything unexpected — skip straight to the normal login screen
       // rather than ever leaving the visitor stuck behind the animation.
@@ -743,7 +688,7 @@ function LoginScreen(){
       <div style={{background:B.white,borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:420,boxShadow:B.shadowMd,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,position:"relative",zIndex:1,margin:"0 16px"}}>
         <div style={{textAlign:"center",marginBottom:introDone?32:0}}>
           <div ref={logoSlotRef} style={{position:"relative",height:110,display:"flex",justifyContent:"center",alignItems:"center",marginBottom:introDone?20:0}}>
-            <div style={{opacity:logoVisible?1:0,transform:logoVisible?"scale(1)":"scale(0.4)",transition:"opacity .65s ease, transform .65s cubic-bezier(0.34,1.56,0.64,1)"}}><PCMLogo/></div>
+            <div style={{opacity:logoVisible?1:0,transition:"opacity .7s ease"}}><PCMLogo/></div>
           </div>
           {introDone&&<>
             <div style={{height:1,background:`linear-gradient(90deg,transparent,${B.gold},transparent)`,marginBottom:18}}/>
