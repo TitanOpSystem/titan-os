@@ -515,15 +515,17 @@ function PCMLogo({dark=false,compact=false}){
   return <img src={PCM_LOGO} alt="PCM Family Office" style={{height:110,width:"auto",display:"block",margin:"0 auto"}}/>;
 }
 
-// ── LOGIN INTRO (tumbling cubes + synthesized sound) ────────────────────────
+// ── LOGIN INTRO (tumbling cubes) ────────────────────────────────────────────
 // Pure helper functions (no React/DOM-framework state) that power a one-time
 // "cubes fly in from across the screen while the PCM logo fades in" intro on
-// the login screen, with a synthesized swell + bell-chime sting (Web Audio
-// oscillators — no external audio files, nothing to license). Deliberately
-// does NOT try to sample the logo's exact pixels into a mosaic — that was
-// fragile (occasionally hung and never revealed the sign-in form). Cubes now
-// just converge loosely toward the logo's position as a decorative burst
-// while the crisp logo image fades in normally underneath/over it.
+// the login screen. Silent by design — browsers block audio autoplay until
+// the visitor interacts, and there's no reliable way to sync a pre-scheduled
+// sound to an unpredictable first click, so we dropped audio rather than
+// risk a garbled/mistimed sting. Deliberately does NOT sample the logo's
+// exact pixels into a mosaic either — that was fragile (occasionally hung
+// and never revealed the sign-in form). Cubes just converge loosely toward
+// the logo's position as a decorative burst while the crisp logo image
+// fades in normally underneath/over it.
 function _easeOutCubic(t){return 1-Math.pow(1-t,3);}
 function _drawIntroCube(ctx,x,y,s,rot,hex,alpha){
   ctx.save();ctx.translate(x,y);ctx.rotate(rot);ctx.globalAlpha=alpha;
@@ -531,53 +533,6 @@ function _drawIntroCube(ctx,x,y,s,rot,hex,alpha){
   ctx.fillStyle="rgba(255,255,255,0.35)";ctx.fillRect(-s/2,-s/2,s,s*0.3);
   ctx.fillStyle="rgba(0,0,0,0.22)";ctx.fillRect(-s/2,s/2-s*0.28,s,s*0.28);
   ctx.restore();
-}
-function _buildIntroReverb(actx,duration,decay){
-  const rate=actx.sampleRate;const length=Math.floor(rate*duration);
-  const impulse=actx.createBuffer(2,length,rate);
-  for(let ch=0;ch<2;ch++){
-    const data=impulse.getChannelData(ch);
-    for(let i=0;i<length;i++)data[i]=(Math.random()*2-1)*Math.pow(1-i/length,decay);
-  }
-  const conv=actx.createConvolver();conv.buffer=impulse;return conv;
-}
-function _playIntroSwell(actx,reverb,duration){
-  const t0=actx.currentTime;
-  const master=actx.createGain();
-  master.gain.setValueAtTime(0.0001,t0);
-  master.gain.exponentialRampToValueAtTime(0.22,t0+duration*0.65);
-  master.gain.exponentialRampToValueAtTime(0.0001,t0+duration+0.4);
-  const filter=actx.createBiquadFilter();
-  filter.type="lowpass";filter.Q.value=0.3;
-  filter.frequency.setValueAtTime(300,t0);
-  filter.frequency.linearRampToValueAtTime(1400,t0+duration*0.9);
-  master.connect(filter);filter.connect(actx.destination);filter.connect(reverb);
-  [110,164.81,220,220.5].forEach((f,idx)=>{
-    const o=actx.createOscillator();
-    o.type=idx===0?"sine":"triangle";
-    o.frequency.value=f;o.detune.value=(idx-1.5)*3;
-    o.connect(master);o.start(t0);o.stop(t0+duration+0.6);
-  });
-}
-function _playIntroResolve(actx,reverb){
-  const t0=actx.currentTime;
-  const master=actx.createGain();master.gain.value=0.9;
-  master.connect(actx.destination);master.connect(reverb);
-  [1,1.5,2.01,3.0].forEach((p,idx)=>{
-    const o=actx.createOscillator();o.type="sine";o.frequency.value=220*p;
-    const g=actx.createGain();const peak=0.16/(idx+1);
-    g.gain.setValueAtTime(0.0001,t0);
-    g.gain.linearRampToValueAtTime(peak,t0+0.12);
-    g.gain.exponentialRampToValueAtTime(0.0001,t0+2.6+idx*0.2);
-    o.connect(g);g.connect(master);o.start(t0);o.stop(t0+3);
-  });
-  const sub=actx.createOscillator();sub.type="sine";
-  sub.frequency.setValueAtTime(82,t0);sub.frequency.linearRampToValueAtTime(55,t0+1.4);
-  const subGain=actx.createGain();
-  subGain.gain.setValueAtTime(0.0001,t0);
-  subGain.gain.linearRampToValueAtTime(0.2,t0+0.18);
-  subGain.gain.exponentialRampToValueAtTime(0.0001,t0+2.2);
-  sub.connect(subGain);subGain.connect(master);sub.start(t0);sub.stop(t0+2.4);
 }
 
 // ── LOGIN SCREEN ──────────────────────────────────────────────────────────────
@@ -606,7 +561,6 @@ function LoginScreen(){
   });
   const canvasRef=useRef(null);
   const logoSlotRef=useRef(null);
-  const audioRef=useRef(null);
 
   useEffect(()=>{
     if(introPhase!=="playing")return;
@@ -639,25 +593,6 @@ function LoginScreen(){
       const TOTAL_MS=2400;      // hard cap — form + logo reveal no matter what
       const LOGO_FADE_AT=1200;  // logo starts fading in while cubes are still flying
 
-      // Audio is created without a user gesture (this plays automatically on
-      // load), so some browsers keep it suspended until the visitor's first
-      // click or keypress — that's fine, the visual animation always plays
-      // either way, sound is a bonus whenever the browser allows it.
-      let audio=null;
-      try{
-        const AudioCtx=window.AudioContext||window.webkitAudioContext;
-        const actx=new AudioCtx();
-        const reverb=_buildIntroReverb(actx,3.2,2.2);
-        const reverbWet=actx.createGain();reverbWet.gain.value=0.32;
-        reverb.connect(reverbWet);reverbWet.connect(actx.destination);
-        audio={actx,reverb};
-        audioRef.current=audio;
-        const unlock=()=>{actx.resume&&actx.resume().catch(()=>{});};
-        unlock();
-        window.addEventListener("pointerdown",unlock,{once:true});
-        window.addEventListener("keydown",unlock,{once:true});
-      }catch(_e){audio=null;audioRef.current=null;}
-
       // Target = around the logo slot's own box (falls back to screen
       // centre if for some reason it isn't measurable yet) — no pixel
       // sampling of the logo image, so nothing here depends on image
@@ -688,19 +623,10 @@ function LoginScreen(){
       }
 
       const startTime=performance.now();
-      const firstDelay=particles.reduce((m,p)=>Math.min(m,p.delay),Infinity);
-      let swellFired=false;
 
       const render=(now)=>{
         if(cancelled)return;
         const elapsed=now-startTime;
-        // Fire the swell the instant the first cube actually starts moving,
-        // rather than on an independent clock — the sound is triggered by
-        // that first box coming in, not just running alongside it.
-        if(!swellFired&&elapsed>=firstDelay){
-          swellFired=true;
-          if(audio){try{_playIntroSwell(audio.actx,audio.reverb,TOTAL_MS/1000);}catch(_e){}}
-        }
         ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
         for(const p of particles){
           const t=Math.min(1,Math.max(0,(elapsed-p.delay)/p.dur));
@@ -721,7 +647,6 @@ function LoginScreen(){
       logoTimer=setTimeout(()=>{if(!cancelled)setLogoVisible(true);},LOGO_FADE_AT);
       doneTimer=setTimeout(()=>{
         if(cancelled)return;
-        if(audio){try{_playIntroResolve(audio.actx,audio.reverb);}catch(_e){}}
         goDone();
       },TOTAL_MS);
     }catch(_e){
