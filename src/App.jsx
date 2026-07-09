@@ -509,8 +509,9 @@ function StatBox({label,value,accent}){
   </div>;
 }
 
-function PCMLogo({dark=false}){
+function PCMLogo({dark=false,compact=false}){
   if(dark)return <div style={{background:"rgba(255,255,255,0.97)",borderRadius:8,padding:"8px 14px",display:"inline-block"}}><img src={PCM_LOGO} alt="PCM Family Office" style={{height:64,width:"auto",display:"block"}}/></div>;
+  if(compact)return <img src={PCM_LOGO} alt="PCM Family Office" style={{height:64,width:"auto",display:"block"}}/>;
   return <img src={PCM_LOGO} alt="PCM Family Office" style={{height:110,width:"auto",display:"block",margin:"0 auto"}}/>;
 }
 
@@ -539,10 +540,10 @@ function LoginScreen(){
   };
 
   return(
-    <div style={{minHeight:"100vh",background:`linear-gradient(135deg,${B.navy} 0%,${B.navyMid} 100%)`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
+    <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
       <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-      <div style={{position:"fixed",inset:0,backgroundImage:`radial-gradient(circle at 20% 80%,rgba(206,182,132,0.07) 0%,transparent 50%)`,pointerEvents:"none"}}/>
-      <div style={{background:"rgba(255,255,255,0.97)",borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:420,boxShadow:"0 32px 80px rgba(0,0,0,0.3)",border:`1px solid rgba(206,182,132,0.3)`,position:"relative",zIndex:1,margin:"0 16px"}}>
+      <div style={{position:"fixed",inset:0,backgroundImage:`radial-gradient(circle at 20% 80%,rgba(206,182,132,0.16) 0%,transparent 50%)`,pointerEvents:"none"}}/>
+      <div style={{background:B.white,borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:420,boxShadow:B.shadowMd,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,position:"relative",zIndex:1,margin:"0 16px"}}>
         <div style={{textAlign:"center",marginBottom:32}}>
           <div style={{display:"flex",justifyContent:"center",marginBottom:20}}><PCMLogo/></div>
           <div style={{height:1,background:`linear-gradient(90deg,transparent,${B.gold},transparent)`,marginBottom:18}}/>
@@ -4609,17 +4610,17 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
     {emailAdvisorOpen&&<EmailAdvisorModal family={family} userProfile={userProfile} data={data} onClose={()=>setEmailAdvisorOpen(false)}/>}
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
-    {/* Header (navy banner with logo, family name, sign out) */}
-    <div style={{background:B.navy,padding:isMobile?"0 16px":"0 32px"}}>
+    {/* Header (white banner with logo, family name, sign out) */}
+    <div style={{background:B.white,padding:isMobile?"0 16px":"0 32px",borderBottom:`1px solid ${B.borderLight}`}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:isMobile?"12px 0":"16px 0",gap:10,flexWrap:isMobile?"wrap":"nowrap"}}>
-        <PCMLogo dark/>
+        <PCMLogo compact/>
         <div style={{display:"flex",alignItems:"center",gap:isMobile?8:16,flex:isMobile?"1 1 auto":"none",justifyContent:isMobile?"flex-end":"flex-start"}}>
           <div style={{textAlign:"right",minWidth:0}}>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?16:22,color:B.white,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.name}</div>
-            <div style={{fontSize:isMobile?10:11,color:"rgba(206,182,132,0.7)",marginTop:2}}>{isMobile?"Client Portal":`Client Portal · ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`}</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?16:22,color:B.navy,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.name}</div>
+            <div style={{fontSize:isMobile?10:11,color:B.textSoft,marginTop:2}}>{isMobile?"Client Portal":`Client Portal · ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`}</div>
           </div>
-          <button onClick={()=>setEmailAdvisorOpen(true)} style={{background:"rgba(206,182,132,0.2)",border:`1px solid ${B.gold}`,color:B.gold,borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0,fontWeight:600}}>{isMobile?"✉ Advisor":"✉ Email my advisor"}</button>
-          <button onClick={logout} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.7)",borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Sign Out</button>
+          <button onClick={()=>setEmailAdvisorOpen(true)} style={{background:"rgba(206,182,132,0.15)",border:`1px solid ${B.gold}`,color:B.navy,borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0,fontWeight:600}}>{isMobile?"✉ Advisor":"✉ Email my advisor"}</button>
+          <button onClick={logout} style={{background:"transparent",border:`1px solid ${B.border}`,color:B.textSoft,borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Sign Out</button>
         </div>
       </div>
     </div>
@@ -4650,15 +4651,15 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
         <div style={{color:B.textSoft,fontSize:14,marginBottom:24}}>Here is your financial overview as of {new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div>
 
         {/* Net Worth Hero */}
-        <div style={{background:`linear-gradient(135deg,${B.navy},${B.navyMid})`,borderRadius:16,padding:isMobile?"22px 20px":"32px 36px",marginBottom:isMobile?16:24,position:"relative",overflow:"hidden"}}>
+        <div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderTop:`4px solid ${B.gold}`,borderRadius:16,padding:isMobile?"22px 20px":"32px 36px",marginBottom:isMobile?16:24,position:"relative",overflow:"hidden",boxShadow:B.shadow}}>
           <div style={{position:"absolute",right:-20,top:-20,width:200,height:200,borderRadius:"50%",background:"rgba(206,182,132,0.08)"}}/>
-          <div style={{fontSize:isMobile?11:12,color:"rgba(206,182,132,0.8)",fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:8}}>Estimated Net Worth</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?36:52,color:B.white,fontWeight:600,lineHeight:1,marginBottom:8}}>{fmtMoney(netWorth)}</div>
-          <div style={{height:1,background:"rgba(206,182,132,0.35)",margin:"18px 0"}}/>
+          <div style={{fontSize:isMobile?11:12,color:B.textMute,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:8,position:"relative",zIndex:1}}>Estimated Net Worth</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?36:52,color:B.navy,fontWeight:600,lineHeight:1,marginBottom:8,position:"relative",zIndex:1}}>{fmtMoney(netWorth)}</div>
+          <div style={{height:1,background:B.borderLight,margin:"18px 0",position:"relative",zIndex:1}}/>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginTop:4,position:"relative",zIndex:1}}>
-            {[{l:"Real Estate",v:fmtMoney(totalRE)},{l:"Total Debt",v:fmtMoney(totalDebt),neg:true},{l:"Portfolio",v:fmtMoney(totalAccounts)},{l:"Valuables",v:fmtMoney(totalValuables)}].map(s=><div key={s.l} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(206,182,132,0.22)",borderRadius:10,padding:"12px 14px"}}>
-              <div style={{fontSize:10,color:B.gold,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>{s.l}</div>
-              <div style={{fontSize:isMobile?19:23,fontFamily:"'Cormorant Garamond',serif",color:s.neg?"#fca5a5":B.white,fontWeight:600,lineHeight:1}}>{s.neg?"−":""}{s.v}</div>
+            {[{l:"Real Estate",v:fmtMoney(totalRE)},{l:"Total Debt",v:fmtMoney(totalDebt),neg:true},{l:"Portfolio",v:fmtMoney(totalAccounts)},{l:"Valuables",v:fmtMoney(totalValuables)}].map(s=><div key={s.l} style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:10,padding:"12px 14px"}}>
+              <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>{s.l}</div>
+              <div style={{fontSize:isMobile?19:23,fontFamily:"'Cormorant Garamond',serif",color:s.neg?"#d43030":B.navy,fontWeight:600,lineHeight:1}}>{s.neg?"−":""}{s.v}</div>
             </div>)}
           </div>
         </div>
@@ -4811,9 +4812,9 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
     </div>
 
     {/* Footer */}
-    <div style={{background:B.navy,padding:isMobile?"12px 16px":"16px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:isMobile?20:40,gap:8,flexDirection:isMobile?"column":"row",textAlign:"center"}}>
-      <div style={{fontSize:isMobile?10:11,color:"rgba(255,255,255,0.4)"}}>PCM Family Office · info@pcmfamilyoffice.com</div>
-      <div style={{fontSize:isMobile?9:10,color:"rgba(206,182,132,0.5)",letterSpacing:"0.1em"}}>CONFIDENTIAL · FOR AUTHORIZED RECIPIENTS ONLY</div>
+    <div style={{background:B.white,borderTop:`1px solid ${B.borderLight}`,padding:isMobile?"12px 16px":"16px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:isMobile?20:40,gap:8,flexDirection:isMobile?"column":"row",textAlign:"center"}}>
+      <div style={{fontSize:isMobile?10:11,color:B.textMute}}>PCM Family Office · info@pcmfamilyoffice.com</div>
+      <div style={{fontSize:isMobile?9:10,color:B.textMute,letterSpacing:"0.1em"}}>CONFIDENTIAL · FOR AUTHORIZED RECIPIENTS ONLY</div>
     </div>
   </div>;
 }
@@ -5207,14 +5208,14 @@ export default function App(){
   const currentLabel=ALL_NAV.find(n=>n.id===tab)?.label||"";
   const currentSection=NAV_SECTIONS.find(s=>s.items.some(i=>i.id===tab))?.section||"";
 
-  if(authLoading)return <div style={{minHeight:"100vh",background:B.navy,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
+  if(authLoading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
   if(!authed||!userProfile)return <LoginScreen/>;
   if(userProfile.active===false)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontFamily:"'DM Sans',sans-serif",color:B.navy,fontSize:16,flexDirection:"column",gap:12}}><div style={{fontSize:40}}>🔒</div>Your account has been deactivated. Contact your administrator.</div>;
 
   // Client role — show read-only family dashboard
   if(userProfile.role==="client"){
     const clientFamily=data.families.find(f=>f.id===userProfile.familyId);
-    if(loading)return <div style={{minHeight:"100vh",background:B.navy,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
+    if(loading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
     if(!clientFamily)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,flexDirection:"column",gap:12,color:B.navy,fontFamily:"'DM Sans',sans-serif"}}><PCMLogo/><div style={{marginTop:20,fontSize:16}}>No family assigned to your account. Contact your advisor.</div><button onClick={logout} style={{marginTop:12,background:"none",border:`1px solid ${B.border}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontFamily:"inherit",color:B.textSoft}}>Sign Out</button></div>;
     return <><ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout} toast={showToast} reload={reload}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
   }
@@ -5230,29 +5231,29 @@ export default function App(){
     {isMobile&&sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:99,backdropFilter:"blur(2px)"}}/>}
 
     {/* Sidebar */}
-    <div style={{width:isMobile?260:232,background:B.navy,display:"flex",flexDirection:"column",flexShrink:0,position:isMobile?"fixed":"relative",top:0,bottom:0,left:isMobile?(sidebarOpen?0:-280):0,zIndex:100,transition:isMobile?"left 0.25s ease":"none",boxShadow:isMobile&&sidebarOpen?"4px 0 24px rgba(0,0,0,0.3)":"none"}}>
-      <div style={{padding:"14px 16px 12px",borderBottom:"1px solid rgba(255,255,255,0.07)",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+    <div style={{width:isMobile?260:232,background:B.white,borderRight:`1px solid ${B.borderLight}`,display:"flex",flexDirection:"column",flexShrink:0,position:isMobile?"fixed":"relative",top:0,bottom:0,left:isMobile?(sidebarOpen?0:-280):0,zIndex:100,transition:isMobile?"left 0.25s ease":"none",boxShadow:isMobile&&sidebarOpen?"4px 0 24px rgba(0,0,0,0.15)":"none"}}>
+      <div style={{padding:"14px 16px 12px",borderBottom:`1px solid ${B.borderLight}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
         <div style={{flex:1}}>
-          <PCMLogo dark/>
-          <div style={{fontSize:8,color:"rgba(206,182,132,0.5)",letterSpacing:"0.18em",marginTop:8}}>DISCOVER · SIMPLIFY · EXECUTE</div>
+          <PCMLogo compact/>
+          <div style={{fontSize:8,color:B.textMute,letterSpacing:"0.18em",marginTop:8}}>DISCOVER · SIMPLIFY · EXECUTE</div>
         </div>
-        {isMobile&&<button onClick={()=>setSidebarOpen(false)} style={{background:"none",border:"none",color:"rgba(255,255,255,0.6)",fontSize:22,cursor:"pointer",padding:4,marginTop:-2}}>✕</button>}
+        {isMobile&&<button onClick={()=>setSidebarOpen(false)} style={{background:"none",border:"none",color:B.textMute,fontSize:22,cursor:"pointer",padding:4,marginTop:-2}}>✕</button>}
       </div>
       <nav style={{flex:1,padding:"8px",overflowY:"auto"}}>
         {NAV_SECTIONS.filter(s=>s.section!=="ADMIN"||userProfile?.role==="admin").map(({section,items})=><div key={section} style={{marginBottom:10}}>
-          <div style={{fontSize:9,fontWeight:800,color:"rgba(206,182,132,0.55)",letterSpacing:"0.16em",padding:"10px 10px 6px",textTransform:"uppercase"}}>{section}</div>
-          {items.map(item=><button key={item.id} onClick={()=>{setTab(item.id);if(isMobile)setSidebarOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:isMobile?"13px 14px":"10px 14px",borderRadius:8,border:`1px solid ${tab===item.id?B.gold:"rgba(255,255,255,0.12)"}`,cursor:"pointer",background:tab===item.id?"rgba(206,182,132,0.13)":"transparent",color:tab===item.id?B.gold:"rgba(255,255,255,0.85)",fontFamily:"inherit",fontSize:isMobile?15:13,fontWeight:tab===item.id?700:400,marginBottom:6,textAlign:"left"}}>
+          <div style={{fontSize:9,fontWeight:800,color:B.textMute,letterSpacing:"0.16em",padding:"10px 10px 6px",textTransform:"uppercase"}}>{section}</div>
+          {items.map(item=><button key={item.id} onClick={()=>{setTab(item.id);if(isMobile)setSidebarOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:isMobile?"13px 14px":"10px 14px",borderRadius:8,border:`1px solid ${tab===item.id?B.gold:"transparent"}`,cursor:"pointer",background:tab===item.id?"rgba(206,182,132,0.13)":"transparent",color:tab===item.id?B.navy:B.textMid,fontFamily:"inherit",fontSize:isMobile?15:13,fontWeight:tab===item.id?700:400,marginBottom:6,textAlign:"left"}}>
             <span style={{flex:1}}>{item.label}</span>
-            {item.id==="cm-tasks"&&overdue>0?<span style={{background:"#d43030",borderRadius:10,padding:"1px 6px",fontSize:9,color:"#fff",fontWeight:700}}>{overdue}</span>:allStats[item.id]>0?<span style={{background:"rgba(255,255,255,0.12)",borderRadius:10,padding:"1px 6px",fontSize:9,color:"rgba(255,255,255,0.7)"}}>{allStats[item.id]}</span>:null}
+            {item.id==="cm-tasks"&&overdue>0?<span style={{background:"#d43030",borderRadius:10,padding:"1px 6px",fontSize:9,color:"#fff",fontWeight:700}}>{overdue}</span>:allStats[item.id]>0?<span style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:10,padding:"1px 6px",fontSize:9,color:B.textMid}}>{allStats[item.id]}</span>:null}
           </button>)}
         </div>)}
       </nav>
-      <div style={{padding:"10px 16px",borderTop:"1px solid rgba(255,255,255,0.07)"}}>
-        {userProfile&&<div style={{marginBottom:8}}><div style={{fontSize:11,color:"rgba(255,255,255,0.8)",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userProfile.fullName||userProfile.email}</div><div style={{fontSize:9,color:B.gold,letterSpacing:"0.1em",textTransform:"uppercase",marginTop:1}}>{userProfile.role}</div></div>}
-        <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginBottom:4}}>{data.families.length} families · {(data.portfolio_accounts||[]).length} accounts</div>
+      <div style={{padding:"10px 16px",borderTop:`1px solid ${B.borderLight}`}}>
+        {userProfile&&<div style={{marginBottom:8}}><div style={{fontSize:11,color:B.navy,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userProfile.fullName||userProfile.email}</div><div style={{fontSize:9,color:B.navyMid,letterSpacing:"0.1em",textTransform:"uppercase",marginTop:1}}>{userProfile.role}</div></div>}
+        <div style={{fontSize:9,color:B.textMute,marginBottom:4}}>{data.families.length} families · {(data.portfolio_accounts||[]).length} accounts</div>
         <div style={{display:"flex",justifyContent:"space-between"}}>
-          <button onClick={()=>reload()} style={{background:"none",border:"none",color:"rgba(206,182,132,0.6)",fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit"}}>↺ Refresh</button>
-          <button onClick={logout} style={{background:"none",border:"none",color:"rgba(255,255,255,0.35)",fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit"}}>Sign Out</button>
+          <button onClick={()=>reload()} style={{background:"none",border:"none",color:B.navyMid,fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit"}}>↺ Refresh</button>
+          <button onClick={logout} style={{background:"none",border:"none",color:B.textMute,fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit"}}>Sign Out</button>
         </div>
       </div>
     </div>
