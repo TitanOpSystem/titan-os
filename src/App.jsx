@@ -610,34 +610,25 @@ function LoginScreen(){
   const[loading,setLoading]=useState(false);
   const[resetSent,setResetSent]=useState(false);
 
-  // Cube-assembly intro: plays once per browser session, then this behaves
-  // exactly like the plain login screen. If sessionStorage is unavailable
+  // Cube-assembly intro: auto-plays the moment this screen mounts (no click
+  // required), once per browser session. If sessionStorage is unavailable
   // (privacy mode, sandboxed frame) it falls back straight to "done" so the
   // sign-in form is never blocked by the animation.
+  // Phases: "playing" (cubes flying) -> "revealing" (mosaic crossfades into
+  // the crisp logo image) -> "done" (normal static login screen).
   const[introPhase,setIntroPhase]=useState(()=>{
-    try{return sessionStorage.getItem("pcmIntroSeen")==="1"?"done":"idle";}
+    try{return sessionStorage.getItem("pcmIntroSeen")==="1"?"done":"playing";}
     catch(_e){return "done";}
   });
   const canvasRef=useRef(null);
   const logoSlotRef=useRef(null);
   const audioRef=useRef(null);
 
-  const beginIntro=()=>{
-    try{
-      const AudioCtx=window.AudioContext||window.webkitAudioContext;
-      const actx=new AudioCtx();
-      const reverb=_buildIntroReverb(actx,3.2,2.2);
-      const reverbWet=actx.createGain();reverbWet.gain.value=0.32;
-      reverb.connect(reverbWet);reverbWet.connect(actx.destination);
-      audioRef.current={actx,reverb};
-    }catch(_e){audioRef.current=null;}
-    setIntroPhase("playing");
-  };
-
   useEffect(()=>{
     if(introPhase!=="playing")return;
     let cancelled=false;
     let rafId=null;
+    let revealTimer=null;
     const canvas=canvasRef.current;
     if(!canvas){setIntroPhase("done");return;}
     const ctx=canvas.getContext("2d");
@@ -651,21 +642,40 @@ function LoginScreen(){
     window.addEventListener("resize",resize);
     const FLIGHT_MS=2600;
 
+    // Audio is created without a user gesture (this plays automatically on
+    // load), so some browsers keep it suspended until the visitor's first
+    // click or keypress — that's fine, the visual animation always plays
+    // either way, sound is a bonus whenever the browser allows it.
+    let audio=null;
+    try{
+      const AudioCtx=window.AudioContext||window.webkitAudioContext;
+      const actx=new AudioCtx();
+      const reverb=_buildIntroReverb(actx,3.2,2.2);
+      const reverbWet=actx.createGain();reverbWet.gain.value=0.32;
+      reverb.connect(reverbWet);reverbWet.connect(actx.destination);
+      audio={actx,reverb};
+      audioRef.current=audio;
+      const unlock=()=>{actx.resume&&actx.resume().catch(()=>{});};
+      unlock();
+      window.addEventListener("pointerdown",unlock,{once:true});
+      window.addEventListener("keydown",unlock,{once:true});
+    }catch(_e){audio=null;audioRef.current=null;}
+
     const finish=()=>{
       if(cancelled)return;
-      if(audioRef.current){try{_playIntroResolve(audioRef.current.actx,audioRef.current.reverb);}catch(_e){}}
-      ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+      if(audio){try{_playIntroResolve(audio.actx,audio.reverb);}catch(_e){}}
       try{sessionStorage.setItem("pcmIntroSeen","1");}catch(_e){}
-      setTimeout(()=>{if(!cancelled)setIntroPhase("done");},50);
+      setIntroPhase("revealing");
+      revealTimer=setTimeout(()=>{if(!cancelled)setIntroPhase("done");},600);
     };
 
     (async()=>{
       const img=await _loadImage(PCM_LOGO).catch(()=>null);
       if(cancelled)return;
       if(!img||!logoSlotRef.current){finish();return;}
-      const displayW=300;
-      const sampled=_sampleLogoPoints(img,displayW,3);
-      const points=_subsamplePoints(sampled.points,850);
+      const displayW=340;
+      const sampled=_sampleLogoPoints(img,displayW,2);
+      const points=_subsamplePoints(sampled.points,1500);
       const slotRect=logoSlotRef.current.getBoundingClientRect();
       const offsetX=slotRect.left+(slotRect.width-sampled.w)/2;
       const offsetY=slotRect.top+(slotRect.height-sampled.h)/2;
@@ -678,7 +688,7 @@ function LoginScreen(){
           sx:cx+Math.cos(angle)*radius,sy:cy+Math.sin(angle)*radius,
           tx:offsetX+pt.x,ty:offsetY+pt.y,
           color:_rgbToHex(pt.r,pt.g,pt.b),
-          size:3+Math.random()*2.5,
+          size:2.5+Math.random()*2,
           rotSeed:(Math.random()>0.5?1:-1)*(1.2+Math.random()*1.8),
           delay:Math.random()*500,
           dur:FLIGHT_MS-500+Math.random()*400,
@@ -686,7 +696,7 @@ function LoginScreen(){
       });
       if(particles.length===0){finish();return;}
       const startTime=performance.now();
-      if(audioRef.current){try{_playIntroSwell(audioRef.current.actx,audioRef.current.reverb,FLIGHT_MS/1000);}catch(_e){}}
+      if(audio){try{_playIntroSwell(audio.actx,audio.reverb,FLIGHT_MS/1000);}catch(_e){}}
       const render=(now)=>{
         if(cancelled)return;
         ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
@@ -714,6 +724,7 @@ function LoginScreen(){
     return()=>{
       cancelled=true;
       if(rafId)cancelAnimationFrame(rafId);
+      if(revealTimer)clearTimeout(revealTimer);
       window.removeEventListener("resize",resize);
     };
   },[introPhase]);
@@ -734,19 +745,16 @@ function LoginScreen(){
   };
 
   const introDone=introPhase==="done";
+  const introShowing=introPhase==="playing"||introPhase==="revealing";
   return(
     <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
       <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
       <div style={{position:"fixed",inset:0,backgroundImage:`radial-gradient(circle at 20% 80%,rgba(206,182,132,0.16) 0%,transparent 50%)`,pointerEvents:"none"}}/>
-      {!introDone&&<canvas ref={canvasRef} style={{position:"fixed",inset:0,zIndex:5,pointerEvents:"none"}}/>}
+      {introShowing&&<canvas ref={canvasRef} style={{position:"fixed",inset:0,zIndex:5,pointerEvents:"none",opacity:introPhase==="revealing"?0:1,transition:"opacity .55s ease"}}/>}
       <div style={{background:B.white,borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:420,boxShadow:B.shadowMd,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,position:"relative",zIndex:1,margin:"0 16px"}}>
         <div style={{textAlign:"center",marginBottom:introDone?32:0}}>
           <div ref={logoSlotRef} style={{position:"relative",height:110,display:"flex",justifyContent:"center",alignItems:"center",marginBottom:introDone?20:0}}>
-            {introDone&&<PCMLogo/>}
-            {introPhase==="idle"&&<button onClick={beginIntro} style={{background:"none",border:"none",cursor:"pointer",padding:0,width:"100%",display:"flex",flexDirection:"column",alignItems:"center",gap:10}} aria-label="Enter the PCM Family Office client portal">
-              <div style={{opacity:0.3}}><PCMLogo/></div>
-              <div style={{fontSize:10,color:B.textMute,letterSpacing:"0.14em",fontWeight:700}}>CLICK TO ENTER</div>
-            </button>}
+            {(introPhase==="revealing"||introDone)&&<div style={{opacity:introDone?1:0,transition:"opacity .55s ease"}}><PCMLogo/></div>}
           </div>
           {introDone&&<>
             <div style={{height:1,background:`linear-gradient(90deg,transparent,${B.gold},transparent)`,marginBottom:18}}/>
