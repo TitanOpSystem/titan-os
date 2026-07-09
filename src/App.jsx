@@ -515,37 +515,16 @@ function PCMLogo({dark=false,compact=false}){
   return <img src={PCM_LOGO} alt="PCM Family Office" style={{height:110,width:"auto",display:"block",margin:"0 auto"}}/>;
 }
 
-// ── LOGIN INTRO (particle-cube logo assembly + synthesized sound) ──────────
+// ── LOGIN INTRO (tumbling cubes + synthesized sound) ────────────────────────
 // Pure helper functions (no React/DOM-framework state) that power a one-time
-// "cubes fly in from across the screen and assemble into the PCM logo" intro
-// on the login screen, with a synthesized swell + bell-chime sting (Web Audio
-// oscillators — no external audio files, nothing to license).
-function _rgbToHex(r,g,b){return "#"+[r,g,b].map(v=>v.toString(16).padStart(2,"0")).join("");}
+// "cubes fly in from across the screen while the PCM logo fades in" intro on
+// the login screen, with a synthesized swell + bell-chime sting (Web Audio
+// oscillators — no external audio files, nothing to license). Deliberately
+// does NOT try to sample the logo's exact pixels into a mosaic — that was
+// fragile (occasionally hung and never revealed the sign-in form). Cubes now
+// just converge loosely toward the logo's position as a decorative burst
+// while the crisp logo image fades in normally underneath/over it.
 function _easeOutCubic(t){return 1-Math.pow(1-t,3);}
-function _loadImage(src){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>res(img);img.onerror=rej;img.src=src;});}
-function _sampleLogoPoints(img,displayW,stride){
-  const ratio=img.height/img.width;
-  const displayH=Math.round(displayW*ratio);
-  const off=document.createElement("canvas");
-  off.width=displayW;off.height=displayH;
-  const octx=off.getContext("2d");
-  octx.drawImage(img,0,0,displayW,displayH);
-  const data=octx.getImageData(0,0,displayW,displayH).data;
-  const pts=[];
-  for(let y=0;y<displayH;y+=stride){
-    for(let x=0;x<displayW;x+=stride){
-      const i=(y*displayW+x)*4;
-      if(data[i+3]>140)pts.push({x,y,r:data[i],g:data[i+1],b:data[i+2]});
-    }
-  }
-  return{points:pts,w:displayW,h:displayH};
-}
-function _subsamplePoints(points,max){
-  if(points.length<=max)return points;
-  const out=[];const step=points.length/max;
-  for(let k=0;k<max;k++)out.push(points[Math.floor(k*step)]);
-  return out;
-}
 function _drawIntroCube(ctx,x,y,s,rot,hex,alpha){
   ctx.save();ctx.translate(x,y);ctx.rotate(rot);ctx.globalAlpha=alpha;
   ctx.fillStyle=hex;ctx.fillRect(-s/2,-s/2,s,s);
@@ -610,15 +589,20 @@ function LoginScreen(){
   const[loading,setLoading]=useState(false);
   const[resetSent,setResetSent]=useState(false);
 
-  // Cube-assembly intro: auto-plays the moment this screen mounts (no click
+  // Cube intro: auto-plays the moment this screen mounts (no click
   // required), once per browser session. If sessionStorage is unavailable
   // (privacy mode, sandboxed frame) it falls back straight to "done" so the
   // sign-in form is never blocked by the animation.
-  // Phases: "playing" (cubes flying) -> "revealing" (mosaic crossfades into
-  // the crisp logo image) -> "done" (normal static login screen).
+  // Everything here is driven by fixed wall-clock timers (not "wait until
+  // every particle reports done") and wrapped in try/catch that always
+  // falls through to "done" — the sign-in form must never be stuck behind
+  // this animation, no matter what goes wrong.
   const[introPhase,setIntroPhase]=useState(()=>{
     try{return sessionStorage.getItem("pcmIntroSeen")==="1"?"done":"playing";}
     catch(_e){return "done";}
+  });
+  const[logoVisible,setLogoVisible]=useState(()=>{
+    try{return sessionStorage.getItem("pcmIntroSeen")==="1";}catch(_e){return true;}
   });
   const canvasRef=useRef(null);
   const logoSlotRef=useRef(null);
@@ -628,103 +612,121 @@ function LoginScreen(){
     if(introPhase!=="playing")return;
     let cancelled=false;
     let rafId=null;
-    let revealTimer=null;
-    const canvas=canvasRef.current;
-    if(!canvas){setIntroPhase("done");return;}
-    const ctx=canvas.getContext("2d");
-    const dpr=window.devicePixelRatio||1;
-    const resize=()=>{
-      canvas.width=window.innerWidth*dpr;canvas.height=window.innerHeight*dpr;
-      canvas.style.width=window.innerWidth+"px";canvas.style.height=window.innerHeight+"px";
-      ctx.setTransform(dpr,0,0,dpr,0,0);
-    };
-    resize();
-    window.addEventListener("resize",resize);
-    const FLIGHT_MS=2600;
+    let logoTimer=null;
+    let doneTimer=null;
+    let resize=()=>{};
 
-    // Audio is created without a user gesture (this plays automatically on
-    // load), so some browsers keep it suspended until the visitor's first
-    // click or keypress — that's fine, the visual animation always plays
-    // either way, sound is a bonus whenever the browser allows it.
-    let audio=null;
-    try{
-      const AudioCtx=window.AudioContext||window.webkitAudioContext;
-      const actx=new AudioCtx();
-      const reverb=_buildIntroReverb(actx,3.2,2.2);
-      const reverbWet=actx.createGain();reverbWet.gain.value=0.32;
-      reverb.connect(reverbWet);reverbWet.connect(actx.destination);
-      audio={actx,reverb};
-      audioRef.current=audio;
-      const unlock=()=>{actx.resume&&actx.resume().catch(()=>{});};
-      unlock();
-      window.addEventListener("pointerdown",unlock,{once:true});
-      window.addEventListener("keydown",unlock,{once:true});
-    }catch(_e){audio=null;audioRef.current=null;}
-
-    const finish=()=>{
+    const goDone=()=>{
       if(cancelled)return;
-      if(audio){try{_playIntroResolve(audio.actx,audio.reverb);}catch(_e){}}
       try{sessionStorage.setItem("pcmIntroSeen","1");}catch(_e){}
-      setIntroPhase("revealing");
-      revealTimer=setTimeout(()=>{if(!cancelled)setIntroPhase("done");},600);
+      setLogoVisible(true);
+      setIntroPhase("done");
     };
 
-    (async()=>{
-      const img=await _loadImage(PCM_LOGO).catch(()=>null);
-      if(cancelled)return;
-      if(!img||!logoSlotRef.current){finish();return;}
-      const displayW=340;
-      const sampled=_sampleLogoPoints(img,displayW,2);
-      const points=_subsamplePoints(sampled.points,1500);
-      const slotRect=logoSlotRef.current.getBoundingClientRect();
-      const offsetX=slotRect.left+(slotRect.width-sampled.w)/2;
-      const offsetY=slotRect.top+(slotRect.height-sampled.h)/2;
+    try{
+      const canvas=canvasRef.current;
+      if(!canvas)throw new Error("no canvas");
+      const ctx=canvas.getContext("2d");
+      const dpr=window.devicePixelRatio||1;
+      resize=()=>{
+        canvas.width=window.innerWidth*dpr;canvas.height=window.innerHeight*dpr;
+        canvas.style.width=window.innerWidth+"px";canvas.style.height=window.innerHeight+"px";
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+      };
+      resize();
+      window.addEventListener("resize",resize);
+
+      const TOTAL_MS=2400;      // hard cap — form + logo reveal no matter what
+      const LOGO_FADE_AT=1200;  // logo starts fading in while cubes are still flying
+
+      // Audio is created without a user gesture (this plays automatically on
+      // load), so some browsers keep it suspended until the visitor's first
+      // click or keypress — that's fine, the visual animation always plays
+      // either way, sound is a bonus whenever the browser allows it.
+      let audio=null;
+      try{
+        const AudioCtx=window.AudioContext||window.webkitAudioContext;
+        const actx=new AudioCtx();
+        const reverb=_buildIntroReverb(actx,3.2,2.2);
+        const reverbWet=actx.createGain();reverbWet.gain.value=0.32;
+        reverb.connect(reverbWet);reverbWet.connect(actx.destination);
+        audio={actx,reverb};
+        audioRef.current=audio;
+        const unlock=()=>{actx.resume&&actx.resume().catch(()=>{});};
+        unlock();
+        window.addEventListener("pointerdown",unlock,{once:true});
+        window.addEventListener("keydown",unlock,{once:true});
+      }catch(_e){audio=null;audioRef.current=null;}
+
+      // Target = around the logo slot's own box (falls back to screen
+      // centre if for some reason it isn't measurable yet) — no pixel
+      // sampling of the logo image, so nothing here depends on image
+      // loading succeeding.
+      const rect=logoSlotRef.current?logoSlotRef.current.getBoundingClientRect():null;
       const W=window.innerWidth,H=window.innerHeight;
-      const particles=points.map(pt=>{
+      const tcx=rect?rect.left+rect.width/2:W/2;
+      const tcy=rect?rect.top+rect.height/2:H/2;
+      const spreadX=rect?Math.max(rect.width*0.55,60):120;
+      const spreadY=rect?Math.max(rect.height*0.9,40):50;
+
+      const COUNT=380;
+      const particles=[];
+      for(let i=0;i<COUNT;i++){
         const angle=Math.random()*Math.PI*2;
         const radius=Math.max(W,H)*(0.55+Math.random()*0.55);
-        const cx=W/2,cy=H/2;
-        return{
-          sx:cx+Math.cos(angle)*radius,sy:cy+Math.sin(angle)*radius,
-          tx:offsetX+pt.x,ty:offsetY+pt.y,
-          color:_rgbToHex(pt.r,pt.g,pt.b),
-          size:2.5+Math.random()*2,
+        particles.push({
+          sx:W/2+Math.cos(angle)*radius, sy:H/2+Math.sin(angle)*radius,
+          tx:tcx+(Math.random()-0.5)*2*spreadX,
+          ty:tcy+(Math.random()-0.5)*2*spreadY,
+          color:Math.random()<0.6?B.navy:B.gold,
+          size:3+Math.random()*3,
           rotSeed:(Math.random()>0.5?1:-1)*(1.2+Math.random()*1.8),
           delay:Math.random()*500,
-          dur:FLIGHT_MS-500+Math.random()*400,
-        };
-      });
-      if(particles.length===0){finish();return;}
+          dur:TOTAL_MS-500+Math.random()*500,
+          fadeFrom:0.7+Math.random()*0.2,
+        });
+      }
+
       const startTime=performance.now();
-      if(audio){try{_playIntroSwell(audio.actx,audio.reverb,FLIGHT_MS/1000);}catch(_e){}}
+      if(audio){try{_playIntroSwell(audio.actx,audio.reverb,TOTAL_MS/1000);}catch(_e){}}
+
       const render=(now)=>{
         if(cancelled)return;
+        const elapsed=now-startTime;
         ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
-        let allDone=true;
         for(const p of particles){
-          const local=now-startTime-p.delay;
-          let t=local/p.dur;
-          if(t<0){t=0;allDone=false;}
-          if(t<1)allDone=false;
-          t=Math.min(1,Math.max(0,t));
+          const t=Math.min(1,Math.max(0,(elapsed-p.delay)/p.dur));
           const e=_easeOutCubic(t);
           const x=p.sx+(p.tx-p.sx)*e;
           const y=p.sy+(p.ty-p.sy)*e;
           const rot=p.rotSeed*(1-e)*Math.PI*0.9;
           const scale=1+(1-e)*0.7;
-          const alpha=0.8+e*0.2;
+          let alpha=0.85;
+          if(t>p.fadeFrom)alpha=0.85*Math.max(0,1-(t-p.fadeFrom)/(1-p.fadeFrom));
           _drawIntroCube(ctx,x,y,p.size*scale,rot,p.color,alpha);
         }
-        if(!allDone)rafId=requestAnimationFrame(render);
-        else finish();
+        if(elapsed<TOTAL_MS)rafId=requestAnimationFrame(render);
+        else ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
       };
       rafId=requestAnimationFrame(render);
-    })();
+
+      logoTimer=setTimeout(()=>{if(!cancelled)setLogoVisible(true);},LOGO_FADE_AT);
+      doneTimer=setTimeout(()=>{
+        if(cancelled)return;
+        if(audio){try{_playIntroResolve(audio.actx,audio.reverb);}catch(_e){}}
+        goDone();
+      },TOTAL_MS);
+    }catch(_e){
+      // Anything unexpected — skip straight to the normal login screen
+      // rather than ever leaving the visitor stuck behind the animation.
+      goDone();
+    }
 
     return()=>{
       cancelled=true;
       if(rafId)cancelAnimationFrame(rafId);
-      if(revealTimer)clearTimeout(revealTimer);
+      if(logoTimer)clearTimeout(logoTimer);
+      if(doneTimer)clearTimeout(doneTimer);
       window.removeEventListener("resize",resize);
     };
   },[introPhase]);
@@ -745,16 +747,15 @@ function LoginScreen(){
   };
 
   const introDone=introPhase==="done";
-  const introShowing=introPhase==="playing"||introPhase==="revealing";
   return(
     <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
       <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
       <div style={{position:"fixed",inset:0,backgroundImage:`radial-gradient(circle at 20% 80%,rgba(206,182,132,0.16) 0%,transparent 50%)`,pointerEvents:"none"}}/>
-      {introShowing&&<canvas ref={canvasRef} style={{position:"fixed",inset:0,zIndex:5,pointerEvents:"none",opacity:introPhase==="revealing"?0:1,transition:"opacity .55s ease"}}/>}
+      {introPhase==="playing"&&<canvas ref={canvasRef} style={{position:"fixed",inset:0,zIndex:5,pointerEvents:"none"}}/>}
       <div style={{background:B.white,borderRadius:20,padding:"32px 24px",width:"100%",maxWidth:420,boxShadow:B.shadowMd,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,position:"relative",zIndex:1,margin:"0 16px"}}>
         <div style={{textAlign:"center",marginBottom:introDone?32:0}}>
           <div ref={logoSlotRef} style={{position:"relative",height:110,display:"flex",justifyContent:"center",alignItems:"center",marginBottom:introDone?20:0}}>
-            {(introPhase==="revealing"||introDone)&&<div style={{opacity:introDone?1:0,transition:"opacity .55s ease"}}><PCMLogo/></div>}
+            <div style={{opacity:logoVisible?1:0,transition:"opacity .7s ease"}}><PCMLogo/></div>
           </div>
           {introDone&&<>
             <div style={{height:1,background:`linear-gradient(90deg,transparent,${B.gold},transparent)`,marginBottom:18}}/>
