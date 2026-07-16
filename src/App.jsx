@@ -413,7 +413,7 @@ const FAMILY_SCOPED=["contacts","properties","deals","notes","tasks","portfolio_
 let CURRENT_USER_LABEL="";
 // Display-only rename: the underlying role value stored in the DB/permissions stays "advisor";
 // only the label shown to users reads "Trusted Partner".
-const ROLE_LABELS={admin:"Admin",advisor:"Trusted Partner",client:"Client"};
+const ROLE_LABELS={admin:"Admin",advisor:"Trusted Partner",client:"Client",partner:"Partner"};
 const roleLabel=r=>ROLE_LABELS[(r||"").toLowerCase()]||r;
 
 
@@ -1262,8 +1262,13 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
   </Modal>;
 }
 
-function FamilyDashboard({family,data,reload,toast,onBack}){
+function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
   const isMobile=useIsMobile();
+  // Partner role: full read access to everything in this dashboard, but no
+  // create/edit/delete anywhere except uploading documents (handled separately
+  // below). Enforced for real via RLS (write_access policies exclude partner);
+  // this just keeps the UI from showing controls that would fail server-side.
+  const canEdit=userProfile?.role!=="partner";
   const[activeTab,setActiveTab]=useState("overview");
   const[reportOpen,setReportOpen]=useState(false);
   const[modal,setModal]=useState(null);
@@ -1512,7 +1517,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Members</div>
-                <Btn small onClick={()=>{setEditM(null);setModal("member");}}>+ Add</Btn>
+                {canEdit&&<Btn small onClick={()=>{setEditM(null);setModal("member");}}>+ Add</Btn>}
               </div>
               <GoldLine/>
               {contacts.length===0?<Empty text="No members yet — add the first one"/>:contacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`}}>
@@ -1526,8 +1531,8 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <Badge scheme={c.type==="Business"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{c.type}</Badge>
-                  <button onClick={()=>{setEditM(c);setModal("member");}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit member">✎</button>
-                  <button onClick={()=>delMember(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
+                  {canEdit&&<button onClick={()=>{setEditM(c);setModal("member");}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit member">✎</button>}
+                  {canEdit&&<button onClick={()=>delMember(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>}
                 </div>
               </div>)}
             </div>
@@ -1535,7 +1540,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Team Member & Contacts</div>
-                <Btn small onClick={()=>{setEditFC(null);setModal("familyContact");}}>+ Add</Btn>
+                {canEdit&&<Btn small onClick={()=>{setEditFC(null);setModal("familyContact");}}>+ Add</Btn>}
               </div>
               <GoldLine/>
               {famContacts.length===0?<Empty text="No contacts yet — add team members, CPA, attorney…"/>:famContacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`,gap:8}}>
@@ -1548,9 +1553,9 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                   </div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-                  <button onClick={()=>toggleFCAdvisor(c)} title={c.isAdvisor?"Client can email this contact — click to remove":"Let the client email this contact"} style={{background:c.isAdvisor?"rgba(206,182,132,0.22)":"none",border:`1px solid ${c.isAdvisor?B.gold:B.border}`,color:c.isAdvisor?B.navy:B.textMute,cursor:"pointer",fontSize:13,fontWeight:600,borderRadius:20,width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",padding:0,fontFamily:"inherit"}}>{c.isAdvisor?"★":"☆"}</button>
-                  <button onClick={()=>{setEditFC(c);setModal("familyContact");}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit contact">✎</button>
-                  <button onClick={()=>delFamilyContact(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
+                  {canEdit&&<button onClick={()=>toggleFCAdvisor(c)} title={c.isAdvisor?"Client can email this contact — click to remove":"Let the client email this contact"} style={{background:c.isAdvisor?"rgba(206,182,132,0.22)":"none",border:`1px solid ${c.isAdvisor?B.gold:B.border}`,color:c.isAdvisor?B.navy:B.textMute,cursor:"pointer",fontSize:13,fontWeight:600,borderRadius:20,width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",padding:0,fontFamily:"inherit"}}>{c.isAdvisor?"★":"☆"}</button>}
+                  {canEdit&&<button onClick={()=>{setEditFC(c);setModal("familyContact");}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit contact">✎</button>}
+                  {canEdit&&<button onClick={()=>delFamilyContact(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>}
                 </div>
               </div>)}
             </div>
@@ -1559,14 +1564,14 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Upcoming Tasks</div>
-                <Btn small onClick={()=>setModal("task")}>+ Add</Btn>
+                {canEdit&&<Btn small onClick={()=>setModal("task")}>+ Add</Btn>}
               </div>
               <GoldLine/>
               {pendingTasks.length===0?<Empty text="No pending tasks"/>:[...pendingTasks].sort((a,b)=>a.dueDate>b.dueDate?1:-1).slice(0,5).map(t=>{
                 const isOD=t.dueDate&&new Date(t.dueDate)<new Date();
                 const isSoon=!isOD&&t.dueDate&&(new Date(t.dueDate)-new Date())/(86400000)<=30;
                 return <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:`1px solid ${B.borderLight}`}}>
-                  <input type="checkbox" checked={!!t.done} onChange={()=>toggleTask(t)} style={{accentColor:B.navy,cursor:"pointer",flexShrink:0}}/>
+                  <input type="checkbox" checked={!!t.done} disabled={!canEdit} onChange={()=>toggleTask(t)} style={{accentColor:B.navy,cursor:canEdit?"pointer":"default",flexShrink:0}}/>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:13,color:B.navy,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
                     {t.dueDate&&<div style={{fontSize:11,color:isOD?"#d43030":isSoon?"#d4900a":B.textSoft}}>{isOD?"⚠ Overdue · ":isSoon?"⏰ ":" "}{fmt(t.dueDate)}</div>}
@@ -1580,13 +1585,13 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
           <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,marginBottom:20}}>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Recent Notes</div>
             <GoldLine/>
-            <div style={{display:"flex",gap:10,marginBottom:14}}>
+            {canEdit&&<div style={{display:"flex",gap:10,marginBottom:14}}>
               <input value={noteBody} onChange={e=>setNoteBody(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&addNote()} placeholder="Quick note… (Enter to save)" style={{...inp,flex:1}}/>
               <Btn onClick={addNote} disabled={!noteBody.trim()}>Add</Btn>
-            </div>
+            </div>}
             {famNotes.length===0?<Empty text="No notes yet"/>:[...famNotes].sort((a,b)=>b.createdAt>a.createdAt?1:-1).slice(0,4).map(n=><div key={n.id} style={{padding:"10px 0",borderBottom:`1px solid ${B.borderLight}`,display:"flex",justifyContent:"space-between",gap:10}}>
               <div><div style={{fontSize:13,color:B.textMid,lineHeight:1.55}}>{n.body}</div><div style={{fontSize:11,color:B.textMute,marginTop:3}}>{fmt(n.createdAt)}</div></div>
-              <button onClick={()=>delNote(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button>
+              {canEdit&&<button onClick={()=>delNote(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button>}
             </div>)}
           </div>
         </div>}
@@ -1595,17 +1600,17 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         {activeTab==="properties"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{properties.length} properties · {fmtMoney(totalRE)} total · {fmtMoney(totalDebt)} debt</div>
-            <Btn onClick={()=>setModal("property")}>+ Add Property</Btn>
+            {canEdit&&<Btn onClick={()=>setModal("property")}>+ Add Property</Btn>}
           </div>
           {properties.length===0?<Empty text="No properties yet. Add the first one."/>:(()=>{
             const groups=[...PROP_TYPES,"Other"].map(type=>({type,list:properties.filter(p=>type==="Other"?!PROP_TYPES.includes(p.propertyType):p.propertyType===type).sort(propBySort)})).filter(g=>g.list.length>0);
             const card=(p,section,i)=><div key={p.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${B.gold}`,borderRadius:12,padding:20,marginBottom:14,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
                 <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
-                  <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                  {canEdit&&<div style={{display:"flex",flexDirection:"column",gap:2}}>
                     <button onClick={()=>moveProperty(p,"up")} disabled={i===0} style={{cursor:i===0?"default":"pointer",opacity:i===0?0.3:1,background:B.bg,border:`1px solid ${B.border}`,borderRadius:5,width:24,height:20,fontSize:11,color:B.navy,lineHeight:1,fontFamily:"inherit"}}>↑</button>
                     <button onClick={()=>moveProperty(p,"down")} disabled={i===section.length-1} style={{cursor:i===section.length-1?"default":"pointer",opacity:i===section.length-1?0.3:1,background:B.bg,border:`1px solid ${B.border}`,borderRadius:5,width:24,height:20,fontSize:11,color:B.navy,lineHeight:1,fontFamily:"inherit"}}>↓</button>
-                  </div>
+                  </div>}
                   <div>
                     <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>{p.address}</div>
                     {p.ownerName&&<div style={{fontSize:12,color:B.textSoft,marginTop:2}}>{p.ownerName}</div>}
@@ -1618,8 +1623,8 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                   </div>
                   <Btn small variant="ghost" onClick={()=>window.open(`https://www.zillow.com/homes/${encodeURIComponent(p.address||"")}_rb/`,"_blank","noopener,noreferrer")}>🔗 Zillow</Btn>
                   <Btn small variant="ghost" onClick={()=>window.open(`https://www.google.com/search?q=${encodeURIComponent(`"${p.address||""}" property tax records`)}`,"_blank","noopener,noreferrer")}>🏛 Tax Records</Btn>
-                  <Btn small variant="ghost" onClick={()=>setModal({type:"editProperty",property:p})}>Edit</Btn>
-                  <Btn small variant="danger" onClick={()=>delProperty(p.id)}>✕</Btn>
+                  {canEdit&&<Btn small variant="ghost" onClick={()=>setModal({type:"editProperty",property:p})}>Edit</Btn>}
+                  {canEdit&&<Btn small variant="danger" onClick={()=>delProperty(p.id)}>✕</Btn>}
                 </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8}}>
@@ -1632,7 +1637,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
               <div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${B.borderLight}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <div style={{fontSize:11,color:B.textMute,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase"}}>Service Providers</div>
-                  <button onClick={()=>setModal({type:"propertyContact",propertyId:p.id})} style={{background:"none",border:`1px solid ${B.border}`,color:B.navy,borderRadius:6,padding:"3px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>+ Add</button>
+                  {canEdit&&<button onClick={()=>setModal({type:"propertyContact",propertyId:p.id})} style={{background:"none",border:`1px solid ${B.border}`,color:B.navy,borderRadius:6,padding:"3px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>+ Add</button>}
                 </div>
                 {propContactsFor(p.id).length===0
                   ? <div style={{fontSize:12,color:B.textMute}}>None yet — add a landscaper, pool service, property manager…</div>
@@ -1641,10 +1646,10 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                         <div style={{fontSize:12,fontWeight:600,color:B.navy}}>{c.name}{c.role&&<span style={{fontWeight:400,color:B.textSoft,marginLeft:6}}>· {c.role}</span>}</div>
                         <div style={{fontSize:11,color:B.textSoft,display:"flex",gap:10,flexWrap:"wrap",marginTop:1}}>{c.company&&<span>{c.company}</span>}{c.phone&&<span>📞 {c.phone}</span>}{c.email&&<span>✉ {c.email}</span>}</div>
                       </div>
-                      <div style={{display:"flex",gap:6,flexShrink:0}}>
+                      {canEdit&&<div style={{display:"flex",gap:6,flexShrink:0}}>
                         <button onClick={()=>setModal({type:"propertyContact",propertyId:p.id,contact:c})} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit">✎</button>
                         <button onClick={()=>delPropertyContact(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
-                      </div>
+                      </div>}
                     </div>)}</div>}
               </div>
             </div>;
@@ -1663,7 +1668,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         {activeTab==="portfolio"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{accounts.length} accounts · {fmtMoney(totalAccounts)} total</div>
-            <Btn onClick={()=>setModal("account")}>+ Add Account</Btn>
+            {canEdit&&<Btn onClick={()=>setModal("account")}>+ Add Account</Btn>}
           </div>
           {accounts.length===0?<Empty text="No portfolio accounts yet."/>:accounts.map(a=>{
             const pct=pctChange(a.startingBalance,a.currentBalance);
@@ -1679,8 +1684,8 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                     <div style={{fontSize:16,fontWeight:700,color:B.navy}}>{fmtMoney(a.currentBalance)}</div>
                     {pct!==null&&<div style={{fontSize:12,fontWeight:700,color:Number(pct)>=0?"#18a850":"#d43030"}}>{Number(pct)>=0?"+":""}{pct}% ({Number(gain)>=0?"+":"-"}{fmtMoney(Math.abs(gain))})</div>}
                   </div>
-                  <Btn small variant="ghost" onClick={()=>setModal({type:"editAccount",account:a})}>Edit</Btn>
-                  <Btn small variant="danger" onClick={()=>delAccount(a.id)}>✕</Btn>
+                  {canEdit&&<Btn small variant="ghost" onClick={()=>setModal({type:"editAccount",account:a})}>Edit</Btn>}
+                  {canEdit&&<Btn small variant="danger" onClick={()=>delAccount(a.id)}>✕</Btn>}
                 </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
@@ -1694,13 +1699,13 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* CASH FLOW TAB */}
-        {activeTab==="cashflow"&&<CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} reload={reload} toast={toast}/>}
+        {activeTab==="cashflow"&&<CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} reload={reload} toast={toast} readOnly={!canEdit}/>}
 
         {/* VALUABLES TAB */}
         {activeTab==="valuables"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{valuables.length} items · {fmtMoney(totalValuables)} est. value</div>
-            <Btn onClick={()=>setModal("valuable")}>+ Add Valuable</Btn>
+            {canEdit&&<Btn onClick={()=>setModal("valuable")}>+ Add Valuable</Btn>}
           </div>
           {VALUABLE_CATS.map(cat=>{
             const items=valuables.filter(v=>v.category===cat);
@@ -1715,8 +1720,8 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <div style={{fontSize:15,fontWeight:700,color:B.navy}}>{fmtMoney(v.estimatedValue)}</div>
-                  <Btn small variant="ghost" onClick={()=>setModal({type:"editValuable",valuable:v})}>Edit</Btn>
-                  <Btn small variant="danger" onClick={()=>delValuable(v.id)}>✕</Btn>
+                  {canEdit&&<Btn small variant="ghost" onClick={()=>setModal({type:"editValuable",valuable:v})}>Edit</Btn>}
+                  {canEdit&&<Btn small variant="danger" onClick={()=>delValuable(v.id)}>✕</Btn>}
                 </div>
               </div>)}
             </div>;
@@ -1728,7 +1733,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         {activeTab==="deals"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:13,color:B.textSoft}}>{openDeals.length} open deals · {fmtMoney(openDeals.reduce((s,d)=>s+(Number(d.value)||0),0))} pipeline</div>
-            <Btn onClick={()=>setModal("deal")}>+ Add Deal</Btn>
+            {canEdit&&<Btn onClick={()=>setModal("deal")}>+ Add Deal</Btn>}
           </div>
           {deals.length===0?<Empty text="No deals yet."/>:STAGES.map(stage=>{
             const list=deals.filter(d=>d.stage===stage);
@@ -1744,11 +1749,11 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                   {d.closeDate&&<div style={{fontSize:12,color:B.textSoft}}>Close: {fmt(d.closeDate)}</div>}
                 </div>
                 {d.value&&<div style={{fontWeight:800,color:B.navy}}>{fmtMoney(d.value)}</div>}
-                <div style={{display:"flex",gap:4}}>
+                {canEdit&&<div style={{display:"flex",gap:4}}>
                   <button onClick={()=>moveDeal(d,-1)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:15}}>←</button>
                   <button onClick={()=>moveDeal(d,1)}  style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:15}}>→</button>
                   <Btn small variant="danger" onClick={()=>delDeal(d.id)}>✕</Btn>
-                </div>
+                </div>}
               </div>)}
             </div>;
           })}
@@ -1756,7 +1761,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
         {/* NOTES TAB */}
         {activeTab==="notes"&&<div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
-          <div style={{padding:isMobile?"14px 14px":"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
+          {canEdit&&<div style={{padding:isMobile?"14px 14px":"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
             <div style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:12,overflow:"hidden",boxShadow:B.shadow}}>
               <textarea value={noteBody} onChange={e=>setNoteBody(e.target.value)} placeholder="Write a note or activity log entry…" style={{width:"100%",minHeight:80,background:"transparent",border:"none",padding:"14px 16px",color:B.text,fontSize:14,outline:"none",resize:"none",fontFamily:"inherit",lineHeight:1.65,boxSizing:"border-box"}}/>
               {/* Pending files preview */}
@@ -1784,7 +1789,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 <Btn onClick={addNote} disabled={!noteBody.trim()}>Log Note{pendingNoteFiles.length>0?` + ${pendingNoteFiles.length} file${pendingNoteFiles.length>1?"s":""}`:""}</Btn>
               </div>
             </div>
-          </div>
+          </div>}
           <div style={{flex:1,overflowY:"auto",padding:isMobile?"14px 14px":"20px 28px"}}>
             {famNotes.length===0?<Empty text="No notes yet."/>:[...famNotes].sort((a,b)=>b.createdAt>a.createdAt?1:-1).map(n=>{
               const atts=noteAttachments.filter(a=>a.noteId===n.id);
@@ -1793,7 +1798,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 <div style={{padding:"16px 20px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:8}}>
                     <p style={{margin:0,color:B.text,fontSize:14,lineHeight:1.7,flex:1,whiteSpace:"pre-wrap"}}>{n.body}</p>
-                    <button onClick={()=>delNote(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button>
+                    {canEdit&&<button onClick={()=>delNote(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button>}
                   </div>
                   {/* Attachments list */}
                   {atts.length>0&&<div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`}}>
@@ -1802,13 +1807,13 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                       <Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{a.category}</Badge>
                       {a.fileSize&&<span style={{fontSize:10,color:B.textSoft}}>{(a.fileSize/1024).toFixed(1)}KB</span>}
                       <button onClick={()=>downloadNoteAttachment(a)} style={{background:"none",border:`1px solid ${B.border}`,color:B.navy,cursor:"pointer",fontSize:11,padding:"3px 10px",borderRadius:6,fontFamily:"inherit"}}>↓ Download</button>
-                      <button onClick={()=>{if(confirm("Remove this attachment?"))delNoteAttachment(a);}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
+                      {canEdit&&<button onClick={()=>{if(confirm("Remove this attachment?"))delNoteAttachment(a);}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>}
                     </div>)}
                   </div>}
                   {/* Meta row + add-attachment button */}
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,flexWrap:"wrap",gap:8}}>
                     <div style={{fontSize:11,color:B.textMute}}>🕐 {fmt(n.createdAt)}</div>
-                    <label style={{display:"inline-flex",alignItems:"center",gap:5,padding:"4px 10px",background:"transparent",border:`1px dashed ${B.border}`,borderRadius:6,cursor:"pointer",fontSize:11,color:B.textSoft}}>
+                    {canEdit&&<label style={{display:"inline-flex",alignItems:"center",gap:5,padding:"4px 10px",background:"transparent",border:`1px dashed ${B.border}`,borderRadius:6,cursor:"pointer",fontSize:11,color:B.textSoft}}>
                       📎 Add file
                       <input type="file" onChange={e=>{
                         const file=e.target.files&&e.target.files[0];
@@ -1820,7 +1825,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                         attachToExistingNote(n.id,file,cat);
                         e.target.value="";
                       }} style={{display:"none"}}/>
-                    </label>
+                    </label>}
                   </div>
                 </div>
               </div>;
@@ -1835,13 +1840,13 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
               {overdueTasks.length>0&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>{overdueTasks.length} overdue</Badge>}
               {soonTasks.length>0&&<Badge scheme={{bg:"#fef3e2",text:"#8a5c00",dot:"#d4900a"}}>{soonTasks.length} due in 30 days</Badge>}
             </div>
-            <Btn onClick={()=>setModal("task")}>+ New Task</Btn>
+            {canEdit&&<Btn onClick={()=>setModal("task")}>+ New Task</Btn>}
           </div>
           {famTasks.length===0?<Empty text="No tasks yet."/>:famTasks.map(t=>{
             const isOD=!t.done&&t.dueDate&&new Date(t.dueDate)<new Date();
             const isSoon=!t.done&&!isOD&&t.dueDate&&(new Date(t.dueDate)-new Date())/(86400000)<=30;
             return <div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",marginBottom:8,background:B.white,border:`1px solid ${isOD?"#f5c6c6":B.borderLight}`,borderLeft:`3px solid ${isOD?"#d43030":isSoon?"#d4900a":PRIORITY_COLORS[t.priority]?.dot||B.gold}`,borderRadius:10,opacity:t.done?.55:1,boxShadow:B.shadow}}>
-              <input type="checkbox" checked={!!t.done} onChange={()=>toggleTask(t)} style={{width:16,height:16,accentColor:B.navy,cursor:"pointer",flexShrink:0}}/>
+              <input type="checkbox" checked={!!t.done} onChange={()=>toggleTask(t)} disabled={!canEdit} style={{width:16,height:16,accentColor:B.navy,cursor:"pointer",flexShrink:0}}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontWeight:700,color:B.navy,textDecoration:t.done?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.title}</div>
                 <div style={{fontSize:12,color:B.textSoft,marginTop:2,display:"flex",gap:10}}>
@@ -1850,7 +1855,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
                 </div>
               </div>
               <Badge scheme={PRIORITY_COLORS[t.priority]}>{t.priority}</Badge>
-              <Btn small variant="danger" onClick={()=>delTask(t.id)}>✕</Btn>
+              {canEdit&&<Btn small variant="danger" onClick={()=>delTask(t.id)}>✕</Btn>}
             </div>;
           })}
         </div>}
@@ -1858,7 +1863,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
 
       {/* DOCUMENTS TAB */}
       {activeTab==="documents"&&<div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
-        <DocumentsView familyId={family.id} readOnly={false} canScan={true} toast={toast} reload={reload}/>
+        <DocumentsView familyId={family.id} readOnly={false} canUpload={true} canDelete={canEdit} canScan={canEdit} canEditMetadata={canEdit} toast={toast} reload={reload}/>
       </div>}
 
       {activeTab==="asktitan"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
@@ -3216,7 +3221,7 @@ function FamiliesView({data,reload,toast,userProfile}){
   const del=async id=>{const{error}=await sb.from("families").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("families");if(selected?.id===id)setSelected(null);}};
 
   // If a family is selected, show its dashboard
-  if(selected) return <FamilyDashboard family={selected} data={data} reload={reload} toast={toast} onBack={()=>setSelected(null)}/>;
+  if(selected) return <FamilyDashboard family={selected} data={data} reload={reload} toast={toast} onBack={()=>setSelected(null)} userProfile={userProfile}/>;
 
   const getStats=f=>({
     properties:(data.properties||[]).filter(p=>p.familyId===f.id).length,
@@ -4203,11 +4208,15 @@ function UserManagementView({userProfile,data={},toast}){
   const[users,setUsers]=useState([]);
   const[loading,setLoading]=useState(true);
   const[modal,setModal]=useState(null);
+  const[familyFilter,setFamilyFilter]=useState(""); // narrows the grouped lists below to users linked to one family
+  // Partner-to-family links (many-to-many, via family_partners junction table)
+  const[familyPartners,setFamilyPartners]=useState([]);
   // New user form state
   const[newEmail,setNewEmail]=useState("");
   const[newName,setNewName]=useState("");
   const[newRole,setNewRole]=useState("advisor");
   const[newFamily,setNewFamily]=useState("");
+  const[newPartnerFamilies,setNewPartnerFamilies]=useState([]); // family ids, role="partner" only
   const[newPassword,setNewPassword]=useState("");
   const[creating,setCreating]=useState(false);
   const[created,setCreated]=useState(null);
@@ -4217,7 +4226,11 @@ function UserManagementView({userProfile,data={},toast}){
     if(rows)setUsers(rows);
     setLoading(false);
   };
-  useEffect(()=>{loadUsers();},[]);
+  const loadFamilyPartners=async()=>{
+    const{data:rows}=await sb.from("family_partners").select("*");
+    if(rows)setFamilyPartners(rows);
+  };
+  useEffect(()=>{loadUsers();loadFamilyPartners();},[]);
 
   const toggleActive=async u=>{
     const{error}=await sb.from("user_profiles").update({active:!u.active}).eq("id",u.id);
@@ -4230,6 +4243,16 @@ function UserManagementView({userProfile,data={},toast}){
   const assignFamily=async(u,familyId)=>{
     const{error}=await sb.from("user_profiles").update({family_id:familyId||null}).eq("id",u.id);
     if(error)toast(error.message,"error");else{toast("Family assigned");loadUsers();}
+  };
+  const partnerFamilyIdsFor=userId=>familyPartners.filter(fp=>fp.user_id===userId).map(fp=>fp.family_id);
+  const togglePartnerFamily=async(u,familyId,linked)=>{
+    if(linked){
+      const{error}=await sb.from("family_partners").delete().eq("user_id",u.id).eq("family_id",familyId);
+      if(error)toast(error.message,"error");else loadFamilyPartners();
+    } else {
+      const{error}=await sb.from("family_partners").insert({user_id:u.id,family_id:familyId});
+      if(error)toast(error.message,"error");else loadFamilyPartners();
+    }
   };
 
   const createUser=async()=>{
@@ -4251,14 +4274,17 @@ function UserManagementView({userProfile,data={},toast}){
         email:newEmail.trim(),
         full_name:newName||newEmail.trim(),
         role:newRole,
-        family_id:newFamily||null,
+        family_id:newRole==="client"?(newFamily||null):null,
         active:true,
       });
+      if(newRole==="partner"&&newPartnerFamilies.length>0){
+        await sb.from("family_partners").insert(newPartnerFamilies.map(fid=>({user_id:userId,family_id:fid})));
+      }
     }
     setCreating(false);
     setCreated({email:newEmail,role:newRole,password:newPassword});
-    setNewEmail("");setNewName("");setNewRole("advisor");setNewFamily("");setNewPassword("");
-    setTimeout(loadUsers,1500);
+    setNewEmail("");setNewName("");setNewRole("advisor");setNewFamily("");setNewPartnerFamilies([]);setNewPassword("");
+    setTimeout(()=>{loadUsers();loadFamilyPartners();},1500);
   };
 
   const resetPass=u=>{
@@ -4296,16 +4322,24 @@ function UserManagementView({userProfile,data={},toast}){
 
   return <div style={{height:"100%",overflow:"auto",padding:"28px 32px"}}>
     <div style={{maxWidth:920,margin:"0 auto"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24,flexWrap:"wrap",gap:12}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,color:B.navy,fontWeight:600}}>User Management</div>
-        <Btn onClick={()=>setModal("create")}>+ Add User</Btn>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          <Sel value={familyFilter} onChange={e=>setFamilyFilter(e.target.value)} style={{minWidth:180}}>
+            <option value="">All Families</option>
+            {families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+          </Sel>
+          <Btn onClick={()=>setModal("create")}>+ Add User</Btn>
+        </div>
       </div>
 
-      {/* Users grouped by access level: Admin · Trusted Partner (role="advisor" internally) · Client */}
+      {/* Users grouped by access level: Admin · Trusted Partner (role="advisor" internally) · Partner · Client */}
       {loading?<Spinner/>:(()=>{
         const HEADERS=["Name","Email","Role","Family (clients)","Status","Actions"];
         const COLS="1.2fr 1.4fr 130px 1fr 110px 130px";
-        const renderRow=u=>(
+        const renderRow=u=>{
+          const pFamilyIds=partnerFamilyIdsFor(u.id);
+          return (
           <div key={u.id} style={{display:"grid",gridTemplateColumns:COLS,padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,alignItems:"center",gap:8,opacity:u.active?1:0.6}}>
             <div>
               <div style={{fontWeight:700,color:B.navy,fontSize:13}}>{u.full_name||"—"}</div>
@@ -4318,6 +4352,7 @@ function UserManagementView({userProfile,data={},toast}){
                 :<select value={u.role||"advisor"} onChange={e=>changeRole(u,e.target.value)} style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 8px",fontSize:12,color:B.text,outline:"none",fontFamily:"inherit",cursor:"pointer",width:"100%"}}>
                   <option value="admin">Admin</option>
                   <option value="advisor">Trusted Partner</option>
+                  <option value="partner">Partner</option>
                   <option value="client">Client</option>
                 </select>}
             </div>
@@ -4327,6 +4362,8 @@ function UserManagementView({userProfile,data={},toast}){
                   <option value="">— Assign Family —</option>
                   {families.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
                 </select>
+                :u.role==="partner"
+                ?<Btn small variant="ghost" onClick={()=>setModal({type:"managePartner",user:u})}>{pFamilyIds.length>0?`${pFamilyIds.length} linked`:"Link families"}</Btn>
                 :<span style={{fontSize:11,color:B.textMute}}>—</span>}
             </div>
             <div>
@@ -4342,7 +4379,8 @@ function UserManagementView({userProfile,data={},toast}){
               </>}
             </div>
           </div>
-        );
+          );
+        };
         const renderSection=(label,accent,desc,list,key)=>(
           <div key={key} style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,overflow:"hidden",marginBottom:18}}>
             <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${accent}`,flexWrap:"wrap"}}>
@@ -4362,14 +4400,29 @@ function UserManagementView({userProfile,data={},toast}){
         const GROUPS=[
           {key:"admin",label:"Admins",accent:B.navy,desc:"Full access to all families, users, and settings"},
           {key:"advisor",label:"Trusted Partners",accent:B.gold,desc:"Scoped to their assigned families and prospects"},
+          {key:"partner",label:"Partners",accent:"#7a8fa6",desc:"View-only across linked families; can upload & download documents"},
           {key:"client",label:"Clients",accent:B.navyMid,desc:"Read-only portal access to their own family"},
         ];
         const known=GROUPS.map(g=>g.key);
         const roleOf=u=>(u.role||"").toLowerCase();
+        // "Categorize by family": when a family filter is set, narrow each group
+        // to users actually tied to that family (client assignment, partner link,
+        // or the advisor whose email matches the family's advisor_email).
+        const linkedToFamily=u=>{
+          if(!familyFilter)return true;
+          const role=roleOf(u);
+          if(role==="client")return u.family_id===familyFilter;
+          if(role==="partner")return partnerFamilyIdsFor(u.id).includes(familyFilter);
+          if(role==="advisor"){
+            const fam=families.find(f=>f.id===familyFilter);
+            return!!fam&&(fam.advisorEmail||"").toLowerCase()===(u.email||"").toLowerCase();
+          }
+          return role==="admin"; // admins have access to every family regardless of filter
+        };
         const others=users.filter(u=>!known.includes(roleOf(u)));
         return <div style={{marginBottom:24}}>
-          {GROUPS.map(g=>renderSection(g.label,g.accent,g.desc,users.filter(u=>roleOf(u)===g.key),g.key))}
-          {others.length>0&&renderSection("Unassigned",B.textMute,"Users with no recognized role — set one below",others,"__unassigned")}
+          {GROUPS.map(g=>renderSection(g.label,g.accent,g.desc,users.filter(u=>roleOf(u)===g.key&&linkedToFamily(u)),g.key))}
+          {others.length>0&&!familyFilter&&renderSection("Unassigned",B.textMute,"Users with no recognized role — set one below",others,"__unassigned")}
         </div>;
       })()}
 
@@ -4415,6 +4468,7 @@ function UserManagementView({userProfile,data={},toast}){
               <Field label="Role">
                 <Sel value={newRole} onChange={e=>setNewRole(e.target.value)}>
                   <option value="advisor">Trusted Partner — sees assigned families</option>
+                  <option value="partner">Partner — view-only, upload/download docs only</option>
                   <option value="admin">Admin — sees everything</option>
                   <option value="client">Client — read-only portal</option>
                 </Sel>
@@ -4427,12 +4481,43 @@ function UserManagementView({userProfile,data={},toast}){
               </Field>}
             </Grid2>
             {newRole==="client"&&!newFamily&&<div style={{background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#8a5c00",marginBottom:14}}>Select a family so the client can see their portal.</div>}
+            {newRole==="partner"&&<Field label="Linked Families (one login can switch between all of these)">
+              <div style={{border:`1px solid ${B.border}`,borderRadius:8,maxHeight:180,overflowY:"auto",padding:"6px 4px"}}>
+                {families.length===0&&<div style={{padding:"8px 10px",fontSize:12,color:B.textMute}}>No families yet.</div>}
+                {families.map(f=>{
+                  const checked=newPartnerFamilies.includes(f.id);
+                  return <label key={f.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",fontSize:13,color:B.text,cursor:"pointer"}}>
+                    <input type="checkbox" checked={checked} onChange={()=>setNewPartnerFamilies(checked?newPartnerFamilies.filter(id=>id!==f.id):[...newPartnerFamilies,f.id])}/>
+                    {f.name}
+                  </label>;
+                })}
+              </div>
+            </Field>}
+            {newRole==="partner"&&newPartnerFamilies.length===0&&<div style={{background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#8a5c00",marginBottom:14}}>Select at least one family, or link them later from the Family column.</div>}
             <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
               <Btn variant="ghost" onClick={()=>setModal(null)}>Cancel</Btn>
               <Btn onClick={createUser} disabled={creating||!newEmail||!newPassword}>{creating?"Creating…":"Create User"}</Btn>
             </div>
           </div>
         )}
+      </Modal>}
+
+      {/* Manage Partner Families Modal — add/remove which families this partner can switch between */}
+      {modal&&modal.type==="managePartner"&&<Modal title={`Linked Families — ${modal.user.full_name||modal.user.email}`} onClose={()=>setModal(null)}>
+        <div style={{fontSize:13,color:B.textSoft,marginBottom:14,lineHeight:1.5}}>This partner can sign in once and switch between every family checked below. Access is view-only, except uploading and downloading documents.</div>
+        <div style={{border:`1px solid ${B.border}`,borderRadius:8,maxHeight:280,overflowY:"auto",padding:"6px 4px",marginBottom:16}}>
+          {families.length===0&&<div style={{padding:"8px 10px",fontSize:12,color:B.textMute}}>No families yet.</div>}
+          {families.map(f=>{
+            const linked=partnerFamilyIdsFor(modal.user.id).includes(f.id);
+            return <label key={f.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",fontSize:13,color:B.text,cursor:"pointer"}}>
+              <input type="checkbox" checked={linked} onChange={()=>togglePartnerFamily(modal.user,f.id,linked)}/>
+              {f.name}
+            </label>;
+          })}
+        </div>
+        <div style={{display:"flex",justifyContent:"flex-end"}}>
+          <Btn onClick={()=>setModal(null)}>Done</Btn>
+        </div>
       </Modal>}
 
       {/* Set Temporary Password Modal */}
@@ -4547,12 +4632,13 @@ async function extractScannedPdfText(arrayBuffer,onProgress){
   return { text:combined.trim(), pagesScanned:total, totalPages:pdf.numPages, truncated };
 }
 
-function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,toast,reload}){
+function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canEditMetadata,toast,reload}){
   // Backward compat: if readOnly passed, default canUpload=false canDelete=false
   // If canUpload/canDelete passed explicitly, use those
   const allowUpload=canUpload!==undefined?canUpload:!readOnly;
   const allowDelete=canDelete!==undefined?canDelete:!readOnly;
   const allowScan=canScan!==undefined?canScan:allowUpload; // scanning is advisor-side only
+  const allowEditMeta=canEditMetadata!==undefined?canEditMetadata:allowUpload; // renaming/re-categorizing docs; partner gets upload but not this
   const[docs,setDocs]=useState([]);
   const[loading,setLoading]=useState(true);
   const[uploading,setUploading]=useState(false);
@@ -4766,7 +4852,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,toas
             <Btn small onClick={()=>download(doc)} style={{flex:1}}>⬇ Download</Btn>
             {allowScan&&needsScan(doc)&&<Btn small variant="ghost" onClick={()=>scanOne(doc)} disabled={scanningId===doc.id} title="Make this document readable by the AI assistant">{scanningId===doc.id?(scanMsg?`Scanning ${scanMsg}…`:"Scanning…"):"✦ Scan"}</Btn>}
             {allowScan&&(doc.extractedText||"").trim()&&<span title="The assistant can read this document" style={{fontSize:10,fontWeight:800,letterSpacing:"0.04em",color:B.navyMid,background:"rgba(206,182,132,0.18)",border:`1px solid ${B.gold}`,borderRadius:12,padding:"2px 7px"}}>✦ AI</span>}
-            {allowUpload&&<Btn small variant="ghost" onClick={()=>openEdit(doc)}>✏ Edit</Btn>}
+            {allowEditMeta&&<Btn small variant="ghost" onClick={()=>openEdit(doc)}>✏ Edit</Btn>}
             {allowDelete&&<Btn small variant="danger" onClick={()=>del(doc)}>✕</Btn>}
           </div>
         </div>)}
@@ -5087,6 +5173,60 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
   </div>;
 }
 
+// ── PARTNER (view-only across one or more linked families, upload/download docs only) ──
+// data.families is already scoped to this partner's linked families via RLS
+// (current_user_allowed_family_ids(), joined through the family_partners table),
+// so no extra client-side filtering is needed here — same trust model as the
+// client and advisor branches above.
+function PartnerDashboard({data,userProfile,logout,toast,reload}){
+  const myFamilies=data.families||[];
+  const[selectedId,setSelectedId]=useState(null);
+  useEffect(()=>{
+    if(selectedId===null&&myFamilies.length===1)setSelectedId(myFamilies[0].id);
+  },[myFamilies.length]);
+  const selected=myFamilies.find(f=>f.id===selectedId);
+
+  const HeaderBar=({children})=><div style={{padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+    <div style={{display:"flex",alignItems:"center",gap:14}}>
+      <PCMLogo compact/>
+      {children}
+    </div>
+    <div style={{display:"flex",alignItems:"center",gap:14}}>
+      <div style={{textAlign:"right"}}>
+        <div style={{fontSize:12,color:B.navy,fontWeight:600}}>{userProfile.fullName||userProfile.email}</div>
+        <div style={{fontSize:9,color:B.navyMid,letterSpacing:"0.1em",textTransform:"uppercase"}}>Partner · View Only</div>
+      </div>
+      <button onClick={logout} style={{background:"none",border:`1px solid ${B.border}`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:B.textSoft}}>Sign Out</button>
+    </div>
+  </div>;
+
+  if(selected){
+    return <div style={{height:"100vh",display:"flex",flexDirection:"column",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
+      <HeaderBar>
+        {myFamilies.length>1&&<button onClick={()=>setSelectedId(null)} style={{background:"none",border:`1px solid ${B.border}`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:B.navy,fontWeight:600}}>← Switch Family</button>}
+      </HeaderBar>
+      <div style={{flex:1,minHeight:0}}>
+        <FamilyDashboard family={selected} data={data} reload={reload} toast={toast} onBack={()=>setSelectedId(null)} userProfile={userProfile}/>
+      </div>
+    </div>;
+  }
+
+  return <div style={{minHeight:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif"}}>
+    <HeaderBar/>
+    <div style={{padding:24,maxWidth:960,margin:"0 auto"}}>
+      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600,marginBottom:16}}>Select a Family</div>
+      {myFamilies.length===0&&<Empty text="No families are linked to your account yet. Contact your PCM representative."/>}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16}}>
+        {myFamilies.map(f=><div key={f.id} onClick={()=>setSelectedId(f.id)} style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,padding:20,cursor:"pointer",boxShadow:B.shadow,transition:"box-shadow .15s"}}
+          onMouseEnter={e=>e.currentTarget.style.boxShadow=B.shadowMd}
+          onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,color:B.navy,fontWeight:600}}>{f.name}</div>
+          <div style={{marginTop:8,fontSize:12,color:B.gold,fontWeight:600}}>Open dashboard →</div>
+        </div>)}
+      </div>
+    </div>
+  </div>;
+}
 
 // ── RESOURCES (advisor tools + client document generation) ─────────────────
 // Decodes a base64 PDF template and returns raw bytes for pdf-lib to load.
@@ -5486,6 +5626,12 @@ export default function App(){
     if(loading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
     if(!clientFamily)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,flexDirection:"column",gap:12,color:B.navy,fontFamily:"'DM Sans',sans-serif"}}><PCMLogo/><div style={{marginTop:20,fontSize:16}}>No family assigned to your account. Contact your advisor.</div><button onClick={logout} style={{marginTop:12,background:"none",border:`1px solid ${B.border}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontFamily:"inherit",color:B.textSoft}}>Sign Out</button></div>;
     return <><ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout} toast={showToast} reload={reload}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
+  }
+
+  // Partner role — view-only across their linked family/families; can upload/download documents only
+  if(userProfile.role==="partner"){
+    if(loading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
+    return <><PartnerDashboard data={data} userProfile={userProfile} logout={logout} toast={showToast} reload={reload}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
   }
 
 
