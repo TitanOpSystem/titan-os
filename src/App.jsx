@@ -411,6 +411,10 @@ const TABLES=["families","contacts","properties","deals","notes","tasks","portfo
 const FAMILY_SCOPED=["contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","cash_flow_payment_log","deadline_acks","family_contacts","property_contacts"];
 // Display label of the signed-in user, set at login; used to stamp task completions.
 let CURRENT_USER_LABEL="";
+// Display-only rename: the underlying role value stored in the DB/permissions stays "advisor";
+// only the label shown to users reads "Trusted Partner".
+const ROLE_LABELS={admin:"Admin",advisor:"Trusted Partner",client:"Client"};
+const roleLabel=r=>ROLE_LABELS[(r||"").toLowerCase()]||r;
 
 
 // ── UI PRIMITIVES ─────────────────────────────────────────────────────────────
@@ -473,7 +477,7 @@ function MoneyInput({value,onChange,placeholder,style,disabled}){
   return <input type="text" inputMode="decimal" style={style||inp} disabled={disabled} value={fmt(value)} onChange={handleChange} placeholder={placeholder||"0"}/>;
 }
 const Sel=({children,...p})=><select {...p} style={{...inp,cursor:"pointer",...(p.style||{})}}>{children}</select>;
-function AdvisorScopeBar({userProfile,value,onChange,label="Advisor"}){
+function AdvisorScopeBar({userProfile,value,onChange,label="Trusted Partner"}){
   const[advisors,setAdvisors]=useState([]);
   const isAdmin=userProfile?.role==="admin";
   useEffect(()=>{
@@ -484,7 +488,7 @@ function AdvisorScopeBar({userProfile,value,onChange,label="Advisor"}){
     <span style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>{label}</span>
     <div style={{minWidth:150}}>
       <Sel value={value} onChange={e=>onChange(e.target.value)}>
-        <option value="">All Advisors</option>
+        <option value="">All Trusted Partners</option>
         {advisors.map(a=><option key={a.id} value={(a.email||"").toLowerCase()}>{a.full_name||a.email}</option>)}
       </Sel>
     </div>
@@ -765,7 +769,7 @@ function FamilyReport({family,data,onClose}){
     </style></head><body>
     <div class="header">
       <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/></div>
-      <div style="text-align:right"><h1>${family.name}</h1><div class="advisor">Advisor: ${family.advisorName||"—"} | ${family.advisorEmail||""}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
+      <div style="text-align:right"><h1>${family.name}</h1><div class="advisor">Trusted Partner: ${family.advisorName||"—"} | ${family.advisorEmail||""}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
     </div>
     <div class="stats">
       <div class="stat"><div class="stat-l">Real Estate Value</div><div class="stat-v">${fmtMoney(totalPortfolio)}</div></div>
@@ -1045,11 +1049,11 @@ div.body{font-size:14px;white-space:pre-wrap;}
     setBusy(true);
     try{
       const{data:resp,error:fnErr}=await sb.functions.invoke("family-ai-assistant",{body:{question,snapshot,history,assistantName}});
-      if(fnErr)throw new Error("Please contact your Advisor for that information.");
-      if(resp&&resp.error)throw new Error("Please contact your Advisor for that information.");
+      if(fnErr)throw new Error("Please contact your Trusted Partner for that information.");
+      if(resp&&resp.error)throw new Error("Please contact your Trusted Partner for that information.");
       setMessages(m=>[...m,{role:"assistant",content:(resp&&resp.answer)||"No response."}]);
     }catch(e){
-      setError("Please contact your Advisor for that information.");
+      setError("Please contact your Trusted Partner for that information.");
     }finally{
       setBusy(false);
     }
@@ -1137,7 +1141,7 @@ function AssistantWelcome({family,data,reload,onClose,userProfile,toast}){
     </div>
     <FamilyAssistant family={family} data={data} reload={reload} compact toast={toast}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginTop:16,flexWrap:"wrap"}}>
-      {isClient?<Btn variant="ghost" onClick={()=>setEmailOpen(true)}>✉ Email my advisor</Btn>:<span/>}
+      {isClient?<Btn variant="ghost" onClick={()=>setEmailOpen(true)}>✉ Email my trusted partner</Btn>:<span/>}
       <Btn onClick={onClose}>Take me to the dashboard →</Btn>
     </div>
     {emailOpen&&<EmailAdvisorModal family={family} userProfile={userProfile} data={data} onClose={()=>setEmailOpen(false)}/>}
@@ -1385,14 +1389,14 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
   const toggleMemberAdvisor=async(c)=>{
     if(!c.email){toast("Add an email to this contact first — the client emails them here.","error");return;}
     const{error}=await sb.from("contacts").update({is_advisor:!c.isAdvisor}).eq("id",c.id);
-    if(error)toast(error.message,"error");else{toast(!c.isAdvisor?"Marked as an emailable advisor":"Removed as advisor option");reload("contacts");}
+    if(error)toast(error.message,"error");else{toast(!c.isAdvisor?"Marked as an emailable trusted partner":"Removed as trusted partner option");reload("contacts");}
   };
   const[editFC,setEditFC]=useState(null);
   const famContacts=(data.family_contacts||[]).filter(fc=>fc.familyId===family.id);
   const addFamilyContact=async(f)=>{const{error}=await sb.from("family_contacts").insert({family_id:family.id,name:f.name,role:f.role||null,company:f.company||null,email:f.email||null,phone:f.phone||null,is_advisor:!!f.isAdvisor,notes:f.notes||null});if(error)toast(error.message,"error");else{toast("Contact added");reload("family_contacts");}};
   const editFamilyContact=async(f)=>{const{error}=await sb.from("family_contacts").update({name:f.name,role:f.role||null,company:f.company||null,email:f.email||null,phone:f.phone||null,is_advisor:!!f.isAdvisor,notes:f.notes||null}).eq("id",editFC.id);if(error)toast(error.message,"error");else{toast("Contact updated");reload("family_contacts");}};
   const delFamilyContact=async(id)=>{const{error}=await sb.from("family_contacts").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Contact removed");reload("family_contacts");}};
-  const toggleFCAdvisor=async(c)=>{if(!c.email){toast("Add an email to this contact first — the client emails them here.","error");return;}const{error}=await sb.from("family_contacts").update({is_advisor:!c.isAdvisor}).eq("id",c.id);if(error)toast(error.message,"error");else{toast(!c.isAdvisor?"Marked as an emailable advisor":"Removed as advisor option");reload("family_contacts");}};
+  const toggleFCAdvisor=async(c)=>{if(!c.email){toast("Add an email to this contact first — the client emails them here.","error");return;}const{error}=await sb.from("family_contacts").update({is_advisor:!c.isAdvisor}).eq("id",c.id);if(error)toast(error.message,"error");else{toast(!c.isAdvisor?"Marked as an emailable trusted partner":"Removed as trusted partner option");reload("family_contacts");}};
 
   const propContactsFor=(pid)=>(data.property_contacts||[]).filter(pc=>pc.propertyId===pid);
   const addPropertyContact=async(pid,f)=>{const{error}=await sb.from("property_contacts").insert({property_id:pid,family_id:family.id,name:f.name,role:f.role||null,company:f.company||null,email:f.email||null,phone:f.phone||null,notes:f.notes||null});if(error)toast(error.message,"error");else{toast("Contact added");reload("property_contacts");}};
@@ -1477,7 +1481,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         <button onClick={onBack} style={{background:"none",border:`1px solid ${B.border}`,color:B.textSoft,cursor:"pointer",fontSize:13,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:6,flexShrink:0}}>←</button>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?18:22,color:B.navy,fontWeight:600,lineHeight:1.1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.name}</div>
-          {!isMobile&&<div style={{fontSize:12,color:B.textSoft,marginTop:2}}>Advisor: {family.advisorName||"—"}{family.advisorEmail?` · ${family.advisorEmail}`:""}</div>}
+          {!isMobile&&<div style={{fontSize:12,color:B.textSoft,marginTop:2}}>Trusted Partner: {family.advisorName||"—"}{family.advisorEmail?` · ${family.advisorEmail}`:""}</div>}
           {isMobile&&family.advisorName&&<div style={{fontSize:11,color:B.textSoft,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.advisorName}</div>}
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
@@ -1924,7 +1928,7 @@ function FamilyContactForm({initial,onSave,onClose,hideAdvisor=false,rolePlaceho
     {!hideAdvisor&&<label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.isAdvisor?"rgba(206,182,132,0.15)":B.bg,borderRadius:8,border:`1px solid ${f.isAdvisor?B.gold:B.border}`,marginBottom:4}}>
       <input type="checkbox" checked={!!f.isAdvisor} onChange={e=>setF(p=>({...p,isAdvisor:e.target.checked}))} style={{width:16,height:16,accentColor:B.navy}}/>
       <span style={{fontSize:13,color:B.navy,fontWeight:600}}>Client can email this contact</span>
-      <span style={{fontSize:11,color:B.textMute}}>appears in the client's "Email my advisor"</span>
+      <span style={{fontSize:11,color:B.textMute}}>appears in the client's "Email my trusted partner"</span>
     </label>}
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
       <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
@@ -2022,7 +2026,7 @@ function TaskForm({initial,contacts=[],onSave,onClose}){
       </Sel>
     </Field>
     {f.reminderDays>0&&f.dueDate&&<div style={{background:"#e8f0f8",borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12,color:B.navyMid}}>
-      🔔 Advisor will be emailed on {new Date(new Date(f.dueDate).setDate(new Date(f.dueDate).getDate()-f.reminderDays)).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+      🔔 Trusted Partner will be emailed on {new Date(new Date(f.dueDate).setDate(new Date(f.dueDate).getDate()-f.reminderDays)).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
     </div>}
     <RecurrenceField f={f} setF={setF}/>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
@@ -3072,13 +3076,13 @@ function FamilyForm({initial,onSave,onClose,userProfile,advisors=[]}){
   return <div>
     <Field label="Family Name"><Inp placeholder="The Smith Family" value={f.name} onChange={set("name")}/></Field>
     {isAdmin
-      ? <Field label="Assign Advisor">
+      ? <Field label="Assign Trusted Partner">
           <select value={f.advisorEmail||""} onChange={pickAdvisor} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${B.border}`,fontSize:14,fontFamily:"'DM Sans',sans-serif",background:B.white,color:B.navy}}>
-            <option value="">— Select an advisor —</option>
+            <option value="">— Select a trusted partner —</option>
             {advisors.map(a=><option key={a.id} value={a.email}>{(a.full_name||a.email)}{a.full_name?` (${a.email})`:""}</option>)}
           </select>
         </Field>
-      : <Field label="Advisor"><Inp value={userProfile?.fullName||userProfile?.email||""} disabled/></Field>
+      : <Field label="Trusted Partner"><Inp value={userProfile?.fullName||userProfile?.email||""} disabled/></Field>
     }
     <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Family"}</Btn></div>
@@ -3139,7 +3143,7 @@ function printAdvisorReport(adv,data){
   </style></head><body>
   <div class="header">
     <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/></div>
-    <div style="text-align:right"><h1>Advisor Activity Report</h1><div class="advisor">${esc(adv.name||email)}${email?` | ${esc(email)}`:""}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
+    <div style="text-align:right"><h1>Trusted Partner Activity Report</h1><div class="advisor">${esc(adv.name||email)}${email?` | ${esc(email)}`:""}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
   </div>
   <div class="stats">
     ${stat("Families",families.length)}${stat("AUM (Est.)",fmtMoney(aum))}${stat("Prospects",prospects.length)}${stat("Open Deals",openDeals.length)}${stat("Pipeline $",fmtMoney(pipelineVal))}${stat("Open Tasks",openTasks.length)}${stat("Overdue",overdue.length)}
@@ -3225,18 +3229,18 @@ function FamiliesView({data,reload,toast,userProfile}){
   return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
     <div style={{padding:"14px 24px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
       {isAdmin&&<div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
-        {[{k:"families",l:"Families"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"7px 14px",fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+        {[{k:"families",l:"Families"},{k:"advisors",l:"By Trusted Partner"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"7px 14px",fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
       </div>}
       {viewMode==="families"&&<>
         <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search families…" style={{flex:1,minWidth:160}}/>
         {advisorFilter&&<button onClick={()=>setAdvisorFilter("")} style={{border:`1px solid ${B.gold}`,background:"#fbf6ec",color:B.navy,borderRadius:16,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{(advisorSummary.find(a=>a.email===advisorFilter)?.name)||advisorFilter} ✕</button>}
         <Btn onClick={()=>setModal("add")}>+ New Family</Btn>
       </>}
-      {viewMode==="advisors"&&<div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Advisor Summary</div>}
+      {viewMode==="advisors"&&<div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Trusted Partner Summary</div>}
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"16px 24px"}}>
       {viewMode==="advisors"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:16}}>
-        {advisorSummary.length===0&&<Empty text="No advisors or families yet."/>}
+        {advisorSummary.length===0&&<Empty text="No trusted partners or families yet."/>}
         {advisorSummary.map(a=>(
           <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("families");}}}
             style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${a.unassigned?B.textMute:B.gold}`,padding:20,cursor:a.unassigned?"default":"pointer",boxShadow:B.shadow,transition:"box-shadow .15s"}}
@@ -3465,13 +3469,13 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
     return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
       <div style={{padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
         <div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
-          {[{k:"notes",l:"Notes"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+          {[{k:"notes",l:"Notes"},{k:"advisors",l:"By Trusted Partner"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
         </div>
-        <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Notes by Advisor</div>
+        <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Notes by Trusted Partner</div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
-          {advisorSummary.length===0&&<Empty text="No advisors or notes yet."/>}
+          {advisorSummary.length===0&&<Empty text="No trusted partners or notes yet."/>}
           {advisorSummary.map(a=>(
             <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("notes");}}}
               style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${a.unassigned?B.textMute:B.gold}`,padding:20,cursor:a.unassigned?"default":"pointer",boxShadow:B.shadow,transition:"box-shadow .15s"}}
@@ -3501,7 +3505,7 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
   return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
     {adminProspect&&<div style={{padding:"10px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
       <div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
-        {[{k:"notes",l:"Notes"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+        {[{k:"notes",l:"Notes"},{k:"advisors",l:"By Trusted Partner"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
       </div>
       {advisorFilter&&<button onClick={()=>setAdvisorFilter("")} style={{border:`1px solid ${B.gold}`,background:"#fbf6ec",color:B.navy,borderRadius:16,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>{(advisorSummary.find(a=>a.email===advisorFilter)?.name)||advisorFilter} ✕</button>}
     </div>}
@@ -3642,13 +3646,13 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
     return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
       <div style={{padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
         <div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
-          {[{k:"tasks",l:"Tasks"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+          {[{k:"tasks",l:"Tasks"},{k:"advisors",l:"By Trusted Partner"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
         </div>
-        <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Tasks by Advisor</div>
+        <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Tasks by Trusted Partner</div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
-          {advisorSummary.length===0&&<Empty text="No advisors or tasks yet."/>}
+          {advisorSummary.length===0&&<Empty text="No trusted partners or tasks yet."/>}
           {advisorSummary.map(a=>(
             <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("tasks");}}}
               style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${a.unassigned?B.textMute:B.gold}`,padding:20,cursor:a.unassigned?"default":"pointer",boxShadow:B.shadow,transition:"box-shadow .15s"}}
@@ -3678,7 +3682,7 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
   return <div style={{maxWidth:760,margin:"0 auto",padding:"20px",height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
     <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
       {adminProspect&&<div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
-        {[{k:"tasks",l:"Tasks"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"5px 11px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+        {[{k:"tasks",l:"Tasks"},{k:"advisors",l:"By Trusted Partner"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"5px 11px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
       </div>}
       {adminProspect&&advisorFilter&&<button onClick={()=>setAdvisorFilter("")} style={{border:`1px solid ${B.gold}`,background:"#fbf6ec",color:B.navy,borderRadius:16,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>{(advisorSummary.find(a=>a.email===advisorFilter)?.name)||advisorFilter} ✕</button>}
       <div style={{display:"flex",gap:5}}>{["Pending","Done","All"].map(s=><button key={s} onClick={()=>setFilter(s)} style={{background:filter===s?B.navy:"transparent",border:`1px solid ${filter===s?B.navy:B.border}`,color:filter===s?B.white:B.textSoft,borderRadius:20,padding:"4px 14px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{s}</button>)}</div>
@@ -3735,7 +3739,7 @@ function GlobalTaskForm({initial,families=[],contacts=[],onSave,onClose}){
     <Field label="Task"><Inp placeholder="Follow up on loan maturity" value={f.title} onChange={set("title")}/></Field>
     <Grid2><Field label="Due Date"><Inp type="date" value={f.dueDate||""} onChange={set("dueDate")}/></Field><Field label="Priority"><Sel value={f.priority} onChange={set("priority")}><option>Low</option><option>Medium</option><option>High</option></Sel></Field></Grid2>
     <Field label="Email Reminder"><Sel value={f.reminderDays||7} onChange={e=>setF(p=>({...p,reminderDays:Number(e.target.value)}))}><option value={0}>No reminder</option>{REMINDER_OPTIONS.map(r=><option key={r.days} value={r.days}>{r.label}</option>)}</Sel></Field>
-    {Number(f.reminderDays)>0&&f.dueDate&&<div style={{background:"#e8f0f8",borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12,color:B.navyMid}}>🔔 Advisor emailed on {new Date(new Date(f.dueDate).setDate(new Date(f.dueDate).getDate()-Number(f.reminderDays))).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>}
+    {Number(f.reminderDays)>0&&f.dueDate&&<div style={{background:"#e8f0f8",borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12,color:B.navyMid}}>🔔 Trusted Partner emailed on {new Date(new Date(f.dueDate).setDate(new Date(f.dueDate).getDate()-Number(f.reminderDays))).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>}
     <RecurrenceField f={f} setF={setF}/>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Task"}</Btn></div>
   </div>;
@@ -3755,13 +3759,13 @@ function ProspectContactForm({initial,onSave,onClose,userProfile,advisors=[]}){
     <Grid2><Field label="Email"><Inp type="email" value={f.email||""} onChange={set("email")}/></Field><Field label="Phone"><Inp value={f.phone||""} onChange={set("phone")}/></Field></Grid2>
     <Grid2><Field label="Type"><Sel value={f.type} onChange={set("type")}><option>Individual</option><option>Business</option></Sel></Field><Field label="Lead Source"><Inp placeholder="Referral, LinkedIn…" value={f.source||""} onChange={set("source")}/></Field></Grid2>
     {isAdmin
-      ? <Field label="Assign Advisor">
+      ? <Field label="Assign Trusted Partner">
           <select value={f.advisorEmail||""} onChange={pickAdvisor} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${B.border}`,fontSize:14,fontFamily:"'DM Sans',sans-serif",background:B.white,color:B.navy}}>
-            <option value="">— Select an advisor —</option>
+            <option value="">— Select a trusted partner —</option>
             {advisors.map(a=><option key={a.id} value={a.email}>{(a.full_name||a.email)}{a.full_name?` (${a.email})`:""}</option>)}
           </select>
         </Field>
-      : <Field label="Advisor"><Inp value={f.advisorName||f.advisorEmail||userProfile?.fullName||userProfile?.email||""} disabled/></Field>
+      : <Field label="Trusted Partner"><Inp value={f.advisorName||f.advisorEmail||userProfile?.fullName||userProfile?.email||""} disabled/></Field>
     }
     <Field label="Tags"><Inp placeholder="warm-lead, vip" value={f.tags||""} onChange={set("tags")}/></Field>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save"}</Btn></div>
@@ -3808,13 +3812,13 @@ function ProspectContactsView({data,reload,toast,userProfile}){
     return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
       <div style={{padding:isMobile?"12px 14px":"14px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
         <div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
-          {[{k:"contacts",l:"Contacts"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"7px 14px",fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+          {[{k:"contacts",l:"Contacts"},{k:"advisors",l:"By Trusted Partner"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"7px 14px",fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
         </div>
-        <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Prospecting by Advisor</div>
+        <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Prospecting by Trusted Partner</div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:16}}>
-          {advisorSummary.length===0&&<Empty text="No advisors or prospects yet."/>}
+          {advisorSummary.length===0&&<Empty text="No trusted partners or prospects yet."/>}
           {advisorSummary.map(a=>(
             <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("contacts");}}}
               style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${a.unassigned?B.textMute:B.gold}`,padding:20,cursor:a.unassigned?"default":"pointer",boxShadow:B.shadow,transition:"box-shadow .15s"}}
@@ -3848,7 +3852,7 @@ function ProspectContactsView({data,reload,toast,userProfile}){
     {(!isMobile||!selected)&&<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",borderRight:isMobile?"none":`1px solid ${B.borderLight}`}}>
       <div style={{padding:isMobile?"12px 14px":"14px 20px",display:"flex",gap:10,alignItems:"center",borderBottom:`1px solid ${B.borderLight}`,background:B.white,flexWrap:"wrap"}}>
         {isAdmin&&<div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
-          {[{k:"contacts",l:"Contacts"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+          {[{k:"contacts",l:"Contacts"},{k:"advisors",l:"By Trusted Partner"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
         </div>}
         <Inp value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search prospects…" style={{flex:1,minWidth:140}}/>
         {advisorFilter&&<button onClick={()=>setAdvisorFilter("")} style={{border:`1px solid ${B.gold}`,background:"#fbf6ec",color:B.navy,borderRadius:16,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>{(advisorSummary.find(a=>a.email===advisorFilter)?.name)||advisorFilter} ✕</button>}
@@ -3898,13 +3902,13 @@ function ProspectDealForm({initial,contacts=[],onSave,onClose,userProfile,adviso
     <Grid2><Field label="Value ($)"><MoneyInput value={f.value||""} onChange={set("value")}/></Field><Field label="Close Date"><Inp type="date" value={f.closeDate||""} onChange={set("closeDate")}/></Field></Grid2>
     <Field label="Stage"><Sel value={f.stage} onChange={set("stage")}>{STAGES.map(s=><option key={s}>{s}</option>)}</Sel></Field>
     {isAdmin
-      ? <Field label="Assign Advisor">
+      ? <Field label="Assign Trusted Partner">
           <select value={f.advisorEmail||""} onChange={pickAdvisor} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${B.border}`,fontSize:14,fontFamily:"'DM Sans',sans-serif",background:B.white,color:B.navy}}>
-            <option value="">— Select an advisor —</option>
+            <option value="">— Select a trusted partner —</option>
             {advisors.map(a=><option key={a.id} value={a.email}>{(a.full_name||a.email)}{a.full_name?` (${a.email})`:""}</option>)}
           </select>
         </Field>
-      : <Field label="Advisor"><Inp value={f.advisorName||f.advisorEmail||userProfile?.fullName||userProfile?.email||""} disabled/></Field>
+      : <Field label="Trusted Partner"><Inp value={f.advisorName||f.advisorEmail||userProfile?.fullName||userProfile?.email||""} disabled/></Field>
     }
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save"}</Btn></div>
   </div>;
@@ -3953,13 +3957,13 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
     return <div style={{display:"flex",flexDirection:"column",height:"100%",minHeight:0}}>
       <div style={{padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",background:B.white}}>
         <div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
-          {[{k:"pipeline",l:"Pipeline"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+          {[{k:"pipeline",l:"Pipeline"},{k:"advisors",l:"By Trusted Partner"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
         </div>
-        <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Pipeline by Advisor</div>
+        <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Pipeline by Trusted Partner</div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:16}}>
-          {advisorSummary.length===0&&<Empty text="No advisors or deals yet."/>}
+          {advisorSummary.length===0&&<Empty text="No trusted partners or deals yet."/>}
           {advisorSummary.map(a=>(
             <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("pipeline");}}}
               style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${a.unassigned?B.textMute:B.gold}`,padding:20,cursor:a.unassigned?"default":"pointer",boxShadow:B.shadow,transition:"box-shadow .15s"}}
@@ -3990,7 +3994,7 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
   return <div style={{display:"flex",flexDirection:"column",height:"100%",minHeight:0}}>
     <div style={{padding:"12px 20px",borderBottom:`1px solid ${B.borderLight}`,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",background:B.white}}>
       {isAdmin&&<div style={{display:"flex",background:B.bg,borderRadius:8,padding:3,border:`1px solid ${B.borderLight}`}}>
-        {[{k:"pipeline",l:"Pipeline"},{k:"advisors",l:"By Advisor"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
+        {[{k:"pipeline",l:"Pipeline"},{k:"advisors",l:"By Trusted Partner"}].map(t=><button key={t.k} onClick={()=>setViewMode(t.k)} style={{border:"none",borderRadius:6,padding:"6px 12px",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:viewMode===t.k?B.navy:"transparent",color:viewMode===t.k?B.white:B.textSoft}}>{t.l}</button>)}
       </div>}
       <div style={{flex:1,display:"flex",gap:5,flexWrap:"wrap"}}>{["All",...STAGES].map(s=><button key={s} onClick={()=>setFs(s)} style={{background:fs===s?(STAGE_COLORS[s]?.bg||B.borderLight):"transparent",border:`1px solid ${fs===s?(STAGE_COLORS[s]?.dot||B.navy):B.border}`,color:fs===s?(STAGE_COLORS[s]?.text||B.navy):B.textSoft,borderRadius:20,padding:"3px 12px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{s}</button>)}</div>
       {advisorFilter&&<button onClick={()=>setAdvisorFilter("")} style={{border:`1px solid ${B.gold}`,background:"#fbf6ec",color:B.navy,borderRadius:16,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>{(advisorSummary.find(a=>a.email===advisorFilter)?.name)||advisorFilter} ✕</button>}
@@ -4077,7 +4081,7 @@ function Dashboard({data,userProfile,reload,toast}){
   const{families:_families,contacts:_contacts,properties:_properties,deals:_deals,notes:_notes,tasks:_tasks,portfolio_accounts:_accts=[]}=data;
   const isAdmin=userProfile?.role==="admin";
   const myEmail=(userProfile?.email||"").toLowerCase();
-  // Admins default to "All Advisors" and can switch; non-admins are locked to their own scope so unscoped prospect records (family_id null) don't leak in.
+  // Admins default to "All Trusted Partners" and can switch; non-admins are locked to their own scope so unscoped prospect records (family_id null) don't leak in.
   const[scope,setScope]=useState(isAdmin?"":myEmail);
   const _famIds=new Set(_families.filter(f=>!scope||(f.advisorEmail||"").toLowerCase()===scope).map(f=>f.id));
   const _cAdv=id=>{const c=_contacts.find(x=>x.id===id);return (c?.advisorEmail||"").toLowerCase();};
@@ -4297,7 +4301,7 @@ function UserManagementView({userProfile,data={},toast}){
         <Btn onClick={()=>setModal("create")}>+ Add User</Btn>
       </div>
 
-      {/* Users grouped by access level: Admin · Advisor · Client */}
+      {/* Users grouped by access level: Admin · Trusted Partner (role="advisor" internally) · Client */}
       {loading?<Spinner/>:(()=>{
         const HEADERS=["Name","Email","Role","Family (clients)","Status","Actions"];
         const COLS="1.2fr 1.4fr 130px 1fr 110px 130px";
@@ -4310,10 +4314,10 @@ function UserManagementView({userProfile,data={},toast}){
             <div style={{fontSize:12,color:B.textMid,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email}</div>
             <div>
               {u.id===userProfile?.id
-                ?<Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{u.role}</Badge>
+                ?<Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{roleLabel(u.role)}</Badge>
                 :<select value={u.role||"advisor"} onChange={e=>changeRole(u,e.target.value)} style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 8px",fontSize:12,color:B.text,outline:"none",fontFamily:"inherit",cursor:"pointer",width:"100%"}}>
                   <option value="admin">Admin</option>
-                  <option value="advisor">Advisor</option>
+                  <option value="advisor">Trusted Partner</option>
                   <option value="client">Client</option>
                 </select>}
             </div>
@@ -4357,7 +4361,7 @@ function UserManagementView({userProfile,data={},toast}){
         if(users.length===0)return <div style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,padding:"40px",textAlign:"center",color:B.textMute,fontSize:14,marginBottom:24}}>No users yet. Add your first user above.</div>;
         const GROUPS=[
           {key:"admin",label:"Admins",accent:B.navy,desc:"Full access to all families, users, and settings"},
-          {key:"advisor",label:"Advisors",accent:B.gold,desc:"Scoped to their assigned families and prospects"},
+          {key:"advisor",label:"Trusted Partners",accent:B.gold,desc:"Scoped to their assigned families and prospects"},
           {key:"client",label:"Clients",accent:B.navyMid,desc:"Read-only portal access to their own family"},
         ];
         const known=GROUPS.map(g=>g.key);
@@ -4387,7 +4391,7 @@ function UserManagementView({userProfile,data={},toast}){
               </div>
               <div style={{display:"flex",justifyContent:"space-between",padding:"6px 0"}}>
                 <span style={{fontSize:12,color:B.textSoft}}>Role</span>
-                <span style={{fontSize:13,fontWeight:700,color:B.navy}}>{created.role}</span>
+                <span style={{fontSize:13,fontWeight:700,color:B.navy}}>{roleLabel(created.role)}</span>
               </div>
             </div>
             <div style={{background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"10px 14px",fontSize:12,color:"#8a5c00",marginBottom:20,textAlign:"left"}}>
@@ -4410,7 +4414,7 @@ function UserManagementView({userProfile,data={},toast}){
             <Grid2>
               <Field label="Role">
                 <Sel value={newRole} onChange={e=>setNewRole(e.target.value)}>
-                  <option value="advisor">Advisor — sees assigned families</option>
+                  <option value="advisor">Trusted Partner — sees assigned families</option>
                   <option value="admin">Admin — sees everything</option>
                   <option value="client">Client — read-only portal</option>
                 </Sel>
@@ -4883,7 +4887,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?16:22,color:B.navy,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.name}</div>
             <div style={{fontSize:isMobile?10:11,color:B.textSoft,marginTop:2}}>{isMobile?"Client Portal":`Client Portal · ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`}</div>
           </div>
-          <button onClick={()=>setEmailAdvisorOpen(true)} style={{background:"rgba(206,182,132,0.15)",border:`1px solid ${B.gold}`,color:B.navy,borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0,fontWeight:600}}>{isMobile?"✉ Advisor":"✉ Email my advisor"}</button>
+          <button onClick={()=>setEmailAdvisorOpen(true)} style={{background:"rgba(206,182,132,0.15)",border:`1px solid ${B.gold}`,color:B.navy,borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0,fontWeight:600}}>{isMobile?"✉ Trusted Partner":"✉ Email my trusted partner"}</button>
           <button onClick={logout} style={{background:"transparent",border:`1px solid ${B.border}`,color:B.textSoft,borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Sign Out</button>
         </div>
       </div>
@@ -5186,7 +5190,7 @@ const DOC_CONFIGS={
     template:PCM_CHECKLIST_TEMPLATE_B64,
     fields:[
       {key:"family_client",label:"Family / Client Name", pdfField:"family_client", default:(f)=>f.name||""},
-      {key:"advisor_name", label:"Advisor",               pdfField:"advisor_name",  default:(f,c,u)=>f.advisorName||u?.fullName||u?.email||""},
+      {key:"advisor_name", label:"Trusted Partner",       pdfField:"advisor_name",  default:(f,c,u)=>f.advisorName||u?.fullName||u?.email||""},
       {key:"date_reviewed",label:"Date Reviewed",         pdfField:"date_reviewed", type:"date", default:()=>new Date().toISOString().slice(0,10)},
     ],
   },
@@ -5223,7 +5227,7 @@ const DOC_CONFIGS={
 
 // Static reference material — not tied to a specific family.
 const RESOURCE_LINKS=[
-  {label:"Advisor User Guide",icon:"book",desc:"Full platform walkthrough for advisors",url:"/resources/PCM_Advisor_User_Guide.pdf"},
+  {label:"Trusted Partner User Guide",icon:"book",desc:"Full platform walkthrough for trusted partners",url:"/resources/PCM_Advisor_User_Guide.pdf"},
 ];
 
 function FillClientDocModal({docId,family,contact,userProfile,bankAccount,onClose,toast}){
@@ -5513,7 +5517,7 @@ export default function App(){
         </div>)}
       </nav>
       <div style={{padding:"10px 16px",borderTop:`1px solid ${B.borderLight}`}}>
-        {userProfile&&<div style={{marginBottom:8}}><div style={{fontSize:11,color:B.navy,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userProfile.fullName||userProfile.email}</div><div style={{fontSize:9,color:B.navyMid,letterSpacing:"0.1em",textTransform:"uppercase",marginTop:1}}>{userProfile.role}</div></div>}
+        {userProfile&&<div style={{marginBottom:8}}><div style={{fontSize:11,color:B.navy,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userProfile.fullName||userProfile.email}</div><div style={{fontSize:9,color:B.navyMid,letterSpacing:"0.1em",textTransform:"uppercase",marginTop:1}}>{roleLabel(userProfile.role)}</div></div>}
         <div style={{fontSize:9,color:B.textMute,marginBottom:4}}>{data.families.length} families · {(data.portfolio_accounts||[]).length} accounts</div>
         <div style={{display:"flex",justifyContent:"space-between"}}>
           <button onClick={()=>reload()} style={{background:"none",border:"none",color:B.navyMid,fontSize:9,cursor:"pointer",padding:0,fontFamily:"inherit"}}>↺ Refresh</button>
@@ -5539,7 +5543,7 @@ export default function App(){
             {userProfile&&<div style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:20,padding:"4px 12px",display:"flex",alignItems:"center",gap:6}}>
               <div style={{width:6,height:6,borderRadius:"50%",background:"#18a850"}}/>
               <span style={{fontSize:11,color:B.textMid,fontWeight:600}}>{userProfile.fullName||userProfile.email}</span>
-              <span style={{fontSize:10,color:B.textMute,background:B.borderLight,borderRadius:10,padding:"1px 6px"}}>{userProfile.role}</span>
+              <span style={{fontSize:10,color:B.textMute,background:B.borderLight,borderRadius:10,padding:"1px 6px"}}>{roleLabel(userProfile.role)}</span>
             </div>}
           </div>}
         </div>
