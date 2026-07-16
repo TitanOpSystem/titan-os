@@ -3005,11 +3005,13 @@ function CashFlowView({family,events,paymentLog=[],properties,reload,toast,readO
           const periods=getRegisterPeriods(e);
           const paidCount=periods.filter(p=>p.paid).length;
           const overdueCount=periods.filter(p=>p.overdue).length;
+          const lastPaid=periods.filter(p=>p.paid&&p.paidAt).sort((a,b)=>new Date(b.paidAt)-new Date(a.paidAt))[0];
           const regOpen=!!expandedRegisters[e.id];
           return <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`}}>
             <button onClick={()=>toggleRegister(e.id)} style={{background:"none",border:"none",color:B.navyMid,fontSize:12,fontWeight:600,cursor:"pointer",padding:0,fontFamily:"inherit"}}>
               {regOpen?"▼ Hide":"▶ Show"} payment register ({paidCount}/{periods.length} paid{overdueCount>0?`, ${overdueCount} overdue`:""})
             </button>
+            {lastPaid&&<div style={{fontSize:10,color:B.textMute,marginTop:2}}>Last marked paid by {lastPaid.paidBy||"—"} · {fmt(lastPaid.paidAt)} ({lastPaid.label})</div>}
             {regOpen&&<div style={{marginTop:8,background:B.bg,borderRadius:8,padding:"6px 12px"}}>
               {periods.map(p=><div key={p.periodKey} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"6px 0",borderBottom:`1px solid ${B.borderLight}`}}>
                 <div>
