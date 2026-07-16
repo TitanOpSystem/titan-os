@@ -403,7 +403,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -873,6 +873,10 @@ function buildFamilySnapshot(family,data){
   const cashFlowEvents=(data.cash_flow_events||[]).filter(e=>e.familyId===fid).map(e=>({
     name:e.name||e.label||e.title||null, type:e.eventType||null, amount:num(e.amount),
     startDate:e.startDate||null, endDate:e.endDate||null, taxTreatment:e.taxTreatment||null,
+    direction:e.direction||"income",
+    pcmResponsibleForPayment:e.direction==="expense"?!!e.pcmResponsible:undefined,
+    paidByPcm:e.direction==="expense"&&e.pcmResponsible?!!e.paid:undefined,
+    paidDate:e.paidAt||null, paidBy:e.paidBy||null,
   }));
 
   // Include document CONTENTS (extracted at upload) so the assistant can answer
@@ -2155,7 +2159,7 @@ function AccountForm({initial,onSave,onClose}){
 
 // ── CASH FLOW EVENT FORM ──────────────────────────────────────────────────────
 function CashFlowEventForm({initial,onSave,onClose}){
-  const blank={direction:"income",eventType:"Salary",description:"",amount:"",frequency:"once",startDate:new Date().toISOString().slice(0,10),endDate:"",taxTreatment:"ordinary",notes:""};
+  const blank={direction:"income",eventType:"Salary",description:"",amount:"",frequency:"once",startDate:new Date().toISOString().slice(0,10),endDate:"",taxTreatment:"ordinary",notes:"",pcmResponsible:false};
   const[f,setF]=useState(()=>{
     if(!initial)return blank;
     return{...blank,...initial,direction:initial.direction||"income"};
@@ -2189,7 +2193,13 @@ function CashFlowEventForm({initial,onSave,onClose}){
     </Grid2>
     <Field label="Description"><Inp placeholder={isExpense?"e.g., Monthly grocery budget":"e.g., Acme Corp Q4 Bonus"} value={f.description||""} onChange={set("description")}/></Field>
     {isExpense?
+      <>
       <Field label="Amount ($)"><MoneyInput value={f.amount||""} onChange={set("amount")}/></Field>
+      <label style={{display:"flex",alignItems:"center",gap:8,margin:"2px 0 10px",cursor:"pointer",fontSize:13,color:B.text}}>
+        <input type="checkbox" checked={!!f.pcmResponsible} onChange={e=>setF(p=>({...p,pcmResponsible:e.target.checked}))} style={{width:16,height:16,accentColor:B.navy}}/>
+        <span>PCM is responsible for making this payment</span>
+      </label>
+      </>
     :<Grid2>
       <Field label="Gross Amount ($)"><MoneyInput value={f.amount||""} onChange={set("amount")}/></Field>
       <Field label="Tax Treatment"><Sel value={f.taxTreatment} onChange={set("taxTreatment")}>{CF_TAX_TREATMENTS.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</Sel></Field>
@@ -2611,16 +2621,22 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
   const addEvent=async(f)=>{
     // New events go to the end of the list
     const maxSort=Math.max(0,...events.map(e=>Number(e.sortOrder)||0));
-    const{error}=await sb.from("cash_flow_events").insert({family_id:family.id,direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null,sort_order:maxSort+10});
+    const{error}=await sb.from("cash_flow_events").insert({family_id:family.id,direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null,sort_order:maxSort+10,pcm_responsible:f.direction==="expense"?!!f.pcmResponsible:false});
     if(error)toast(error.message,"error");else{toast("Event added");reload("cash_flow_events");}
   };
   const editEvent=async(id,f)=>{
-    const{error}=await sb.from("cash_flow_events").update({direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null}).eq("id",id);
+    const{error}=await sb.from("cash_flow_events").update({direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null,pcm_responsible:f.direction==="expense"?!!f.pcmResponsible:false}).eq("id",id);
     if(error)toast(error.message,"error");else{toast("Event updated");reload("cash_flow_events");}
   };
   const delEvent=async(id)=>{
     const{error}=await sb.from("cash_flow_events").delete().eq("id",id);
     if(error)toast(error.message,"error");else{toast("Event deleted");reload("cash_flow_events");}
+  };
+  // Mark/unmark a PCM-responsible expense as paid — mirrors the tasks done/completed_by pattern.
+  const togglePaid=async(ev)=>{
+    const marking=!ev.paid;
+    const{error}=await sb.from("cash_flow_events").update(marking?{paid:true,paid_at:new Date().toISOString(),paid_by:CURRENT_USER_LABEL||null}:{paid:false,paid_at:null,paid_by:null}).eq("id",ev.id);
+    if(error)toast(error.message,"error");else{toast(marking?"Marked paid":"Marked unpaid");reload("cash_flow_events");}
   };
   // Reorder: swap sort_order with neighbor (within same direction list, in user-visible order)
   const moveEvent=async(eventId,direction)=>{
@@ -2877,9 +2893,13 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
               {e._synthetic&&<Badge scheme={{bg:"#fef3e2",text:"#8a5c00",dot:"#d4900a"}}>Auto</Badge>}
               {e._synthetic&&isNegative&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>Net Outflow</Badge>}
               {e._excluded&&<Badge scheme={{bg:B.bg,text:B.textMute,dot:B.textMute}}>Excluded</Badge>}
+              {isExpense&&e.pcmResponsible&&!e._synthetic&&(e.paid
+                ?<Badge scheme={{bg:"#e0f5e9",text:"#0d5c2b",dot:"#18a850"}}>✓ Paid by PCM</Badge>
+                :<Badge scheme={{bg:"#e8f0f8",text:B.navy,dot:B.navy}}>PCM Pays</Badge>)}
             </div>
             {e.description&&<div style={{fontSize:13,color:B.textMid,marginBottom:4}}>{e.description}</div>}
             <div style={{fontSize:11,color:B.textSoft}}>{fmt(e.startDate)}{e.endDate?` → ${fmt(e.endDate)}`:""}{!isExpense?` · ${treatLabel}`:""}</div>
+            {isExpense&&e.pcmResponsible&&!e._synthetic&&e.paid&&e.paidAt&&<div style={{fontSize:11,color:"#0d5c2b",marginTop:3,fontWeight:600}}>✓ Paid {fmt(e.paidAt)}{e.paidBy?` · by ${e.paidBy}`:""}</div>}
           </div>
           <div style={{textAlign:"right",flexShrink:0}}>
             <div style={{fontSize:12,color:B.textSoft}}>{e.frequency==="once"?"Amount":"Per occurrence"}</div>
@@ -2915,6 +2935,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
             <button onClick={()=>moveEvent(e.id,"down")} disabled={!canMoveDown} title="Move down" style={{background:"none",border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 10px",cursor:canMoveDown?"pointer":"not-allowed",color:canMoveDown?B.navy:B.textMute,fontSize:13,fontFamily:"inherit",opacity:canMoveDown?1:0.4}}>↓</button>
           </div>
           <div style={{display:"flex",gap:6}}>
+            {isExpense&&e.pcmResponsible&&<Btn small variant={e.paid?"ghost":"primary"} onClick={()=>togglePaid(e)}>{e.paid?"Mark Unpaid":"Mark Paid"}</Btn>}
             <Btn small variant="ghost" onClick={()=>setModal({type:"edit",event:e})}>Edit</Btn>
             <Btn small variant="danger" onClick={()=>{if(confirm("Delete this event?"))delEvent(e.id);}}>Delete</Btn>
           </div>
