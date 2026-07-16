@@ -403,12 +403,12 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
-const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","note_attachments","deadline_acks","family_contacts","property_contacts"];
-const FAMILY_SCOPED=["contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","deadline_acks","family_contacts","property_contacts"];
+const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","cash_flow_payment_log","note_attachments","deadline_acks","family_contacts","property_contacts"];
+const FAMILY_SCOPED=["contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","cash_flow_payment_log","deadline_acks","family_contacts","property_contacts"];
 // Display label of the signed-in user, set at login; used to stamp task completions.
 let CURRENT_USER_LABEL="";
 
@@ -870,14 +870,44 @@ function buildFamilySnapshot(family,data){
       status:(d==null)?"open":(d<0?"overdue":(d<=30?"due_soon":"open")) };
   });
 
-  const cashFlowEvents=(data.cash_flow_events||[]).filter(e=>e.familyId===fid).map(e=>({
-    name:e.name||e.label||e.title||null, type:e.eventType||null, amount:num(e.amount),
-    startDate:e.startDate||null, endDate:e.endDate||null, taxTreatment:e.taxTreatment||null,
-    direction:e.direction||"income",
-    pcmResponsibleForPayment:e.direction==="expense"?!!e.pcmResponsible:undefined,
-    paidByPcm:e.direction==="expense"&&e.pcmResponsible?!!e.paid:undefined,
-    paidDate:e.paidAt||null, paidBy:e.paidBy||null,
-  }));
+  const paymentLogByEvent={};
+  (data.cash_flow_payment_log||[]).filter(p=>p.familyId===fid).forEach(p=>{(paymentLogByEvent[p.eventId]=paymentLogByEvent[p.eventId]||[]).push(p);});
+  const cashFlowEvents=(data.cash_flow_events||[]).filter(e=>e.familyId===fid).map(e=>{
+    const isRegisterFreq=e.direction==="expense"&&e.pcmResponsible&&["monthly","quarterly","annually"].includes(e.frequency);
+    let paymentRegister;
+    if(isRegisterFreq){
+      const winStart=new Date();winStart.setHours(0,0,0,0);winStart.setDate(1);winStart.setMonth(winStart.getMonth()-6);
+      const occs=expandEvent(e,winStart,18);
+      const rows=paymentLogByEvent[e.id]||[];
+      const byPeriod={};rows.forEach(r=>{byPeriod[(r.period||"").slice(0,10)]=r;});
+      const seen=new Set();
+      const todayFirst=new Date();todayFirst.setHours(0,0,0,0);todayFirst.setDate(1);
+      const periods=occs.map(o=>{
+        const pd=new Date(o.date.getFullYear(),o.date.getMonth(),1);
+        const key=`${pd.getFullYear()}-${String(pd.getMonth()+1).padStart(2,"0")}-01`;
+        if(seen.has(key))return null;seen.add(key);
+        const row=byPeriod[key];
+        return{period:key,paid:!!row?.paid,overdue:!row?.paid&&pd<todayFirst};
+      }).filter(Boolean);
+      paymentRegister={
+        periodsTracked:periods.length,
+        paidCount:periods.filter(p=>p.paid).length,
+        overduePeriods:periods.filter(p=>p.overdue).map(p=>p.period),
+      };
+    }
+    return{
+      name:e.name||e.label||e.title||null, type:e.eventType||null, amount:num(e.amount),
+      startDate:e.startDate||null, endDate:e.endDate||null, taxTreatment:e.taxTreatment||null,
+      direction:e.direction||"income", frequency:e.frequency||null,
+      pcmResponsibleForPayment:e.direction==="expense"?!!e.pcmResponsible:undefined,
+      // For one-time (or weekly/biweekly) PCM-responsible expenses: single paid flag.
+      paidByPcm:e.direction==="expense"&&e.pcmResponsible&&!isRegisterFreq?!!e.paid:undefined,
+      paidDate:!isRegisterFreq?(e.paidAt||null):undefined, paidBy:!isRegisterFreq?(e.paidBy||null):undefined,
+      // For monthly/quarterly/annual PCM-responsible expenses: per-period register summary
+      // (last 6 months through next 12 months); overduePeriods lists unpaid periods already in the past.
+      paymentRegister,
+    };
+  });
 
   // Include document CONTENTS (extracted at upload) so the assistant can answer
   // from inside files. Bounded by a per-document cap and a global budget so the
@@ -1660,7 +1690,7 @@ function FamilyDashboard({family,data,reload,toast,onBack}){
         </div>}
 
         {/* CASH FLOW TAB */}
-        {activeTab==="cashflow"&&<CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} properties={properties} reload={reload} toast={toast}/>}
+        {activeTab==="cashflow"&&<CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} reload={reload} toast={toast}/>}
 
         {/* VALUABLES TAB */}
         {activeTab==="valuables"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
@@ -2392,12 +2422,53 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
 }
 
 // ── CASH FLOW VIEW (the tab content) ──────────────────────────────────────────
-function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
+function CashFlowView({family,events,paymentLog=[],properties,reload,toast,readOnly=false}){
   const isMobile=useIsMobile();
   const[modal,setModal]=useState(null);
   const[reportOpen,setReportOpen]=useState(false);
   const[expandedBreakdowns,setExpandedBreakdowns]=useState({});
   const toggleBreakdown=(id)=>setExpandedBreakdowns(p=>({...p,[id]:!p[id]}));
+  const[expandedRegisters,setExpandedRegisters]=useState({});
+  const toggleRegister=(id)=>setExpandedRegisters(p=>({...p,[id]:!p[id]}));
+  // Payment register: for recurring (monthly/quarterly/annually) PCM-responsible expenses,
+  // track paid status per occurrence period instead of a single paid flag on the event.
+  const paymentsByEvent=useMemo(()=>{
+    const m={};
+    paymentLog.forEach(p=>{(m[p.eventId]=m[p.eventId]||[]).push(p);});
+    return m;
+  },[paymentLog]);
+  const getRegisterPeriods=(event)=>{
+    // 6 months back (so recently-paid bills stay visible) through 12 months ahead.
+    const winStart=new Date();winStart.setHours(0,0,0,0);winStart.setDate(1);winStart.setMonth(winStart.getMonth()-6);
+    const occs=expandEvent(event,winStart,18);
+    const rows=paymentsByEvent[event.id]||[];
+    const byPeriod={};rows.forEach(r=>{byPeriod[(r.period||"").slice(0,10)]=r;});
+    const seen=new Set();
+    const todayFirst=new Date();todayFirst.setHours(0,0,0,0);todayFirst.setDate(1);
+    return occs.map(o=>{
+      const periodDate=new Date(o.date.getFullYear(),o.date.getMonth(),1);
+      const periodKey=`${periodDate.getFullYear()}-${String(periodDate.getMonth()+1).padStart(2,"0")}-01`;
+      if(seen.has(periodKey))return null; // multiple occurrences in the same month (shouldn't happen for monthly/quarterly/annually)
+      seen.add(periodKey);
+      const row=byPeriod[periodKey]||null;
+      return{
+        periodKey,periodDate,
+        label:periodDate.toLocaleDateString("en-US",{month:"long",year:"numeric"}),
+        paid:!!row?.paid, paidAt:row?.paidAt||null, paidBy:row?.paidBy||null,
+        overdue:!row?.paid&&periodDate<todayFirst,
+      };
+    }).filter(Boolean).sort((a,b)=>a.periodDate-b.periodDate);
+  };
+  const togglePeriodPaid=async(event,period,currentlyPaid)=>{
+    const marking=!currentlyPaid;
+    const{error}=await sb.from("cash_flow_payment_log").upsert(
+      {event_id:event.id,family_id:family.id,period,paid:marking,paid_at:marking?new Date().toISOString():null,paid_by:marking?(CURRENT_USER_LABEL||null):null},
+      {onConflict:"event_id,period"}
+    );
+    if(error)toast(error.message,"error");else{toast(marking?"Marked paid":"Marked unpaid");reload("cash_flow_payment_log");}
+  };
+  // Monthly/quarterly/annual recurring expenses get a per-period register; weekly/biweekly/once keep the single paid flag.
+  const isRegisterFreq=ev=>["monthly","quarterly","annually"].includes(ev.frequency);
   // Settings: DB (family.cashFlowSettings) is source of truth, localStorage is fallback
   const settingsKey=`cf_settings_${family.id}`;
   const defaults={projectionMonths:60,projectionMode:"rolling",filingStatus:"mfj",baseIncome:0,stateCode:"FL",stateTaxRate:0,localTaxRate:0,localTaxLabel:"",includeRental:false,includeIncome:true,includeExpense:true,compareStateCode:"",compareLocalTaxRate:0};
@@ -2893,13 +2964,14 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
               {e._synthetic&&<Badge scheme={{bg:"#fef3e2",text:"#8a5c00",dot:"#d4900a"}}>Auto</Badge>}
               {e._synthetic&&isNegative&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>Net Outflow</Badge>}
               {e._excluded&&<Badge scheme={{bg:B.bg,text:B.textMute,dot:B.textMute}}>Excluded</Badge>}
-              {isExpense&&e.pcmResponsible&&!e._synthetic&&(e.paid
+              {isExpense&&e.pcmResponsible&&!e._synthetic&&!isRegisterFreq(e)&&(e.paid
                 ?<Badge scheme={{bg:"#e0f5e9",text:"#0d5c2b",dot:"#18a850"}}>✓ Paid by PCM</Badge>
                 :<Badge scheme={{bg:"#e8f0f8",text:B.navy,dot:B.navy}}>PCM Pays</Badge>)}
+              {isExpense&&e.pcmResponsible&&!e._synthetic&&isRegisterFreq(e)&&<Badge scheme={{bg:"#e8f0f8",text:B.navy,dot:B.navy}}>PCM Pays · {e.frequency}</Badge>}
             </div>
             {e.description&&<div style={{fontSize:13,color:B.textMid,marginBottom:4}}>{e.description}</div>}
             <div style={{fontSize:11,color:B.textSoft}}>{fmt(e.startDate)}{e.endDate?` → ${fmt(e.endDate)}`:""}{!isExpense?` · ${treatLabel}`:""}</div>
-            {isExpense&&e.pcmResponsible&&!e._synthetic&&e.paid&&e.paidAt&&<div style={{fontSize:11,color:"#0d5c2b",marginTop:3,fontWeight:600}}>✓ Paid {fmt(e.paidAt)}{e.paidBy?` · by ${e.paidBy}`:""}</div>}
+            {isExpense&&e.pcmResponsible&&!e._synthetic&&!isRegisterFreq(e)&&e.paid&&e.paidAt&&<div style={{fontSize:11,color:"#0d5c2b",marginTop:3,fontWeight:600}}>✓ Paid {fmt(e.paidAt)}{e.paidBy?` · by ${e.paidBy}`:""}</div>}
           </div>
           <div style={{textAlign:"right",flexShrink:0}}>
             <div style={{fontSize:12,color:B.textSoft}}>{e.frequency==="once"?"Amount":"Per occurrence"}</div>
@@ -2928,6 +3000,29 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
             <div style={{marginTop:8,fontSize:10,color:B.textMute,fontStyle:"italic"}}>To change these, edit the property in the Properties tab.</div>
           </div>}
         </div>}
+        {/* Monthly/quarterly/annual payment register for PCM-responsible recurring expenses */}
+        {isExpense&&e.pcmResponsible&&!e._synthetic&&isRegisterFreq(e)&&(()=>{
+          const periods=getRegisterPeriods(e);
+          const paidCount=periods.filter(p=>p.paid).length;
+          const overdueCount=periods.filter(p=>p.overdue).length;
+          const regOpen=!!expandedRegisters[e.id];
+          return <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`}}>
+            <button onClick={()=>toggleRegister(e.id)} style={{background:"none",border:"none",color:B.navyMid,fontSize:12,fontWeight:600,cursor:"pointer",padding:0,fontFamily:"inherit"}}>
+              {regOpen?"▼ Hide":"▶ Show"} payment register ({paidCount}/{periods.length} paid{overdueCount>0?`, ${overdueCount} overdue`:""})
+            </button>
+            {regOpen&&<div style={{marginTop:8,background:B.bg,borderRadius:8,padding:"6px 12px"}}>
+              {periods.map(p=><div key={p.periodKey} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"6px 0",borderBottom:`1px solid ${B.borderLight}`}}>
+                <div>
+                  <div style={{fontSize:12,fontWeight:600,color:B.text}}>{p.label}</div>
+                  {p.paid&&p.paidAt?<div style={{fontSize:10,color:"#0d5c2b"}}>✓ Paid {fmt(p.paidAt)}{p.paidBy?` · by ${p.paidBy}`:""}</div>
+                    :p.overdue?<div style={{fontSize:10,color:"#8b1a1a",fontWeight:600}}>Overdue</div>
+                    :<div style={{fontSize:10,color:B.textMute}}>Unpaid</div>}
+                </div>
+                {!readOnly&&<Btn small variant={p.paid?"ghost":"primary"} onClick={()=>togglePeriodPaid(e,p.periodKey,p.paid)}>{p.paid?"Mark Unpaid":"Mark Paid"}</Btn>}
+              </div>)}
+            </div>}
+          </div>;
+        })()}
         {/* Action row: reorder + edit + delete (only for non-synthetic, non-readOnly) */}
         {reorderable&&<div style={{display:"flex",gap:6,marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`,justifyContent:"space-between",alignItems:"center"}}>
           <div style={{display:"flex",gap:4}}>
@@ -2935,7 +3030,7 @@ function CashFlowView({family,events,properties,reload,toast,readOnly=false}){
             <button onClick={()=>moveEvent(e.id,"down")} disabled={!canMoveDown} title="Move down" style={{background:"none",border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 10px",cursor:canMoveDown?"pointer":"not-allowed",color:canMoveDown?B.navy:B.textMute,fontSize:13,fontFamily:"inherit",opacity:canMoveDown?1:0.4}}>↓</button>
           </div>
           <div style={{display:"flex",gap:6}}>
-            {isExpense&&e.pcmResponsible&&<Btn small variant={e.paid?"ghost":"primary"} onClick={()=>togglePaid(e)}>{e.paid?"Mark Unpaid":"Mark Paid"}</Btn>}
+            {isExpense&&e.pcmResponsible&&!isRegisterFreq(e)&&<Btn small variant={e.paid?"ghost":"primary"} onClick={()=>togglePaid(e)}>{e.paid?"Mark Unpaid":"Mark Paid"}</Btn>}
             <Btn small variant="ghost" onClick={()=>setModal({type:"edit",event:e})}>Edit</Btn>
             <Btn small variant="danger" onClick={()=>{if(confirm("Delete this event?"))delEvent(e.id);}}>Delete</Btn>
           </div>
@@ -4925,7 +5020,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
       {activeTab==="cashflow"&&<div>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:8}}>Cash Flow Projection</div>
         <div style={{fontSize:14,color:B.textSoft,marginBottom:20}}>Projection of expected cash flow events configured by your advisor.</div>
-        <CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} properties={properties} reload={()=>{}} toast={toast||(()=>{})} readOnly={true}/>
+        <CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} reload={()=>{}} toast={toast||(()=>{})} readOnly={true}/>
       </div>}
 
       {/* VALUABLES */}
@@ -5286,7 +5381,7 @@ const ALL_NAV=NAV_SECTIONS.flatMap(s=>s.items);
 // ── APP ────────────────────────────────────────────────────────────────────────
 export default function App(){
   const[tab,setTab]=useState("dashboard");
-  const[data,setData]=useState({families:[],contacts:[],properties:[],deals:[],notes:[],tasks:[],portfolio_accounts:[],valuables:[],documents:[],cash_flow_events:[],note_attachments:[]});
+  const[data,setData]=useState({families:[],contacts:[],properties:[],deals:[],notes:[],tasks:[],portfolio_accounts:[],valuables:[],documents:[],cash_flow_events:[],cash_flow_payment_log:[],note_attachments:[]});
   const[loading,setLoading]=useState(true);
   const[toastState,setToastState]=useState(null);
   const[authed,setAuthed]=useState(false);
