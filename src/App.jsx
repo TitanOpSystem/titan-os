@@ -5534,6 +5534,12 @@ export default function App(){
   const[userProfile,setUserProfile]=useState(null);
   const[authLoading,setAuthLoading]=useState(true);
   const[sidebarOpen,setSidebarOpen]=useState(false);
+  // Bumped on every sidebar nav click (even re-clicking the current section) and
+  // used as a remount `key` for the active view below. This forces views like
+  // FamiliesView to drop any drilled-in state (e.g. an open family dashboard)
+  // and return to their top-level list — clicking "Families" while inside a
+  // family's dashboard should always bounce you back out, same for every item.
+  const[navNonce,setNavNonce]=useState(0);
   const isMobile=useIsMobile();
   const logout=async()=>{await sb.auth.signOut();setAuthed(false);setUserProfile(null);};
   const showToast=useCallback((msg,type="success")=>{setToastState({msg,type});setTimeout(()=>setToastState(null),3500);},[]);
@@ -5656,7 +5662,7 @@ export default function App(){
       <nav style={{flex:1,padding:"8px",overflowY:"auto"}}>
         {NAV_SECTIONS.filter(s=>s.section!=="ADMIN"||userProfile?.role==="admin").map(({section,items})=><div key={section} style={{marginBottom:10}}>
           <div style={{fontSize:9,fontWeight:800,color:B.textMute,letterSpacing:"0.16em",padding:"10px 10px 6px",textTransform:"uppercase"}}>{section}</div>
-          {items.map(item=><button key={item.id} onClick={()=>{setTab(item.id);if(isMobile)setSidebarOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:isMobile?"13px 14px":"10px 14px",borderRadius:8,border:`1px solid ${tab===item.id?B.gold:"transparent"}`,cursor:"pointer",background:tab===item.id?"rgba(206,182,132,0.13)":"transparent",color:tab===item.id?B.navy:B.textMid,fontFamily:"inherit",fontSize:isMobile?15:13,fontWeight:tab===item.id?700:400,marginBottom:6,textAlign:"left"}}>
+          {items.map(item=><button key={item.id} onClick={()=>{setTab(item.id);setNavNonce(n=>n+1);if(isMobile)setSidebarOpen(false);}} style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:isMobile?"13px 14px":"10px 14px",borderRadius:8,border:`1px solid ${tab===item.id?B.gold:"transparent"}`,cursor:"pointer",background:tab===item.id?"rgba(206,182,132,0.13)":"transparent",color:tab===item.id?B.navy:B.textMid,fontFamily:"inherit",fontSize:isMobile?15:13,fontWeight:tab===item.id?700:400,marginBottom:6,textAlign:"left"}}>
             <span style={{flex:1}}>{item.label}</span>
             {item.id==="cm-tasks"&&overdue>0?<span style={{background:"#d43030",borderRadius:10,padding:"1px 6px",fontSize:9,color:"#fff",fontWeight:700}}>{overdue}</span>:allStats[item.id]>0?<span style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:10,padding:"1px 6px",fontSize:9,color:B.textMid}}>{allStats[item.id]}</span>:null}
           </button>)}
@@ -5701,17 +5707,17 @@ export default function App(){
 
       <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg,paddingBottom:"0"}}>
         {loading&&tab!=="families"&&tab!=="users"?<Spinner/>:<>
-          {tab==="dashboard"   &&<Dashboard data={data} userProfile={userProfile} reload={reload} toast={showToast}/>}
-          {tab==="families"    &&<FamiliesView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
-          {tab==="portfolio"   &&<PortfolioView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
-          {tab==="cm-notes"    &&<NotesView data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
-          {tab==="cm-tasks"    &&<TasksView data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
-          {tab==="users"       &&<UserManagementView userProfile={userProfile} data={data} toast={showToast}/>}
-          {tab==="resources"   &&<ResourcesView data={data} userProfile={userProfile} toast={showToast}/>}
-          {tab==="p-contacts"  &&<ProspectContactsView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
-          {tab==="p-pipeline"  &&<ProspectPipelineView data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
-          {tab==="p-notes"     &&<NotesView data={{...data,notes:data.notes.filter(n=>!n.familyId),families:[]}} reload={reload} toast={showToast} userProfile={userProfile} prospectMode={true}/>}
-          {tab==="p-tasks"     &&<TasksView data={{...data,tasks:data.tasks.filter(t=>!t.familyId),families:[]}} reload={reload} toast={showToast} userProfile={userProfile} prospectMode={true}/>}
+          {tab==="dashboard"   &&<Dashboard key={navNonce} data={data} userProfile={userProfile} reload={reload} toast={showToast}/>}
+          {tab==="families"    &&<FamiliesView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
+          {tab==="portfolio"   &&<PortfolioView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
+          {tab==="cm-notes"    &&<NotesView key={navNonce} data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
+          {tab==="cm-tasks"    &&<TasksView key={navNonce} data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
+          {tab==="users"       &&<UserManagementView key={navNonce} userProfile={userProfile} data={data} toast={showToast}/>}
+          {tab==="resources"   &&<ResourcesView key={navNonce} data={data} userProfile={userProfile} toast={showToast}/>}
+          {tab==="p-contacts"  &&<ProspectContactsView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
+          {tab==="p-pipeline"  &&<ProspectPipelineView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
+          {tab==="p-notes"     &&<NotesView key={navNonce} data={{...data,notes:data.notes.filter(n=>!n.familyId),families:[]}} reload={reload} toast={showToast} userProfile={userProfile} prospectMode={true}/>}
+          {tab==="p-tasks"     &&<TasksView key={navNonce} data={{...data,tasks:data.tasks.filter(t=>!t.familyId),families:[]}} reload={reload} toast={showToast} userProfile={userProfile} prospectMode={true}/>}
         </>}
       </div>
     </div>
