@@ -1214,7 +1214,7 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
     finally{ setSending(false); }
   };
 
-  return <Modal title="Email your advisor" onClose={onClose}>
+  return <Modal title="Email your Titan Expert" onClose={onClose}>
     {sent?<div style={{textAlign:"center",padding:"12px 0"}}>
       <div style={{fontSize:40,marginBottom:8}}>✓</div>
       <div style={{fontSize:16,color:B.navy,fontWeight:600,fontFamily:"'Cormorant Garamond',serif"}}>Message sent</div>
@@ -1222,12 +1222,17 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
       <div style={{marginTop:18}}><Btn onClick={onClose}>Done</Btn></div>
     </div>:<>
       <Field label="To">
-        {options.length>1
+        {options.length>0
           ? <Sel value={toEmail} onChange={e=>setToEmail(e.target.value)}>{options.map(o=><option key={o.email} value={o.email}>{o.name}{o.primary?" (primary advisor)":""} · {o.email}</option>)}</Sel>
-          : options.length===1
-          ? <div style={{fontSize:13,color:B.navy,padding:"9px 0"}}><strong>{options[0].name}</strong> · {options[0].email}</div>
           : <div style={{fontSize:13,color:B.textMute,padding:"9px 0"}}>No designated advisor is on file yet — add one under Team Member & Contacts, or add someone below.</div>}
       </Field>
+      {ccPrimary&&<div style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:B.navy,background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:8,padding:"9px 12px",marginBottom:12}}>
+        <span style={{fontSize:13}}>🔒</span>
+        <div style={{minWidth:0}}>
+          <div><span style={{fontWeight:700}}>Cc:</span> {ccPrimary.name} · {ccPrimary.email}</div>
+          <div style={{fontSize:11,color:B.textMute,marginTop:1}}>Your primary advisor is always copied and can't be removed.</div>
+        </div>
+      </div>}
       {customs.length>0&&<div style={{marginBottom:10}}>
         {customs.map(c=><div key={c.email} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 10px",background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:8,marginBottom:6}}>
           <div style={{minWidth:0}}>
@@ -1245,10 +1250,6 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
         </div>
         {addErr&&<div style={{fontSize:11,color:"#8b1a1a",marginTop:5}}>{addErr}</div>}
       </Field>
-      {ccPrimary&&<div style={{fontSize:12,color:B.textSoft,background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:8,padding:"8px 12px",marginBottom:12}}>
-        <span style={{fontWeight:700,color:B.navy}}>Cc: {ccPrimary.name}</span> · {ccPrimary.email}
-        <div style={{fontSize:11,color:B.textMute,marginTop:2}}>🔒 Your primary advisor is always copied and can't be removed.</div>
-      </div>}
       {!ccPrimary&&!primaryEmailRaw&&<div style={{fontSize:11,color:B.textMute,marginBottom:12}}>No primary advisor is on file for your account yet — this will go out without an automatic copy.</div>}
       <Field label="Subject"><Inp value={subject} onChange={e=>setSubject(e.target.value)}/></Field>
       <Field label="Message"><textarea value={msg} onChange={e=>setMsg(e.target.value)} rows={7} placeholder="Write your message…" style={{width:"100%",resize:"vertical",border:`1px solid ${B.border}`,borderRadius:8,padding:"11px 13px",fontSize:14,fontFamily:"inherit",color:B.text,background:B.white,outline:"none",lineHeight:1.5}}/></Field>
