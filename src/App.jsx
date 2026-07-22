@@ -504,6 +504,16 @@ function Btn({children,onClick,variant="primary",small,disabled,style:ex}){
   return <button onClick={onClick} disabled={disabled} style={{...v[variant],borderRadius:8,padding:small?"5px 13px":"9px 20px",fontSize:small?12:13,fontWeight:700,cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",letterSpacing:"0.03em",opacity:disabled?.65:1,...ex}} onMouseEnter={e=>{if(!disabled)e.currentTarget.style.opacity=".82";}} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>{children}</button>;
 }
 function IRow({label,value}){return <div style={{display:"flex",gap:10,fontSize:13,padding:"5px 0",borderBottom:`1px solid ${B.borderLight}`}}><span style={{color:B.textSoft,minWidth:120,flexShrink:0,fontSize:12}}>{label}</span><span style={{color:B.text,fontWeight:600}}>{value}</span></div>;}
+// Click-to-call: renders any phone number as a tel: link so it dials directly on mobile
+// and prompts a calling app on desktop. Falls back to plain text if the value doesn't
+// contain any digits. stopPropagation keeps taps from also triggering a parent row's
+// onClick (e.g. an editable list item) when the link itself is tapped.
+function PhoneLink({value,style}){
+  if(!value)return null;
+  const href=String(value).replace(/[^\d+]/g,"");
+  if(!href)return <span style={style}>{value}</span>;
+  return <a href={`tel:${href}`} onClick={e=>e.stopPropagation()} style={{color:"inherit",textDecoration:"none",cursor:"pointer",...style}} onMouseEnter={e=>e.currentTarget.style.textDecoration="underline"} onMouseLeave={e=>e.currentTarget.style.textDecoration="none"}>{value}</a>;
+}
 function SectionLabel({children}){return <div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:8,marginTop:18,paddingBottom:4,borderBottom:`1px solid ${B.borderLight}`}}>{children}</div>;}
 function Empty({text}){return <div style={{fontSize:13,color:B.textMute,padding:"12px 0",textAlign:"center"}}>{text}</div>;}
 function StatBox({label,value,accent}){
@@ -1526,7 +1536,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                   <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{c.name}{c.dob&&(()=>{const d=new Date(c.dob);if(isNaN(d))return null;const t=new Date();let a=t.getFullYear()-d.getFullYear();const m=t.getMonth()-d.getMonth();if(m<0||(m===0&&t.getDate()<d.getDate()))a--;return a>=0?<span style={{fontWeight:400,color:B.textSoft,fontSize:11,marginLeft:6}}>· {a} yrs</span>:null;})()}</div>
                   <div style={{fontSize:11,color:B.textSoft,marginTop:2,display:"flex",gap:10}}>
                     {c.email&&<span>✉ {c.email}</span>}
-                    {c.phone&&<span>📞 {c.phone}</span>}
+                    {c.phone&&<span>📞 <PhoneLink value={c.phone}/></span>}
                   </div>
                   {c.company&&<div style={{fontSize:11,color:B.textSoft}}>{c.company}</div>}
                 </div>
@@ -1550,7 +1560,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                   <div style={{fontSize:11,color:B.textSoft,marginTop:2,display:"flex",gap:10,flexWrap:"wrap"}}>
                     {c.company&&<span>{c.company}</span>}
                     {c.email&&<span>✉ {c.email}</span>}
-                    {c.phone&&<span>📞 {c.phone}</span>}
+                    {c.phone&&<span>📞 <PhoneLink value={c.phone}/></span>}
                   </div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
@@ -1645,7 +1655,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                   : <div style={{display:"flex",flexDirection:"column",gap:6}}>{propContactsFor(p.id).map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,background:B.bg,borderRadius:6,padding:"6px 10px"}}>
                       <div style={{minWidth:0}}>
                         <div style={{fontSize:12,fontWeight:600,color:B.navy}}>{c.name}{c.role&&<span style={{fontWeight:400,color:B.textSoft,marginLeft:6}}>· {c.role}</span>}</div>
-                        <div style={{fontSize:11,color:B.textSoft,display:"flex",gap:10,flexWrap:"wrap",marginTop:1}}>{c.company&&<span>{c.company}</span>}{c.phone&&<span>📞 {c.phone}</span>}{c.email&&<span>✉ {c.email}</span>}</div>
+                        <div style={{fontSize:11,color:B.textSoft,display:"flex",gap:10,flexWrap:"wrap",marginTop:1}}>{c.company&&<span>{c.company}</span>}{c.phone&&<span>📞 <PhoneLink value={c.phone}/></span>}{c.email&&<span>✉ {c.email}</span>}</div>
                       </div>
                       {canEdit&&<div style={{display:"flex",gap:6,flexShrink:0}}>
                         <button onClick={()=>setModal({type:"propertyContact",propertyId:p.id,contact:c})} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit">✎</button>
@@ -3882,7 +3892,7 @@ function ProspectContactsView({data,reload,toast,userProfile}){
       </div>
       <div style={{height:2,background:`linear-gradient(90deg,${B.gold},transparent)`,marginBottom:12}}/>
       {selected.email&&<IRow label="Email" value={selected.email}/>}
-      {selected.phone&&<IRow label="Phone" value={selected.phone}/>}
+      {selected.phone&&<IRow label="Phone" value={<PhoneLink value={selected.phone}/>}/>}
       {selected.tags&&<IRow label="Tags" value={selected.tags}/>}
       <SectionLabel>Deals ({cDeals.length})</SectionLabel>
       {cDeals.length===0?<Empty text="No deals"/>:cDeals.map(d=><div key={d.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${B.borderLight}`}}><span style={{fontSize:13}}>{d.title}</span><Badge scheme={STAGE_COLORS[d.stage]}>{d.stage}</Badge></div>)}
@@ -5098,6 +5108,15 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
               <div style={{fontSize:13,color:B.text,fontWeight:600}}>{v}</div>
             </div>)}
           </div>
+          {(()=>{const vendors=(data.property_contacts||[]).filter(pc=>pc.propertyId===p.id);return <div style={{marginTop:16,paddingTop:12,borderTop:`1px solid ${B.borderLight}`}}>
+            <div style={{fontSize:11,color:B.textMute,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:8}}>Vendors & Service Providers</div>
+            {vendors.length===0
+              ? <div style={{fontSize:12,color:B.textMute}}>None on file yet.</div>
+              : <div style={{display:"flex",flexDirection:"column",gap:6}}>{vendors.map(c=><div key={c.id} style={{background:B.bg,borderRadius:6,padding:"6px 10px"}}>
+                  <div style={{fontSize:12,fontWeight:600,color:B.navy}}>{c.name}{c.role&&<span style={{fontWeight:400,color:B.textSoft,marginLeft:6}}>· {c.role}</span>}</div>
+                  <div style={{fontSize:11,color:B.textSoft,display:"flex",gap:10,flexWrap:"wrap",marginTop:1}}>{c.company&&<span>{c.company}</span>}{c.phone&&<span>📞 <PhoneLink value={c.phone}/></span>}{c.email&&<span>✉ {c.email}</span>}</div>
+                </div>)}</div>}
+          </div>;})()}
         </div>;
           return groups.map(g=><div key={g.type} style={{marginBottom:24}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,paddingBottom:6,borderBottom:`2px solid ${B.gold}`}}>
