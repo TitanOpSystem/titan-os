@@ -403,7 +403,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -5499,6 +5499,177 @@ function FillClientDocModal({docId,family,contact,userProfile,bankAccount,onClos
   </Modal>;
 }
 
+// ── SCHEDULED PROMPTS ─────────────────────────────────────────────────────────
+const PROMPT_TEMPLATES=[
+  {key:"overdue_tasks",label:"Overdue & Upcoming Tasks",desc:"Every open task overdue or due in the next 14 days."},
+  {key:"upcoming_deadlines",label:"Upcoming Deadlines",desc:"Loan maturities & insurance expirations in the next 60 days."},
+  {key:"pipeline_summary",label:"Pipeline Summary",desc:"Open deal pipeline by stage and total value."},
+  {key:"portfolio_snapshot",label:"Portfolio Snapshot",desc:"Family count, real estate value, and portfolio value."},
+];
+const PROMPT_TEMPLATE_MAP=Object.fromEntries(PROMPT_TEMPLATES.map(t=>[t.key,t]));
+// Time-of-day presets shown in Eastern Time; stored as the equivalent UTC hour
+// (fixed ET = UTC-5 offset, matching the existing daily-8am cron convention
+// already used by send-task-reminders).
+const PROMPT_HOURS=[6,7,8,9,10,11,12,13,14,15,16,17].map(h=>({
+  hourUtc:(h+5)%24,
+  label:h<12?`${h}:00 AM ET`:h===12?"12:00 PM ET":`${h-12}:00 PM ET`,
+}));
+const PROMPT_DOWS=[{v:1,l:"Monday"},{v:2,l:"Tuesday"},{v:3,l:"Wednesday"},{v:4,l:"Thursday"},{v:5,l:"Friday"},{v:6,l:"Saturday"},{v:0,l:"Sunday"}];
+const scheduleDesc=p=>{
+  const hourLabel=(PROMPT_HOURS.find(h=>h.hourUtc===p.scheduleHourUtc)||{}).label||`${p.scheduleHourUtc}:00 UTC`;
+  if(p.schedulePreset==="daily")return `Daily at ${hourLabel}`;
+  if(p.schedulePreset==="weekdays")return `Weekdays at ${hourLabel}`;
+  const dow=(PROMPT_DOWS.find(d=>d.v===p.scheduleDow)||{}).l||"";
+  return `Weekly on ${dow} at ${hourLabel}`;
+};
+
+function ScheduledPromptsSection({userProfile,toast}){
+  const[prompts,setPrompts]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[modal,setModal]=useState(null); // "new" | {edit:row}
+  const[testingId,setTestingId]=useState(null);
+  const[name,setName]=useState("");
+  const[promptType,setPromptType]=useState("template");
+  const[templateKey,setTemplateKey]=useState(PROMPT_TEMPLATES[0].key);
+  const[customPrompt,setCustomPrompt]=useState("");
+  const[schedulePreset,setSchedulePreset]=useState("daily");
+  const[scheduleDow,setScheduleDow]=useState(1);
+  const[scheduleHourUtc,setScheduleHourUtc]=useState(PROMPT_HOURS[2].hourUtc); // default 8am ET
+  const[saving,setSaving]=useState(false);
+
+  const load=async()=>{
+    const{data}=await sb.from("scheduled_prompts").select("*").eq("owner_user_id",userProfile.id).order("created_at",{ascending:false});
+    if(data)setPrompts(data.map(toClient));
+    setLoading(false);
+  };
+  useEffect(()=>{if(userProfile?.id)load();},[userProfile?.id]);
+
+  const resetForm=()=>{setName("");setPromptType("template");setTemplateKey(PROMPT_TEMPLATES[0].key);setCustomPrompt("");setSchedulePreset("daily");setScheduleDow(1);setScheduleHourUtc(PROMPT_HOURS[2].hourUtc);};
+  const openNew=()=>{resetForm();setModal("new");};
+  const openEdit=p=>{
+    setName(p.name);setPromptType(p.promptType);setTemplateKey(p.templateKey||PROMPT_TEMPLATES[0].key);setCustomPrompt(p.customPrompt||"");
+    setSchedulePreset(p.schedulePreset);setScheduleDow(p.scheduleDow??1);setScheduleHourUtc(p.scheduleHourUtc);
+    setModal({edit:p});
+  };
+
+  const save=async()=>{
+    if(!name.trim())return;
+    if(promptType==="custom"&&!customPrompt.trim())return;
+    setSaving(true);
+    const row={
+      owner_user_id:userProfile.id,owner_email:userProfile.email,owner_role:userProfile.role,
+      name:name.trim(),prompt_type:promptType,
+      template_key:promptType==="template"?templateKey:null,
+      custom_prompt:promptType==="custom"?customPrompt.trim():null,
+      schedule_preset:schedulePreset,
+      schedule_dow:schedulePreset==="weekly"?scheduleDow:null,
+      schedule_hour_utc:scheduleHourUtc,
+    };
+    const editing=modal&&modal.edit;
+    const{error}=editing?await sb.from("scheduled_prompts").update(row).eq("id",editing.id):await sb.from("scheduled_prompts").insert(row);
+    setSaving(false);
+    if(error){toast(error.message,"error");return;}
+    toast(editing?"Scheduled prompt updated":"Scheduled prompt created");
+    setModal(null);load();
+  };
+
+  const toggleActive=async p=>{
+    const{error}=await sb.from("scheduled_prompts").update({active:!p.active}).eq("id",p.id);
+    if(error)toast(error.message,"error");else{toast(p.active?"Paused":"Resumed");load();}
+  };
+  const del=async p=>{
+    const{error}=await sb.from("scheduled_prompts").delete().eq("id",p.id);
+    if(error)toast(error.message,"error");else{toast("Deleted");load();}
+  };
+  const sendTest=async p=>{
+    setTestingId(p.id);
+    try{
+      const{data,error}=await sb.functions.invoke("run-scheduled-prompts",{body:{forcePromptId:p.id}});
+      if(error)throw new Error(error.message||"Failed to run");
+      const r=(data&&data.results&&data.results[0])||null;
+      if(r&&r.status==="error")throw new Error(r.error||"Failed to run");
+      toast("Test email sent to "+p.ownerEmail);
+      load();
+    }catch(e){toast(e.message||"Could not send test","error");}
+    finally{setTestingId(null);}
+  };
+
+  return <>
+    <SectionLabel>Scheduled Prompts</SectionLabel>
+    <div style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,padding:20,marginBottom:28}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:10,flexWrap:"wrap"}}>
+        <div style={{fontSize:12,color:B.textSoft}}>Automatic AI digests about your book of business, emailed to you on a schedule you set.</div>
+        <Btn small onClick={openNew}>+ New Scheduled Prompt</Btn>
+      </div>
+      {loading?<Spinner/>:prompts.length===0?<Empty text="No scheduled prompts yet."/>:
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {prompts.map(p=><div key={p.id} style={{border:`1px solid ${B.borderLight}`,borderRadius:10,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",opacity:p.active?1:0.6}}>
+          <div style={{minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <span style={{fontWeight:700,color:B.navy,fontSize:14}}>{p.name}</span>
+              <Badge scheme={p.promptType==="template"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{p.promptType==="template"?(PROMPT_TEMPLATE_MAP[p.templateKey]?.label||"Template"):"Custom"}</Badge>
+              {!p.active&&<Badge scheme={{bg:B.borderLight,text:B.textMute,dot:B.textMute}}>Paused</Badge>}
+            </div>
+            <div style={{fontSize:12,color:B.textSoft,marginTop:3}}>{scheduleDesc(p)}</div>
+            <div style={{fontSize:11,color:B.textMute,marginTop:2}}>
+              {p.lastRunAt?`Last run ${fmt(p.lastRunAt)} · ${p.lastRunStatus==="error"?"⚠ failed":"✓ sent"}`:"Never run yet"}
+              {p.lastRunStatus==="error"&&p.lastRunError?` — ${p.lastRunError}`:""}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap"}}>
+            <Btn small variant="ghost" onClick={()=>sendTest(p)} disabled={testingId===p.id}>{testingId===p.id?"Sending…":"✉ Send Test"}</Btn>
+            <Btn small variant="ghost" onClick={()=>toggleActive(p)}>{p.active?"Pause":"Resume"}</Btn>
+            <Btn small variant="ghost" onClick={()=>openEdit(p)}>✏ Edit</Btn>
+            <Btn small variant="danger" onClick={()=>del(p)}>✕</Btn>
+          </div>
+        </div>)}
+      </div>}
+    </div>
+
+    {modal&&<Modal title={modal.edit?"Edit Scheduled Prompt":"New Scheduled Prompt"} onClose={()=>setModal(null)}>
+      <Field label="Name"><Inp placeholder="Monday Overdue Tasks Digest" value={name} onChange={e=>setName(e.target.value)}/></Field>
+      <Field label="Type">
+        <Sel value={promptType} onChange={e=>setPromptType(e.target.value)}>
+          <option value="template">Built-in template</option>
+          <option value="custom">Custom prompt</option>
+        </Sel>
+      </Field>
+      {promptType==="template"
+        ? <Field label="Template">
+            <Sel value={templateKey} onChange={e=>setTemplateKey(e.target.value)}>
+              {PROMPT_TEMPLATES.map(t=><option key={t.key} value={t.key}>{t.label}</option>)}
+            </Sel>
+            <div style={{fontSize:11,color:B.textMute,marginTop:4}}>{PROMPT_TEMPLATE_MAP[templateKey]?.desc}</div>
+          </Field>
+        : <Field label="Prompt">
+            <textarea value={customPrompt} onChange={e=>setCustomPrompt(e.target.value)} rows={4} placeholder="e.g. Summarize which of my families have overdue tasks or upcoming loan maturities this week." style={{width:"100%",resize:"vertical",border:`1px solid ${B.border}`,borderRadius:8,padding:"11px 13px",fontSize:14,fontFamily:"inherit",color:B.text,background:B.white,outline:"none",lineHeight:1.5}}/>
+          </Field>}
+      <Field label="Schedule">
+        <Sel value={schedulePreset} onChange={e=>setSchedulePreset(e.target.value)}>
+          <option value="daily">Daily</option>
+          <option value="weekdays">Weekdays (Mon–Fri)</option>
+          <option value="weekly">Weekly</option>
+        </Sel>
+      </Field>
+      {schedulePreset==="weekly"&&<Field label="Day">
+        <Sel value={scheduleDow} onChange={e=>setScheduleDow(Number(e.target.value))}>
+          {PROMPT_DOWS.map(d=><option key={d.v} value={d.v}>{d.l}</option>)}
+        </Sel>
+      </Field>}
+      <Field label="Time">
+        <Sel value={scheduleHourUtc} onChange={e=>setScheduleHourUtc(Number(e.target.value))}>
+          {PROMPT_HOURS.map(h=><option key={h.hourUtc} value={h.hourUtc}>{h.label}</option>)}
+        </Sel>
+      </Field>
+      <div style={{fontSize:11,color:B.textMute,marginBottom:14}}>Delivered by email to {userProfile.email}. Schedules are checked hourly, so it may arrive up to an hour after the selected time.</div>
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <Btn variant="ghost" onClick={()=>setModal(null)}>Cancel</Btn>
+        <Btn onClick={save} disabled={saving||!name.trim()||(promptType==="custom"&&!customPrompt.trim())}>{saving?"Saving…":"Save"}</Btn>
+      </div>
+    </Modal>}
+  </>;
+}
+
 function ResourcesView({data,userProfile,toast}){
   const isMobile=useIsMobile();
   const[familyId,setFamilyId]=useState("");
@@ -5551,6 +5722,8 @@ function ResourcesView({data,userProfile,toast}){
     </div>
 
     {activeDoc&&family&&<FillClientDocModal docId={activeDoc} family={family} contact={primaryContact} userProfile={userProfile} bankAccount={bankAccount} onClose={()=>setActiveDoc(null)} toast={toast}/>}
+
+    <ScheduledPromptsSection userProfile={userProfile} toast={toast}/>
   </div>;
 }
 
