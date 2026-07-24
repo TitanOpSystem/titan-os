@@ -403,7 +403,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError",data_source:"dataSource"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -5515,6 +5515,16 @@ const PROMPT_HOURS=[6,7,8,9,10,11,12,13,14,15,16,17].map(h=>({
   label:h<12?`${h}:00 AM ET`:h===12?"12:00 PM ET":`${h-12}:00 PM ET`,
 }));
 const PROMPT_DOWS=[{v:1,l:"Monday"},{v:2,l:"Tuesday"},{v:3,l:"Wednesday"},{v:4,l:"Thursday"},{v:5,l:"Friday"},{v:6,l:"Saturday"},{v:0,l:"Sunday"}];
+// "Concierge" categories — data_source="web_search" rows. Free-text brief +
+// category, no book-of-business data involved; Claude searches the live web.
+const CONCIERGE_CATEGORIES=[
+  {key:"real_estate",label:"Real Estate"},
+  {key:"boats",label:"Boats & Yachts"},
+  {key:"watches",label:"Watches & Jewelry"},
+  {key:"event_tickets",label:"Event Tickets"},
+  {key:"other",label:"Other"},
+];
+const CONCIERGE_CATEGORY_MAP=Object.fromEntries(CONCIERGE_CATEGORIES.map(c=>[c.key,c]));
 const scheduleDesc=p=>{
   const hourLabel=(PROMPT_HOURS.find(h=>h.hourUtc===p.scheduleHourUtc)||{}).label||`${p.scheduleHourUtc}:00 UTC`;
   if(p.schedulePreset==="daily")return `Daily at ${hourLabel}`;
@@ -5523,15 +5533,18 @@ const scheduleDesc=p=>{
   return `Weekly on ${dow} at ${hourLabel}`;
 };
 
-function ScheduledPromptsSection({userProfile,toast}){
+function ScheduledPromptsSection({userProfile,families,toast}){
   const[prompts,setPrompts]=useState([]);
   const[loading,setLoading]=useState(true);
   const[modal,setModal]=useState(null); // "new" | {edit:row}
   const[testingId,setTestingId]=useState(null);
+  const[mode,setMode]=useState("digest"); // "digest" (internal book-of-business) | "concierge" (live web search for one client)
   const[name,setName]=useState("");
   const[promptType,setPromptType]=useState("template");
   const[templateKey,setTemplateKey]=useState(PROMPT_TEMPLATES[0].key);
   const[customPrompt,setCustomPrompt]=useState("");
+  const[familyId,setFamilyId]=useState(""); // digest: optional scope to one client; concierge: required
+  const[category,setCategory]=useState(CONCIERGE_CATEGORIES[0].key);
   const[schedulePreset,setSchedulePreset]=useState("daily");
   const[scheduleDow,setScheduleDow]=useState(1);
   const[scheduleHourUtc,setScheduleHourUtc]=useState(PROMPT_HOURS[2].hourUtc); // default 8am ET
@@ -5544,26 +5557,36 @@ function ScheduledPromptsSection({userProfile,toast}){
   };
   useEffect(()=>{if(userProfile?.id)load();},[userProfile?.id]);
 
-  const resetForm=()=>{setName("");setPromptType("template");setTemplateKey(PROMPT_TEMPLATES[0].key);setCustomPrompt("");setSchedulePreset("daily");setScheduleDow(1);setScheduleHourUtc(PROMPT_HOURS[2].hourUtc);};
+  const resetForm=()=>{setMode("digest");setName("");setPromptType("template");setTemplateKey(PROMPT_TEMPLATES[0].key);setCustomPrompt("");setFamilyId("");setCategory(CONCIERGE_CATEGORIES[0].key);setSchedulePreset("daily");setScheduleDow(1);setScheduleHourUtc(PROMPT_HOURS[2].hourUtc);};
   const openNew=()=>{resetForm();setModal("new");};
   const openEdit=p=>{
+    setMode(p.dataSource==="web_search"?"concierge":"digest");
     setName(p.name);setPromptType(p.promptType);setTemplateKey(p.templateKey||PROMPT_TEMPLATES[0].key);setCustomPrompt(p.customPrompt||"");
+    setFamilyId(p.familyId||"");setCategory(p.category||CONCIERGE_CATEGORIES[0].key);
     setSchedulePreset(p.schedulePreset);setScheduleDow(p.scheduleDow??1);setScheduleHourUtc(p.scheduleHourUtc);
     setModal({edit:p});
   };
 
+  const invalid=
+    !name.trim()||
+    (mode==="digest"&&promptType==="custom"&&!customPrompt.trim())||
+    (mode==="concierge"&&(!familyId||!customPrompt.trim()));
+
   const save=async()=>{
-    if(!name.trim())return;
-    if(promptType==="custom"&&!customPrompt.trim())return;
+    if(invalid)return;
     setSaving(true);
-    const row={
+    const row=mode==="concierge"?{
       owner_user_id:userProfile.id,owner_email:userProfile.email,owner_role:userProfile.role,
-      name:name.trim(),prompt_type:promptType,
+      name:name.trim(),data_source:"web_search",prompt_type:"custom",template_key:null,
+      custom_prompt:customPrompt.trim(),category,family_id:familyId,
+      schedule_preset:schedulePreset,schedule_dow:schedulePreset==="weekly"?scheduleDow:null,schedule_hour_utc:scheduleHourUtc,
+    }:{
+      owner_user_id:userProfile.id,owner_email:userProfile.email,owner_role:userProfile.role,
+      name:name.trim(),data_source:"internal",prompt_type:promptType,
       template_key:promptType==="template"?templateKey:null,
       custom_prompt:promptType==="custom"?customPrompt.trim():null,
-      schedule_preset:schedulePreset,
-      schedule_dow:schedulePreset==="weekly"?scheduleDow:null,
-      schedule_hour_utc:scheduleHourUtc,
+      category:null,family_id:familyId||null,
+      schedule_preset:schedulePreset,schedule_dow:schedulePreset==="weekly"?scheduleDow:null,schedule_hour_utc:scheduleHourUtc,
     };
     const editing=modal&&modal.edit;
     const{error}=editing?await sb.from("scheduled_prompts").update(row).eq("id",editing.id):await sb.from("scheduled_prompts").insert(row);
@@ -5598,16 +5621,19 @@ function ScheduledPromptsSection({userProfile,toast}){
     <SectionLabel>Scheduled Prompts</SectionLabel>
     <div style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,padding:20,marginBottom:28}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:10,flexWrap:"wrap"}}>
-        <div style={{fontSize:12,color:B.textSoft}}>Automatic AI digests about your book of business, emailed to you on a schedule you set.</div>
+        <div style={{fontSize:12,color:B.textSoft}}>Automatic AI digests and concierge web searches, emailed to you on a schedule you set.</div>
         <Btn small onClick={openNew}>+ New Scheduled Prompt</Btn>
       </div>
       {loading?<Spinner/>:prompts.length===0?<Empty text="No scheduled prompts yet."/>:
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {prompts.map(p=><div key={p.id} style={{border:`1px solid ${B.borderLight}`,borderRadius:10,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",opacity:p.active?1:0.6}}>
+        {prompts.map(p=>{const fam=(families||[]).find(f=>f.id===p.familyId);return <div key={p.id} style={{border:`1px solid ${B.borderLight}`,borderRadius:10,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",opacity:p.active?1:0.6}}>
           <div style={{minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
               <span style={{fontWeight:700,color:B.navy,fontSize:14}}>{p.name}</span>
-              <Badge scheme={p.promptType==="template"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{p.promptType==="template"?(PROMPT_TEMPLATE_MAP[p.templateKey]?.label||"Template"):"Custom"}</Badge>
+              {p.dataSource==="web_search"
+                ? <Badge scheme={{bg:"#fdf2e3",text:"#8a5c00",dot:"#d4900a"}}>🔎 {CONCIERGE_CATEGORY_MAP[p.category]?.label||"Concierge"}</Badge>
+                : <Badge scheme={p.promptType==="template"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{p.promptType==="template"?(PROMPT_TEMPLATE_MAP[p.templateKey]?.label||"Template"):"Custom"}</Badge>}
+              {fam&&<Badge scheme={{bg:B.bg,text:B.navy,dot:B.gold}}>{fam.name}</Badge>}
               {!p.active&&<Badge scheme={{bg:B.borderLight,text:B.textMute,dot:B.textMute}}>Paused</Badge>}
             </div>
             <div style={{fontSize:12,color:B.textSoft,marginTop:3}}>{scheduleDesc(p)}</div>
@@ -5622,28 +5648,65 @@ function ScheduledPromptsSection({userProfile,toast}){
             <Btn small variant="ghost" onClick={()=>openEdit(p)}>✏ Edit</Btn>
             <Btn small variant="danger" onClick={()=>del(p)}>✕</Btn>
           </div>
-        </div>)}
+        </div>;})}
       </div>}
     </div>
 
     {modal&&<Modal title={modal.edit?"Edit Scheduled Prompt":"New Scheduled Prompt"} onClose={()=>setModal(null)}>
-      <Field label="Name"><Inp placeholder="Monday Overdue Tasks Digest" value={name} onChange={e=>setName(e.target.value)}/></Field>
-      <Field label="Type">
-        <Sel value={promptType} onChange={e=>setPromptType(e.target.value)}>
-          <option value="template">Built-in template</option>
-          <option value="custom">Custom prompt</option>
+      <Field label="Search Type">
+        <Sel value={mode} onChange={e=>setMode(e.target.value)}>
+          <option value="digest">Book of Business Digest</option>
+          <option value="concierge">Concierge Search (for one client)</option>
         </Sel>
+        <div style={{fontSize:11,color:B.textMute,marginTop:4}}>{mode==="concierge"?"Searches the live web for something a client asked you to look out for — real estate, boats, watches, tickets, anything.":"Reports on your own book of business (or one client) using data already in PCM."}</div>
       </Field>
-      {promptType==="template"
-        ? <Field label="Template">
-            <Sel value={templateKey} onChange={e=>setTemplateKey(e.target.value)}>
-              {PROMPT_TEMPLATES.map(t=><option key={t.key} value={t.key}>{t.label}</option>)}
-            </Sel>
-            <div style={{fontSize:11,color:B.textMute,marginTop:4}}>{PROMPT_TEMPLATE_MAP[templateKey]?.desc}</div>
-          </Field>
-        : <Field label="Prompt">
-            <textarea value={customPrompt} onChange={e=>setCustomPrompt(e.target.value)} rows={4} placeholder="e.g. Summarize which of my families have overdue tasks or upcoming loan maturities this week." style={{width:"100%",resize:"vertical",border:`1px solid ${B.border}`,borderRadius:8,padding:"11px 13px",fontSize:14,fontFamily:"inherit",color:B.text,background:B.white,outline:"none",lineHeight:1.5}}/>
-          </Field>}
+      <Field label="Name"><Inp placeholder={mode==="concierge"?"34' Boat Under $250k":"Monday Overdue Tasks Digest"} value={name} onChange={e=>setName(e.target.value)}/></Field>
+
+      {mode==="concierge"
+        ? <>
+            <Field label="Client">
+              <Sel value={familyId} onChange={e=>setFamilyId(e.target.value)}>
+                <option value="">Choose a family…</option>
+                {(families||[]).map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+              </Sel>
+            </Field>
+            <Field label="Category">
+              <Sel value={category} onChange={e=>setCategory(e.target.value)}>
+                {CONCIERGE_CATEGORIES.map(c=><option key={c.key} value={c.key}>{c.label}</option>)}
+              </Sel>
+            </Field>
+            <Field label="What is the client looking for?">
+              <textarea value={customPrompt} onChange={e=>setCustomPrompt(e.target.value)} rows={4} placeholder="e.g. A center-console boat, 30-36 ft, under $250k, located in South Florida." style={{width:"100%",resize:"vertical",border:`1px solid ${B.border}`,borderRadius:8,padding:"11px 13px",fontSize:14,fontFamily:"inherit",color:B.text,background:B.white,outline:"none",lineHeight:1.5}}/>
+            </Field>
+            <div style={{background:"#fdf2e3",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#8a5c00"}}>
+              Results are AI-generated from a live web search and emailed to you (not the client) for review — verify details before sharing anything with them.
+            </div>
+          </>
+        : <>
+            <Field label="Client">
+              <Sel value={familyId} onChange={e=>setFamilyId(e.target.value)}>
+                <option value="">All my families</option>
+                {(families||[]).map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+              </Sel>
+            </Field>
+            <Field label="Type">
+              <Sel value={promptType} onChange={e=>setPromptType(e.target.value)}>
+                <option value="template">Built-in template</option>
+                <option value="custom">Custom prompt</option>
+              </Sel>
+            </Field>
+            {promptType==="template"
+              ? <Field label="Template">
+                  <Sel value={templateKey} onChange={e=>setTemplateKey(e.target.value)}>
+                    {PROMPT_TEMPLATES.map(t=><option key={t.key} value={t.key}>{t.label}</option>)}
+                  </Sel>
+                  <div style={{fontSize:11,color:B.textMute,marginTop:4}}>{PROMPT_TEMPLATE_MAP[templateKey]?.desc}</div>
+                </Field>
+              : <Field label="Prompt">
+                  <textarea value={customPrompt} onChange={e=>setCustomPrompt(e.target.value)} rows={4} placeholder="e.g. Summarize which of my families have overdue tasks or upcoming loan maturities this week." style={{width:"100%",resize:"vertical",border:`1px solid ${B.border}`,borderRadius:8,padding:"11px 13px",fontSize:14,fontFamily:"inherit",color:B.text,background:B.white,outline:"none",lineHeight:1.5}}/>
+                </Field>}
+          </>}
+
       <Field label="Schedule">
         <Sel value={schedulePreset} onChange={e=>setSchedulePreset(e.target.value)}>
           <option value="daily">Daily</option>
@@ -5664,7 +5727,7 @@ function ScheduledPromptsSection({userProfile,toast}){
       <div style={{fontSize:11,color:B.textMute,marginBottom:14}}>Delivered by email to {userProfile.email}. Schedules are checked hourly, so it may arrive up to an hour after the selected time.</div>
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <Btn variant="ghost" onClick={()=>setModal(null)}>Cancel</Btn>
-        <Btn onClick={save} disabled={saving||!name.trim()||(promptType==="custom"&&!customPrompt.trim())}>{saving?"Saving…":"Save"}</Btn>
+        <Btn onClick={save} disabled={saving||invalid}>{saving?"Saving…":"Save"}</Btn>
       </div>
     </Modal>}
   </>;
@@ -5723,7 +5786,7 @@ function ResourcesView({data,userProfile,toast}){
 
     {activeDoc&&family&&<FillClientDocModal docId={activeDoc} family={family} contact={primaryContact} userProfile={userProfile} bankAccount={bankAccount} onClose={()=>setActiveDoc(null)} toast={toast}/>}
 
-    <ScheduledPromptsSection userProfile={userProfile} toast={toast}/>
+    <ScheduledPromptsSection userProfile={userProfile} families={families} toast={toast}/>
   </div>;
 }
 
