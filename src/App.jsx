@@ -403,7 +403,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -1304,7 +1304,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
   const overdueTasks=pendingTasks.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
   const soonTasks=pendingTasks.filter(t=>t.dueDate&&!overdueTasks.includes(t)&&(new Date(t.dueDate)-new Date())/(86400000)<=30);
 
-  const TABS=["Overview","Properties","Portfolio","Cash Flow","Valuables","Deals","Notes","Tasks","Documents","Ask Titan"];
+  const TABS=["Overview","Properties","Portfolio","Cash Flow","Valuables","Deals","Notes","Tasks","Vault","Ask Titan"];
   const assistantName=(((data.families||[]).find(x=>x.id===family.id)||family).assistantName||"").trim()||"Titan";
   const[showWelcome,setShowWelcome]=useState(false);
   useEffect(()=>{
@@ -1872,8 +1872,8 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
         </div>}
       </div>
 
-      {/* DOCUMENTS TAB */}
-      {activeTab==="documents"&&<div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
+      {/* VAULT TAB */}
+      {activeTab==="vault"&&<div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
         <DocumentsView familyId={family.id} readOnly={false} canUpload={true} canDelete={canEdit} canScan={canEdit} canEditMetadata={canEdit} toast={toast} reload={reload}/>
       </div>}
 
@@ -4651,10 +4651,11 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
   const allowScan=canScan!==undefined?canScan:allowUpload; // scanning is advisor-side only
   const allowEditMeta=canEditMetadata!==undefined?canEditMetadata:allowUpload; // renaming/re-categorizing docs; partner gets upload but not this
   const[docs,setDocs]=useState([]);
+  const[downloads,setDownloads]=useState([]); // document_downloads log rows, newest first
   const[loading,setLoading]=useState(true);
   const[uploading,setUploading]=useState(false);
   const[modal,setModal]=useState(null);
-  const[filterCat,setFilterCat]=useState("All");
+  const[openFolder,setOpenFolder]=useState(null); // null = folder grid; else a DOC_CATEGORIES value
   const[name,setName]=useState("");
   const[description,setDescription]=useState("");
   const[category,setCategory]=useState("General");
@@ -4664,11 +4665,16 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
   const loadDocs=async()=>{
     const q=sb.from("documents").select("*").order("created_at",{ascending:false});
     if(familyId) q.eq("family_id",familyId);
-    const{data}=await q;
+    const dq=sb.from("document_downloads").select("*").order("downloaded_at",{ascending:false});
+    if(familyId) dq.eq("family_id",familyId);
+    const[{data},{data:dlData}]=await Promise.all([q,dq]);
     if(data)setDocs(data.map(toClient));
+    if(dlData)setDownloads(dlData.map(toClient));
     setLoading(false);
   };
   useEffect(()=>{loadDocs();},[familyId]);
+  // Most recent download of a given document, if any (downloads is pre-sorted newest first).
+  const lastDownloadFor=docId=>downloads.find(d=>d.documentId===docId)||null;
 
   const upload=async()=>{
     if(!file||!name.trim())return;
@@ -4711,7 +4717,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
       }
       // Save record
       setUploadPhase("Saving…");
-      const{error:dbError}=await sb.from("documents").insert({family_id:familyId||null,name,description:description||null,category,file_path:path,file_size:file.size,file_type:file.type||ext,extracted_text:extractedText});
+      const{error:dbError}=await sb.from("documents").insert({family_id:familyId||null,name,description:description||null,category,file_path:path,file_size:file.size,file_type:file.type||ext,extracted_text:extractedText,uploaded_by:CURRENT_USER_LABEL||null});
       if(dbError)throw new Error(dbError.message);
       toast(extractedText?"Document uploaded and scanned":"Document uploaded");
       setModal(null);setName("");setDescription("");setCategory("General");setFile(null);
@@ -4735,6 +4741,11 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      // Log the download (append-only table, not a column on documents) so "Last
+      // Downloaded"/"Downloaded By" stay accurate for every role -- including
+      // partner, who has no UPDATE access on the documents row itself.
+      const{error:logErr}=await sb.from("document_downloads").insert({document_id:doc.id,family_id:familyId||null,downloaded_by:CURRENT_USER_LABEL||null});
+      if(!logErr)loadDocs();
     }catch(e){toast("Download failed: "+e.message,"error");}
   };
 
@@ -4830,44 +4841,67 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
   };
   const unscannedCount=docs.filter(needsScan).length;
 
-  const filtered=docs.filter(d=>filterCat==="All"||d.category===filterCat);
+  const folderCount=cat=>docs.filter(d=>d.category===cat).length;
 
   return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
+    <style>{`.pcm-folder-card{transition:transform .15s ease, box-shadow .15s ease;}.pcm-folder-card:hover{transform:translateY(-3px);box-shadow:0 8px 22px rgba(9,43,73,0.13);}`}</style>
     <div style={{padding:"14px 24px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-      <div style={{flex:1,display:"flex",gap:6,flexWrap:"wrap"}}>
-        {["All",...DOC_CATEGORIES].map(c=><button key={c} onClick={()=>setFilterCat(c)} style={{background:filterCat===c?B.navy:"transparent",border:`1px solid ${filterCat===c?B.navy:B.border}`,color:filterCat===c?B.white:B.textSoft,borderRadius:20,padding:"3px 12px",fontSize:11,cursor:"pointer",fontWeight:700,fontFamily:"inherit"}}>{c}</button>)}
+      <div style={{flex:1,display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+        {openFolder&&<button onClick={()=>setOpenFolder(null)} style={{background:"none",border:`1px solid ${B.border}`,color:B.textSoft,cursor:"pointer",fontSize:13,fontFamily:"inherit",padding:"6px 10px",borderRadius:6,flexShrink:0}}>← Vault</button>}
+        {openFolder&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{openFolder}</div>}
+        {openFolder&&<span style={{fontSize:12,color:B.textMute,flexShrink:0}}>{folderCount(openFolder)} file{folderCount(openFolder)!==1?"s":""}</span>}
       </div>
-      {allowUpload&&<Btn onClick={()=>setModal("upload")}>⬆ Upload Document</Btn>}
+      {allowUpload&&<Btn onClick={()=>{setCategory(openFolder||"General");setModal("upload");}}>⬆ Upload Document</Btn>}
       {allowScan&&unscannedCount>0&&<Btn variant="ghost" onClick={scanAllUnscanned} disabled={!!bulkScan} title="Extract text from existing documents so the AI assistant can read them">{bulkScan?`Scanning ${bulkScan.done}/${bulkScan.total}${scanMsg?" · "+scanMsg:""}…`:`✦ Scan ${unscannedCount} for AI`}</Btn>}
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
-      {loading?<Spinner/>:filtered.length===0?<div style={{padding:"60px 0",textAlign:"center",color:B.textMute}}><div style={{fontSize:40,marginBottom:12}}>📁</div>No documents yet.</div>:
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14}}>
-        {filtered.map(doc=><div key={doc.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:18,boxShadow:B.shadow,display:"flex",flexDirection:"column",gap:10}}>
-          <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-            <div style={{flexShrink:0,width:46,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-              <img src={PCM_MARK} alt="PCM" style={{height:40,width:"auto",display:"block"}}/>
-              <span style={{fontSize:8.5,fontWeight:800,letterSpacing:"0.06em",color:B.navyMid,background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:4,padding:"1px 5px",lineHeight:1.45,whiteSpace:"nowrap"}}>{fileLabel(doc.fileType,doc.name)}</span>
-            </div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:700,color:B.navy,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{doc.name}</div>
-              {doc.description&&<div style={{fontSize:12,color:B.textSoft,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{doc.description}</div>}
-            </div>
-          </div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            <Badge scheme={{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}}>{doc.category}</Badge>
-            <span style={{fontSize:11,color:B.textMute}}>{fmtSize(doc.fileSize)}</span>
-          </div>
-          <div style={{fontSize:11,color:B.textMute}}>{fmt(doc.createdAt)}</div>
-          <div style={{display:"flex",gap:8,marginTop:4,alignItems:"center",flexWrap:"wrap"}}>
-            <Btn small onClick={()=>download(doc)} style={{flex:1}}>⬇ Download</Btn>
-            {allowScan&&needsScan(doc)&&<Btn small variant="ghost" onClick={()=>scanOne(doc)} disabled={scanningId===doc.id} title="Make this document readable by the AI assistant">{scanningId===doc.id?(scanMsg?`Scanning ${scanMsg}…`:"Scanning…"):"✦ Scan"}</Btn>}
-            {allowScan&&(doc.extractedText||"").trim()&&<span title="The assistant can read this document" style={{fontSize:10,fontWeight:800,letterSpacing:"0.04em",color:B.navyMid,background:"rgba(206,182,132,0.18)",border:`1px solid ${B.gold}`,borderRadius:12,padding:"2px 7px"}}>✦ AI</span>}
-            {allowEditMeta&&<Btn small variant="ghost" onClick={()=>openEdit(doc)}>✏ Edit</Btn>}
-            {allowDelete&&<Btn small variant="danger" onClick={()=>del(doc)}>✕</Btn>}
-          </div>
+      {loading?<Spinner/>:openFolder===null?
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:16}}>
+        {DOC_CATEGORIES.map(cat=><div key={cat} className="pcm-folder-card" role="button" tabIndex={0} onClick={()=>setOpenFolder(cat)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")setOpenFolder(cat);}}
+          style={{background:B.white,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,borderRadius:14,padding:"26px 18px",boxShadow:B.shadow,cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+          <div style={{fontSize:38}}>📁</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:B.navy,fontWeight:700}}>{cat}</div>
+          <div style={{fontSize:11,color:B.textMute,fontWeight:600}}>{folderCount(cat)} file{folderCount(cat)!==1?"s":""}</div>
         </div>)}
-      </div>}
+      </div>
+      :(()=>{
+        const list=docs.filter(d=>d.category===openFolder);
+        return list.length===0
+          ? <div style={{padding:"60px 0",textAlign:"center",color:B.textMute}}><div style={{fontSize:40,marginBottom:12}}>📁</div>No documents in this folder yet.</div>
+          : <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              {list.map(doc=>{
+                const dl=lastDownloadFor(doc.id);
+                return <div key={doc.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:18,boxShadow:B.shadow}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+                    <div style={{display:"flex",gap:12,alignItems:"flex-start",minWidth:0}}>
+                      <div style={{flexShrink:0,width:46,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                        <img src={PCM_MARK} alt="PCM" style={{height:40,width:"auto",display:"block"}}/>
+                        <span style={{fontSize:8.5,fontWeight:800,letterSpacing:"0.06em",color:B.navyMid,background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:4,padding:"1px 5px",lineHeight:1.45,whiteSpace:"nowrap"}}>{fileLabel(doc.fileType,doc.name)}</span>
+                      </div>
+                      <div style={{minWidth:0}}>
+                        <div style={{fontWeight:700,color:B.navy,fontSize:15}}>{doc.name}</div>
+                        {doc.description&&<div style={{fontSize:12,color:B.textSoft,marginTop:2}}>{doc.description}</div>}
+                      </div>
+                    </div>
+                    <span style={{fontSize:11,color:B.textMute,flexShrink:0}}>{fmtSize(doc.fileSize)}</span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginTop:14}}>
+                    {[["Date Uploaded",fmt(doc.createdAt)],["Uploaded By",doc.uploadedBy||"—"],["Last Downloaded",dl?fmt(dl.downloadedAt):"Never"],["Downloaded By",dl?(dl.downloadedBy||"—"):"—"]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:8,padding:"8px 10px"}}>
+                      <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}</div>
+                      <div style={{fontSize:12,color:B.text,fontWeight:600}}>{v}</div>
+                    </div>)}
+                  </div>
+                  <div style={{display:"flex",gap:8,marginTop:14,alignItems:"center",flexWrap:"wrap"}}>
+                    <Btn small onClick={()=>download(doc)}>⬇ Download</Btn>
+                    {allowScan&&needsScan(doc)&&<Btn small variant="ghost" onClick={()=>scanOne(doc)} disabled={scanningId===doc.id} title="Make this document readable by the AI assistant">{scanningId===doc.id?(scanMsg?`Scanning ${scanMsg}…`:"Scanning…"):"✦ Scan"}</Btn>}
+                    {allowScan&&(doc.extractedText||"").trim()&&<span title="The assistant can read this document" style={{fontSize:10,fontWeight:800,letterSpacing:"0.04em",color:B.navyMid,background:"rgba(206,182,132,0.18)",border:`1px solid ${B.gold}`,borderRadius:12,padding:"2px 7px"}}>✦ AI</span>}
+                    {allowEditMeta&&<Btn small variant="ghost" onClick={()=>openEdit(doc)}>✏ Edit</Btn>}
+                    {allowDelete&&<Btn small variant="danger" onClick={()=>del(doc)}>✕</Btn>}
+                  </div>
+                </div>;
+              })}
+            </div>;
+      })()}
     </div>
 
     {modal==="upload"&&<Modal title="Upload Document" onClose={()=>setModal(null)}>
@@ -4948,7 +4982,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
     {id:"cashflow",  label:"Cash Flow",  icon:"$"},
     {id:"valuables", label:"Valuables",  icon:"◆"},
     {id:"tasks",     label:"Tasks",      icon:"◻"},
-    {id:"documents", label:"Documents",  icon:"📁"},
+    {id:"documents", label:"Vault",  icon:"📁"},
     {id:"assistant", label:"Ask "+assistantName,   icon:"✦"},
   ];
 
@@ -5174,9 +5208,9 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
         })}
       </div>}
 
-      {/* DOCUMENTS */}
+      {/* VAULT */}
       {activeTab==="documents"&&<div style={{height:"calc(100vh - 200px)"}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:20}}>Documents</div>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:20}}>Vault</div>
         <DocumentsView familyId={family.id} canUpload={true} canDelete={false} canScan={false} toast={toast||(()=>{})} reload={reload}/>
       </div>}
 
