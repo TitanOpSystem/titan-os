@@ -5562,7 +5562,7 @@ function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
   const[prompts,setPrompts]=useState([]);
   const[loading,setLoading]=useState(true);
   const[modal,setModal]=useState(null); // "new" | {edit:row}
-  const[testingId,setTestingId]=useState(null);
+  const[runningId,setRunningId]=useState(null);
   const[mode,setMode]=useState("digest"); // "digest" (internal book-of-business) | "concierge" (live web search for one client)
   const[name,setName]=useState("");
   const[promptType,setPromptType]=useState("template");
@@ -5636,17 +5636,20 @@ function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
     const{error}=await sb.from("scheduled_prompts").delete().eq("id",p.id);
     if(error)toast(error.message,"error");else{toast("Deleted");load();}
   };
-  const sendTest=async p=>{
-    setTestingId(p.id);
+  // Forces this prompt to run immediately (ignoring its schedule) and emails
+  // the report to the owner right away — for when a client needs something
+  // looked into now rather than waiting for the next scheduled time.
+  const runNow=async p=>{
+    setRunningId(p.id);
     try{
       const{data,error}=await sb.functions.invoke("run-scheduled-prompts",{body:{forcePromptId:p.id}});
       if(error)throw new Error(error.message||"Failed to run");
       const r=(data&&data.results&&data.results[0])||null;
       if(r&&r.status==="error")throw new Error(r.error||"Failed to run");
-      toast("Test email sent to "+p.ownerEmail);
+      toast("Report sent to "+p.ownerEmail);
       load();
-    }catch(e){toast(e.message||"Could not send test","error");}
-    finally{setTestingId(null);}
+    }catch(e){toast(e.message||"Could not run now","error");}
+    finally{setRunningId(null);}
   };
 
   return <>
@@ -5676,7 +5679,7 @@ function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
             </div>
           </div>
           <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap"}}>
-            <Btn small variant="ghost" onClick={()=>sendTest(p)} disabled={testingId===p.id}>{testingId===p.id?"Sending…":"✉ Send Test"}</Btn>
+            <Btn small variant="gold" onClick={()=>runNow(p)} disabled={runningId===p.id}>{runningId===p.id?"Running…":"▶ Run Now"}</Btn>
             <Btn small variant="ghost" onClick={()=>toggleActive(p)}>{p.active?"Pause":"Resume"}</Btn>
             <Btn small variant="ghost" onClick={()=>openEdit(p)}>✏ Edit</Btn>
             <Btn small variant="danger" onClick={()=>del(p)}>✕</Btn>
