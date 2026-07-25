@@ -403,7 +403,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError",data_source:"dataSource"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError",data_source:"dataSource",can_run_scheduled_prompts:"canRunScheduledPrompts"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -1304,7 +1304,10 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
   const overdueTasks=pendingTasks.filter(t=>t.dueDate&&new Date(t.dueDate)<new Date());
   const soonTasks=pendingTasks.filter(t=>t.dueDate&&!overdueTasks.includes(t)&&(new Date(t.dueDate)-new Date())/(86400000)<=30);
 
-  const TABS=["Overview","Properties","Portfolio","Cash Flow","Valuables","Deals","Notes","Tasks","Vault","Ask Titan"];
+  // Scheduled Prompts is visible to every Titan Expert/Admin, and to a Partner
+  // only when an admin has flipped their can_run_scheduled_prompts toggle on.
+  const canSeePrompts=userProfile?.role==="advisor"||userProfile?.role==="admin"||(userProfile?.role==="partner"&&userProfile?.canRunScheduledPrompts);
+  const TABS=["Overview","Properties","Portfolio","Cash Flow","Valuables","Deals","Notes","Tasks","Vault","Ask Titan",...(canSeePrompts?["Prompts"]:[])];
   const assistantName=(((data.families||[]).find(x=>x.id===family.id)||family).assistantName||"").trim()||"Titan";
   const[showWelcome,setShowWelcome]=useState(false);
   useEffect(()=>{
@@ -1879,6 +1882,11 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
 
       {activeTab==="asktitan"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
         <FamilyAssistant family={family} data={data} reload={reload} toast={toast}/>
+      </div>}
+
+      {/* PROMPTS TAB — Titan Experts/Admins always; Partners only if permitted */}
+      {activeTab==="prompts"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
+        <ScheduledPromptsSection userProfile={userProfile} families={data.families||[]} toast={toast} lockFamilyId={userProfile?.role==="partner"?family.id:undefined}/>
       </div>}
 
       {/* Modals */}
@@ -4228,6 +4236,7 @@ function UserManagementView({userProfile,data={},toast}){
   const[newRole,setNewRole]=useState("advisor");
   const[newFamily,setNewFamily]=useState("");
   const[newPartnerFamilies,setNewPartnerFamilies]=useState([]); // family ids, role="partner" only
+  const[newCanRunPrompts,setNewCanRunPrompts]=useState(false); // role="partner" only — Scheduled Prompts access
   const[newPassword,setNewPassword]=useState("");
   const[creating,setCreating]=useState(false);
   const[created,setCreated]=useState(null);
@@ -4265,6 +4274,13 @@ function UserManagementView({userProfile,data={},toast}){
       if(error)toast(error.message,"error");else loadFamilyPartners();
     }
   };
+  // Per-Partner toggle: whether this Partner is allowed to create/run Scheduled
+  // Prompts. Not all Partners should have this — off by default. Titan Experts
+  // and Admins always have it implicitly (not stored on their row).
+  const togglePromptAccess=async u=>{
+    const{error}=await sb.from("user_profiles").update({can_run_scheduled_prompts:!u.can_run_scheduled_prompts}).eq("id",u.id);
+    if(error)toast(error.message,"error");else{toast(u.can_run_scheduled_prompts?"Scheduled Prompts access removed":"Scheduled Prompts access granted");loadUsers();}
+  };
 
   const createUser=async()=>{
     if(!newEmail.trim()||!newPassword.trim())return toast("Email and password are required","error");
@@ -4287,6 +4303,7 @@ function UserManagementView({userProfile,data={},toast}){
         role:newRole,
         family_id:newRole==="client"?(newFamily||null):null,
         active:true,
+        can_run_scheduled_prompts:newRole==="partner"?newCanRunPrompts:false,
       });
       if(newRole==="partner"&&newPartnerFamilies.length>0){
         await sb.from("family_partners").insert(newPartnerFamilies.map(fid=>({user_id:userId,family_id:fid})));
@@ -4294,7 +4311,7 @@ function UserManagementView({userProfile,data={},toast}){
     }
     setCreating(false);
     setCreated({email:newEmail,role:newRole,password:newPassword});
-    setNewEmail("");setNewName("");setNewRole("advisor");setNewFamily("");setNewPartnerFamilies([]);setNewPassword("");
+    setNewEmail("");setNewName("");setNewRole("advisor");setNewFamily("");setNewPartnerFamilies([]);setNewCanRunPrompts(false);setNewPassword("");
     setTimeout(()=>{loadUsers();loadFamilyPartners();},1500);
   };
 
@@ -4383,6 +4400,7 @@ function UserManagementView({userProfile,data={},toast}){
               </span>
             </div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {u.role==="partner"&&<Btn small variant={u.can_run_scheduled_prompts?"gold":"ghost"} onClick={()=>togglePromptAccess(u)}>{u.can_run_scheduled_prompts?"✓ Prompts On":"Prompts Off"}</Btn>}
               {u.id!==userProfile?.id&&<>
                 <Btn small variant={u.active?"danger":"ghost"} onClick={()=>toggleActive(u)}>{u.active?"Deactivate":"Activate"}</Btn>
                 <Btn small variant="ghost" onClick={()=>resetPass(u)}>Reset PW</Btn>
@@ -4505,6 +4523,13 @@ function UserManagementView({userProfile,data={},toast}){
               </div>
             </Field>}
             {newRole==="partner"&&newPartnerFamilies.length===0&&<div style={{background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#8a5c00",marginBottom:14}}>Select at least one family, or link them later from the Family column.</div>}
+            {newRole==="partner"&&<Field label="Scheduled Prompts Access">
+              <label style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:B.text,cursor:"pointer"}}>
+                <input type="checkbox" checked={newCanRunPrompts} onChange={e=>setNewCanRunPrompts(e.target.checked)}/>
+                Allow this Partner to create and run Scheduled Prompts
+              </label>
+              <div style={{fontSize:11,color:B.textMute,marginTop:4}}>Off by default — most Partners shouldn't have this. Titan Experts and Admins already can, and always see every Partner's scheduled prompts for their families.</div>
+            </Field>}
             <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
               <Btn variant="ghost" onClick={()=>setModal(null)}>Cancel</Btn>
               <Btn onClick={createUser} disabled={creating||!newEmail||!newPassword}>{creating?"Creating…":"Create User"}</Btn>
@@ -5533,7 +5558,7 @@ const scheduleDesc=p=>{
   return `Weekly on ${dow} at ${hourLabel}`;
 };
 
-function ScheduledPromptsSection({userProfile,families,toast}){
+function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
   const[prompts,setPrompts]=useState([]);
   const[loading,setLoading]=useState(true);
   const[modal,setModal]=useState(null); // "new" | {edit:row}
@@ -5550,14 +5575,21 @@ function ScheduledPromptsSection({userProfile,families,toast}){
   const[scheduleHourUtc,setScheduleHourUtc]=useState(PROMPT_HOURS[2].hourUtc); // default 8am ET
   const[saving,setSaving]=useState(false);
 
+  // No client-side owner_user_id filter here — RLS governs exactly which rows
+  // come back per role (self-owned always; admin: everything; Titan Expert:
+  // also Partner-owned rows for families they're allowed to see; Partner:
+  // self-owned only, never a Titan Expert's). When locked to one family (the
+  // Partner-in-FamilyDashboard case), also narrow to that family client-side.
   const load=async()=>{
-    const{data}=await sb.from("scheduled_prompts").select("*").eq("owner_user_id",userProfile.id).order("created_at",{ascending:false});
+    let q=sb.from("scheduled_prompts").select("*").order("created_at",{ascending:false});
+    if(lockFamilyId)q=q.eq("family_id",lockFamilyId);
+    const{data}=await q;
     if(data)setPrompts(data.map(toClient));
     setLoading(false);
   };
-  useEffect(()=>{if(userProfile?.id)load();},[userProfile?.id]);
+  useEffect(()=>{if(userProfile?.id)load();},[userProfile?.id,lockFamilyId]);
 
-  const resetForm=()=>{setMode("digest");setName("");setPromptType("template");setTemplateKey(PROMPT_TEMPLATES[0].key);setCustomPrompt("");setFamilyId("");setCategory(CONCIERGE_CATEGORIES[0].key);setSchedulePreset("daily");setScheduleDow(1);setScheduleHourUtc(PROMPT_HOURS[2].hourUtc);};
+  const resetForm=()=>{setMode("digest");setName("");setPromptType("template");setTemplateKey(PROMPT_TEMPLATES[0].key);setCustomPrompt("");setFamilyId(lockFamilyId||"");setCategory(CONCIERGE_CATEGORIES[0].key);setSchedulePreset("daily");setScheduleDow(1);setScheduleHourUtc(PROMPT_HOURS[2].hourUtc);};
   const openNew=()=>{resetForm();setModal("new");};
   const openEdit=p=>{
     setMode(p.dataSource==="web_search"?"concierge":"digest");
@@ -5634,6 +5666,7 @@ function ScheduledPromptsSection({userProfile,families,toast}){
                 ? <Badge scheme={{bg:"#fdf2e3",text:"#8a5c00",dot:"#d4900a"}}>🔎 {CONCIERGE_CATEGORY_MAP[p.category]?.label||"Concierge"}</Badge>
                 : <Badge scheme={p.promptType==="template"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{p.promptType==="template"?(PROMPT_TEMPLATE_MAP[p.templateKey]?.label||"Template"):"Custom"}</Badge>}
               {fam&&<Badge scheme={{bg:B.bg,text:B.navy,dot:B.gold}}>{fam.name}</Badge>}
+              {p.ownerUserId!==userProfile.id&&<Badge scheme={{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{roleLabel(p.ownerRole)} · {p.ownerEmail}</Badge>}
               {!p.active&&<Badge scheme={{bg:B.borderLight,text:B.textMute,dot:B.textMute}}>Paused</Badge>}
             </div>
             <div style={{fontSize:12,color:B.textSoft,marginTop:3}}>{scheduleDesc(p)}</div>
@@ -5665,10 +5698,12 @@ function ScheduledPromptsSection({userProfile,families,toast}){
       {mode==="concierge"
         ? <>
             <Field label="Client">
-              <Sel value={familyId} onChange={e=>setFamilyId(e.target.value)}>
-                <option value="">Choose a family…</option>
-                {(families||[]).map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
-              </Sel>
+              {lockFamilyId
+                ? <div style={{fontSize:14,color:B.text,padding:"9px 13px",background:B.bg,border:`1px solid ${B.border}`,borderRadius:8}}>{(families||[]).find(f=>f.id===lockFamilyId)?.name||"This family"}</div>
+                : <Sel value={familyId} onChange={e=>setFamilyId(e.target.value)}>
+                    <option value="">Choose a family…</option>
+                    {(families||[]).map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+                  </Sel>}
             </Field>
             <Field label="Category">
               <Sel value={category} onChange={e=>setCategory(e.target.value)}>
@@ -5684,10 +5719,12 @@ function ScheduledPromptsSection({userProfile,families,toast}){
           </>
         : <>
             <Field label="Client">
-              <Sel value={familyId} onChange={e=>setFamilyId(e.target.value)}>
-                <option value="">All my families</option>
-                {(families||[]).map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
-              </Sel>
+              {lockFamilyId
+                ? <div style={{fontSize:14,color:B.text,padding:"9px 13px",background:B.bg,border:`1px solid ${B.border}`,borderRadius:8}}>{(families||[]).find(f=>f.id===lockFamilyId)?.name||"This family"}</div>
+                : <Sel value={familyId} onChange={e=>setFamilyId(e.target.value)}>
+                    <option value="">All my families</option>
+                    {(families||[]).map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+                  </Sel>}
             </Field>
             <Field label="Type">
               <Sel value={promptType} onChange={e=>setPromptType(e.target.value)}>
@@ -5839,7 +5876,7 @@ export default function App(){
 
   const loadProfile=useCallback(async userId=>{
     const{data:d}=await sb.from("user_profiles").select("*").eq("id",userId).single();
-    if(d){const p={id:d.id,email:d.email,role:d.role,fullName:d.full_name,active:d.active,familyId:d.family_id};profileRef.current=p;setUserProfile(p);CURRENT_USER_LABEL=(d.full_name||d.email||"").trim();}
+    if(d){const p={id:d.id,email:d.email,role:d.role,fullName:d.full_name,active:d.active,familyId:d.family_id,canRunScheduledPrompts:!!d.can_run_scheduled_prompts};profileRef.current=p;setUserProfile(p);CURRENT_USER_LABEL=(d.full_name||d.email||"").trim();}
   },[]);
 
   useEffect(()=>{
