@@ -5604,28 +5604,60 @@ function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
     (mode==="digest"&&promptType==="custom"&&!customPrompt.trim())||
     (mode==="concierge"&&(!familyId||!customPrompt.trim()));
 
+  const buildRow=()=>mode==="concierge"?{
+    owner_user_id:userProfile.id,owner_email:userProfile.email,owner_role:userProfile.role,
+    name:name.trim(),data_source:"web_search",prompt_type:"custom",template_key:null,
+    custom_prompt:customPrompt.trim(),category,family_id:familyId,
+    schedule_preset:schedulePreset,schedule_dow:schedulePreset==="weekly"?scheduleDow:null,schedule_hour_utc:scheduleHourUtc,
+  }:{
+    owner_user_id:userProfile.id,owner_email:userProfile.email,owner_role:userProfile.role,
+    name:name.trim(),data_source:"internal",prompt_type:promptType,
+    template_key:promptType==="template"?templateKey:null,
+    custom_prompt:promptType==="custom"?customPrompt.trim():null,
+    category:null,family_id:familyId||null,
+    schedule_preset:schedulePreset,schedule_dow:schedulePreset==="weekly"?scheduleDow:null,schedule_hour_utc:scheduleHourUtc,
+  };
+
   const save=async()=>{
     if(invalid)return;
     setSaving(true);
-    const row=mode==="concierge"?{
-      owner_user_id:userProfile.id,owner_email:userProfile.email,owner_role:userProfile.role,
-      name:name.trim(),data_source:"web_search",prompt_type:"custom",template_key:null,
-      custom_prompt:customPrompt.trim(),category,family_id:familyId,
-      schedule_preset:schedulePreset,schedule_dow:schedulePreset==="weekly"?scheduleDow:null,schedule_hour_utc:scheduleHourUtc,
-    }:{
-      owner_user_id:userProfile.id,owner_email:userProfile.email,owner_role:userProfile.role,
-      name:name.trim(),data_source:"internal",prompt_type:promptType,
-      template_key:promptType==="template"?templateKey:null,
-      custom_prompt:promptType==="custom"?customPrompt.trim():null,
-      category:null,family_id:familyId||null,
-      schedule_preset:schedulePreset,schedule_dow:schedulePreset==="weekly"?scheduleDow:null,schedule_hour_utc:scheduleHourUtc,
-    };
+    const row=buildRow();
     const editing=modal&&modal.edit;
     const{error}=editing?await sb.from("scheduled_prompts").update(row).eq("id",editing.id):await sb.from("scheduled_prompts").insert(row);
     setSaving(false);
     if(error){toast(error.message,"error");return;}
     toast(editing?"Scheduled prompt updated":"Scheduled prompt created");
     setModal(null);load();
+  };
+
+  // Saves the prompt (creating it if it's new, or persisting any edits) and
+  // immediately forces it to run right here in the form — so a client's
+  // urgent request doesn't need to wait for the schedule, and there's no need
+  // to save, close the modal, then hunt down the card to run it separately.
+  const[runningNow,setRunningNow]=useState(false);
+  const runNowFromModal=async()=>{
+    if(invalid)return;
+    setRunningNow(true);
+    try{
+      const row=buildRow();
+      const editing=modal&&modal.edit;
+      let id=editing?editing.id:null;
+      if(editing){
+        const{error}=await sb.from("scheduled_prompts").update(row).eq("id",editing.id);
+        if(error)throw new Error(error.message);
+      }else{
+        const{data,error}=await sb.from("scheduled_prompts").insert(row).select().single();
+        if(error)throw new Error(error.message);
+        id=data.id;
+      }
+      const{data,error}=await sb.functions.invoke("run-scheduled-prompts",{body:{forcePromptId:id}});
+      if(error)throw new Error(error.message||"Failed to run");
+      const r=(data&&data.results&&data.results[0])||null;
+      if(r&&r.status==="error")throw new Error(r.error||"Failed to run");
+      toast("Report sent to "+userProfile.email);
+      setModal(null);load();
+    }catch(e){toast(e.message||"Could not run now","error");}
+    finally{setRunningNow(false);}
   };
 
   const toggleActive=async p=>{
@@ -5764,10 +5796,16 @@ function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
           {PROMPT_HOURS.map(h=><option key={h.hourUtc} value={h.hourUtc}>{h.label}</option>)}
         </Sel>
       </Field>
-      <div style={{fontSize:11,color:B.textMute,marginBottom:14}}>Delivered by email to {userProfile.email}. Schedules are checked hourly, so it may arrive up to an hour after the selected time.</div>
+      <div style={{fontSize:11,color:B.textMute,marginBottom:10}}>Delivered by email to {userProfile.email}. Schedules are checked hourly, so it may arrive up to an hour after the selected time.</div>
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,background:B.bg,border:`1px solid ${B.border}`,borderRadius:8,padding:"10px 14px",marginBottom:16,flexWrap:"wrap"}}>
+        <div style={{fontSize:11.5,color:B.textSoft,flex:1,minWidth:180}}>Client needs this right away? Skip the schedule — save and run it now.</div>
+        <Btn small variant="gold" onClick={runNowFromModal} disabled={runningNow||saving||invalid}>{runningNow?"Running…":"▶ Run Now"}</Btn>
+      </div>
+
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <Btn variant="ghost" onClick={()=>setModal(null)}>Cancel</Btn>
-        <Btn onClick={save} disabled={saving||invalid}>{saving?"Saving…":"Save"}</Btn>
+        <Btn onClick={save} disabled={saving||runningNow||invalid}>{saving?"Saving…":"Save"}</Btn>
       </div>
     </Modal>}
   </>;
