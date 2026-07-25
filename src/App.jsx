@@ -1233,14 +1233,14 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
     </div>:<>
       <Field label="To">
         {options.length>0
-          ? <Sel value={toEmail} onChange={e=>setToEmail(e.target.value)}>{options.map(o=><option key={o.email} value={o.email}>{o.name}{o.primary?" (primary advisor)":""} · {o.email}</option>)}</Sel>
-          : <div style={{fontSize:13,color:B.textMute,padding:"9px 0"}}>No designated advisor is on file yet — add one under Team Member & Contacts, or add someone below.</div>}
+          ? <Sel value={toEmail} onChange={e=>setToEmail(e.target.value)}>{options.map(o=><option key={o.email} value={o.email}>{o.name}{o.primary?" (primary Titan Expert)":""} · {o.email}</option>)}</Sel>
+          : <div style={{fontSize:13,color:B.textMute,padding:"9px 0"}}>No designated Titan Expert is on file yet — add one under Team Member & Contacts, or add someone below.</div>}
       </Field>
       {ccPrimary&&<div style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:B.navy,background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:8,padding:"9px 12px",marginBottom:12}}>
         <span style={{fontSize:13}}>🔒</span>
         <div style={{minWidth:0}}>
           <div><span style={{fontWeight:700}}>Cc:</span> {ccPrimary.name} · {ccPrimary.email}</div>
-          <div style={{fontSize:11,color:B.textMute,marginTop:1}}>Your primary advisor is always copied and can't be removed.</div>
+          <div style={{fontSize:11,color:B.textMute,marginTop:1}}>Your primary Titan Expert is always copied and can't be removed.</div>
         </div>
       </div>}
       {customs.length>0&&<div style={{marginBottom:10}}>
@@ -1260,7 +1260,7 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
         </div>
         {addErr&&<div style={{fontSize:11,color:"#8b1a1a",marginTop:5}}>{addErr}</div>}
       </Field>
-      {!ccPrimary&&!primaryEmailRaw&&<div style={{fontSize:11,color:B.textMute,marginBottom:12}}>No primary advisor is on file for your account yet — this will go out without an automatic copy.</div>}
+      {!ccPrimary&&!primaryEmailRaw&&<div style={{fontSize:11,color:B.textMute,marginBottom:12}}>No primary Titan Expert is on file for your account yet — this will go out without an automatic copy.</div>}
       <Field label="Subject"><Inp value={subject} onChange={e=>setSubject(e.target.value)}/></Field>
       <Field label="Message"><textarea value={msg} onChange={e=>setMsg(e.target.value)} rows={7} placeholder="Write your message…" style={{width:"100%",resize:"vertical",border:`1px solid ${B.border}`,borderRadius:8,padding:"11px 13px",fontSize:14,fontFamily:"inherit",color:B.text,background:B.white,outline:"none",lineHeight:1.5}}/></Field>
       <div style={{fontSize:11,color:B.textMute,margin:"6px 0 14px"}}>{clientEmail?<>Sent from your address (<strong>{clientEmail}</strong>) — recipients can reply straight to you.</>:"Recipients can reply straight to you."}</div>
@@ -3264,7 +3264,7 @@ function FamiliesView({data,reload,toast,userProfile}){
             onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
             <div style={{marginBottom:12}}>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:a.unassigned?B.textMute:B.navy,fontWeight:600,marginBottom:2}}>{a.name}</div>
-              <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Families with no advisor assigned"}</div>
+              <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Families with no Titan Expert assigned"}</div>
             </div>
             <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -3283,7 +3283,7 @@ function FamiliesView({data,reload,toast,userProfile}){
         ))}
       </div>}
       {viewMode!=="advisors"&&<>
-      {filtered.length===0&&<Empty text={advisorFilter?"No families for this advisor.":"No families yet. Add your first one."}/>}
+      {filtered.length===0&&<Empty text={advisorFilter?"No families for this Titan Expert.":"No families yet. Add your first one."}/>}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
         {filtered.map(f=>{
           const s=getStats(f);
@@ -3294,7 +3294,7 @@ function FamiliesView({data,reload,toast,userProfile}){
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
               <div>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600,marginBottom:2}}>{f.name}</div>
-                <div style={{fontSize:12,color:B.textSoft}}>{f.advisorName||"No advisor assigned"}</div>
+                <div style={{fontSize:12,color:B.textSoft}}>{f.advisorName||"No Titan Expert assigned"}</div>
               </div>
               <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
                 <Btn small variant="ghost" onClick={()=>setModal(f)}>Edit</Btn>
@@ -3499,7 +3499,7 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
               onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
               <div style={{marginBottom:12}}>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:a.unassigned?B.textMute:B.navy,fontWeight:600,marginBottom:2}}>{a.name}</div>
-                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Notes not linked to an advisor's contact"}</div>
+                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Notes not linked to a Titan Expert's contact"}</div>
               </div>
               <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -3527,7 +3527,7 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
     </div>}
     {!prospectMode&&userProfile?.role==="admin"&&<div style={{padding:"10px 20px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
       <AdvisorScopeBar userProfile={userProfile} value={cmAdvScope} onChange={setCmAdvScope}/>
-      {cmAdvScope&&<span style={{fontSize:12,color:B.textSoft}}>Showing notes for this advisor's families</span>}
+      {cmAdvScope&&<span style={{fontSize:12,color:B.textSoft}}>Showing notes for this Titan Expert's families</span>}
     </div>}
     <div style={{padding:isMobile?"14px 14px":"20px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white}}>
       <div style={{maxWidth:800,margin:"0 auto"}}>
@@ -3676,7 +3676,7 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
               onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
               <div style={{marginBottom:12}}>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:a.unassigned?B.textMute:B.navy,fontWeight:600,marginBottom:2}}>{a.name}</div>
-                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Tasks not linked to an advisor's contact"}</div>
+                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Tasks not linked to a Titan Expert's contact"}</div>
               </div>
               <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
@@ -3842,7 +3842,7 @@ function ProspectContactsView({data,reload,toast,userProfile}){
               onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
               <div style={{marginBottom:12}}>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:a.unassigned?B.textMute:B.navy,fontWeight:600,marginBottom:2}}>{a.name}</div>
-                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Prospects with no advisor assigned"}</div>
+                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Prospects with no Titan Expert assigned"}</div>
               </div>
               <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -3987,7 +3987,7 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
               onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
               <div style={{marginBottom:12}}>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:a.unassigned?B.textMute:B.navy,fontWeight:600,marginBottom:2}}>{a.name}</div>
-                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Opportunities not linked to an advisor's contact"}</div>
+                <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Opportunities not linked to a Titan Expert's contact"}</div>
               </div>
               <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -4155,7 +4155,7 @@ function Dashboard({data,userProfile,reload,toast}){
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap",marginBottom:isMobile?16:24}}>
       <div>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?22:28,color:B.navy,fontWeight:600,marginBottom:4}}>Good {hr<12?"Morning":hr<17?"Afternoon":"Evening"}</div>
-        <div style={{color:B.textSoft,fontSize:isMobile?12:14}}>PCM Family Office — Portfolio & Client Overview{isAdmin&&scope?" · filtered by advisor":""}</div>
+        <div style={{color:B.textSoft,fontSize:isMobile?12:14}}>PCM Family Office — Portfolio & Client Overview{isAdmin&&scope?" · filtered by Titan Expert":""}</div>
         <div style={{height:2,width:56,background:B.gold,marginTop:10,borderRadius:2}}/>
       </div>
       <AdvisorScopeBar userProfile={userProfile} value={scope} onChange={setScope}/>
@@ -5066,7 +5066,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
         {/* Alert banners */}
         {overdue.length>0&&<div style={{background:"#fde8e8",border:"1px solid #f5c6c6",borderRadius:10,padding:"12px 18px",marginBottom:12,display:"flex",alignItems:"center",gap:12}}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d43030" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><path d="M10.3 3.8 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-          <div><div style={{fontWeight:700,color:"#8b1a1a",fontSize:14}}>Overdue Tasks</div><div style={{fontSize:13,color:"#8b1a1a"}}>{overdue.length} task{overdue.length>1?"s":""} past due — please contact your advisor.</div></div>
+          <div><div style={{fontWeight:700,color:"#8b1a1a",fontSize:14}}>Overdue Tasks</div><div style={{fontSize:13,color:"#8b1a1a"}}>{overdue.length} task{overdue.length>1?"s":""} past due — please contact your Titan Expert.</div></div>
         </div>}
         {soon.length>0&&<div style={{background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:10,padding:"12px 18px",marginBottom:12,display:"flex",alignItems:"center",gap:12}}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d4900a" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/></svg>
@@ -5165,7 +5165,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
       {/* CASH FLOW (read-only) */}
       {activeTab==="cashflow"&&<div>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:8}}>Cash Flow Projection</div>
-        <div style={{fontSize:14,color:B.textSoft,marginBottom:20}}>Projection of expected cash flow events configured by your advisor.</div>
+        <div style={{fontSize:14,color:B.textSoft,marginBottom:20}}>Projection of expected cash flow events configured by your Titan Expert.</div>
         <CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} reload={()=>{}} toast={toast||(()=>{})} readOnly={true}/>
       </div>}
 
@@ -5920,7 +5920,7 @@ export default function App(){
   if(userProfile.role==="client"){
     const clientFamily=data.families.find(f=>f.id===userProfile.familyId);
     if(loading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
-    if(!clientFamily)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,flexDirection:"column",gap:12,color:B.navy,fontFamily:"'DM Sans',sans-serif"}}><PCMLogo/><div style={{marginTop:20,fontSize:16}}>No family assigned to your account. Contact your advisor.</div><button onClick={logout} style={{marginTop:12,background:"none",border:`1px solid ${B.border}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontFamily:"inherit",color:B.textSoft}}>Sign Out</button></div>;
+    if(!clientFamily)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,flexDirection:"column",gap:12,color:B.navy,fontFamily:"'DM Sans',sans-serif"}}><PCMLogo/><div style={{marginTop:20,fontSize:16}}>No family assigned to your account. Contact your Titan Expert.</div><button onClick={logout} style={{marginTop:12,background:"none",border:`1px solid ${B.border}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontFamily:"inherit",color:B.textSoft}}>Sign Out</button></div>;
     return <><ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout} toast={showToast} reload={reload}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
   }
 
