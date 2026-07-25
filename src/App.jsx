@@ -1273,7 +1273,7 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
   </Modal>;
 }
 
-function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
+function FamilyDashboard({family,data,reload,toast,onBack,userProfile,onRunNowDone}){
   const isMobile=useIsMobile();
   // Partner role: full read access to everything in this dashboard, but no
   // create/edit/delete anywhere except uploading documents (handled separately
@@ -1886,7 +1886,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
 
       {/* PROMPTS TAB — Titan Experts/Admins always; Partners only if permitted */}
       {activeTab==="prompts"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
-        <ScheduledPromptsSection userProfile={userProfile} families={data.families||[]} toast={toast} lockFamilyId={userProfile?.role==="partner"?family.id:undefined}/>
+        <ScheduledPromptsSection userProfile={userProfile} families={data.families||[]} toast={toast} lockFamilyId={userProfile?.role==="partner"?family.id:undefined} onAfterRunNow={onRunNowDone}/>
       </div>}
 
       {/* Modals */}
@@ -3194,7 +3194,7 @@ function printAdvisorReport(adv,data){
   w.document.close();w.focus();setTimeout(()=>w.print(),400);
 }
 
-function FamiliesView({data,reload,toast,userProfile}){
+function FamiliesView({data,reload,toast,userProfile,onGoToResources}){
   const{families}=data;
   const[advisors,setAdvisors]=useState([]);
   useEffect(()=>{
@@ -3240,7 +3240,7 @@ function FamiliesView({data,reload,toast,userProfile}){
   const del=async id=>{const{error}=await sb.from("families").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("families");if(selected?.id===id)setSelected(null);}};
 
   // If a family is selected, show its dashboard
-  if(selected) return <FamilyDashboard family={selected} data={data} reload={reload} toast={toast} onBack={()=>setSelected(null)} userProfile={userProfile}/>;
+  if(selected) return <FamilyDashboard family={selected} data={data} reload={reload} toast={toast} onBack={()=>setSelected(null)} userProfile={userProfile} onRunNowDone={onGoToResources?()=>{setSelected(null);onGoToResources();}:undefined}/>;
 
   const getStats=f=>({
     properties:(data.properties||[]).filter(p=>p.familyId===f.id).length,
@@ -5558,7 +5558,7 @@ const scheduleDesc=p=>{
   return `Weekly on ${dow} at ${hourLabel}`;
 };
 
-function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
+function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId,onAfterRunNow}){
   const[prompts,setPrompts]=useState([]);
   const[loading,setLoading]=useState(true);
   const[modal,setModal]=useState(null); // "new" | {edit:row}
@@ -5655,7 +5655,8 @@ function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
       const r=(data&&data.results&&data.results[0])||null;
       if(r&&r.status==="error")throw new Error(r.error||"Failed to run");
       toast("Report sent to "+userProfile.email);
-      setModal(null);load();
+      setModal(null);
+      if(onAfterRunNow)onAfterRunNow();else load();
     }catch(e){toast(e.message||"Could not run now","error");}
     finally{setRunningNow(false);}
   };
@@ -5679,7 +5680,7 @@ function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
       const r=(data&&data.results&&data.results[0])||null;
       if(r&&r.status==="error")throw new Error(r.error||"Failed to run");
       toast("Report sent to "+p.ownerEmail);
-      load();
+      if(onAfterRunNow)onAfterRunNow();else load();
     }catch(e){toast(e.message||"Could not run now","error");}
     finally{setRunningId(null);}
   };
@@ -6076,7 +6077,7 @@ export default function App(){
       <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg,paddingBottom:"0"}}>
         {loading&&tab!=="families"&&tab!=="users"?<Spinner/>:<>
           {tab==="dashboard"   &&<Dashboard key={navNonce} data={data} userProfile={userProfile} reload={reload} toast={showToast}/>}
-          {tab==="families"    &&<FamiliesView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
+          {tab==="families"    &&<FamiliesView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile} onGoToResources={()=>{setTab("resources");setNavNonce(n=>n+1);}}/>}
           {tab==="portfolio"   &&<PortfolioView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="cm-notes"    &&<NotesView key={navNonce} data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="cm-tasks"    &&<TasksView key={navNonce} data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
