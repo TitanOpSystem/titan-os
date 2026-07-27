@@ -542,9 +542,11 @@ function StatBox({label,value,accent}){
 }
 
 function PCMLogo({dark=false,compact=false}){
-  if(dark)return <div style={{background:"rgba(255,255,255,0.97)",borderRadius:8,padding:"8px 14px",display:"inline-block"}}><img src={BRAND.logo} alt={BRAND.name} style={{height:64,width:"auto",display:"block"}}/></div>;
-  if(compact)return <img src={BRAND.logo} alt={BRAND.name} style={{height:64,width:"auto",display:"block"}}/>;
-  return <img src={BRAND.logo} alt={BRAND.name} style={{height:110,width:"auto",display:"block",margin:"0 auto"}}/>;
+  // max constraints (not a fixed height) so wide white-label wordmarks scale
+  // down to fit their container instead of overflowing the sidebar.
+  if(dark)return <div style={{background:"rgba(255,255,255,0.97)",borderRadius:8,padding:"8px 14px",display:"inline-block"}}><img src={BRAND.logo} alt={BRAND.name} style={{maxHeight:64,maxWidth:"100%",width:"auto",height:"auto",display:"block"}}/></div>;
+  if(compact)return <img src={BRAND.logo} alt={BRAND.name} style={{maxHeight:64,maxWidth:"100%",width:"auto",height:"auto",display:"block"}}/>;
+  return <img src={BRAND.logo} alt={BRAND.name} style={{maxHeight:110,maxWidth:"100%",width:"auto",height:"auto",display:"block",margin:"0 auto"}}/>;
 }
 
 // ── LOGIN INTRO (tumbling cubes) ────────────────────────────────────────────
