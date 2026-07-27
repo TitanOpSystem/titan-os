@@ -47,13 +47,33 @@ function useIsMobile(){
   return isMobile;
 }
 
-// ── BRAND ─────────────────────────────────────────────────────────────────────
+// ── BRAND PALETTE ─────────────────────────────────────────────────────────────
+// Every colour here is env-overridable so a white-label tenant can be re-skinned
+// without touching code. Defaults are PCM's exact original values, so a deploy
+// with no VITE_BRAND_* colour vars set renders identically to before.
+// The keys keep their original names (navy/gold) for compatibility with the ~250
+// existing references; semantically they are now "primary" and "accent".
+const hexToRgb=h=>{
+  const s=String(h||"").replace("#","");
+  const full=s.length===3?s.split("").map(c=>c+c).join(""):s;
+  const i=parseInt(full,16);
+  return Number.isNaN(i)?[9,43,73]:[(i>>16)&255,(i>>8)&255,i&255];
+};
+const PRIMARY=import.meta.env.VITE_BRAND_PRIMARY||"#092b49";
+const PRIMARY_MID=import.meta.env.VITE_BRAND_PRIMARY_MID||"#293d5c";
+const ACCENT=import.meta.env.VITE_BRAND_ACCENT||"#ceb684";
+const _pr=hexToRgb(PRIMARY);
 const B = {
-  navy:"#092b49",navyMid:"#293d5c",gold:"#ceb684",goldLight:"#dfc99a",
-  white:"#ffffff",text:"#092b49",textMid:"#293d5c",textSoft:"#5a6e84",
-  textMute:"#8fa0b2",border:"#d8cdb8",borderLight:"#ede8de",
-  bg:"#f9f7f3",bgCard:"#ffffff",
-  shadow:"0 2px 16px rgba(9,43,73,0.07)",shadowMd:"0 8px 40px rgba(9,43,73,0.13)",
+  navy:PRIMARY,navyMid:PRIMARY_MID,gold:ACCENT,
+  goldLight:import.meta.env.VITE_BRAND_ACCENT_LIGHT||"#dfc99a",
+  white:"#ffffff",text:PRIMARY,textMid:PRIMARY_MID,
+  textSoft:import.meta.env.VITE_BRAND_TEXT_SOFT||"#5a6e84",
+  textMute:import.meta.env.VITE_BRAND_TEXT_MUTE||"#8fa0b2",
+  border:import.meta.env.VITE_BRAND_BORDER||"#d8cdb8",
+  borderLight:import.meta.env.VITE_BRAND_BORDER_LIGHT||"#ede8de",
+  bg:import.meta.env.VITE_BRAND_BG||"#f9f7f3",bgCard:"#ffffff",
+  shadow:`0 2px 16px rgba(${_pr[0]},${_pr[1]},${_pr[2]},0.07)`,
+  shadowMd:`0 8px 40px rgba(${_pr[0]},${_pr[1]},${_pr[2]},0.13)`,
 };
 
 const STAGES=["Lead","Qualified","Proposal","Negotiation","Closed Won","Closed Lost"];
@@ -773,28 +793,28 @@ function FamilyReport({family,data,onClose}){
   const print=()=>{
     const w=window.open("","_blank");
     w.document.write(`<!DOCTYPE html><html><head><title> </title>
-    <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:#092b49;background:#fff;padding:40px;font-size:13px;line-height:1.6;}
-    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #ceb684;}
-    .logo{font-size:26px;font-weight:700;color:#092b49;}
+    <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:${B.navy};background:#fff;padding:40px;font-size:13px;line-height:1.6;}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid ${B.gold};}
+    .logo{font-size:26px;font-weight:700;color:${B.navy};}
     .logo-sub{font-size:9px;letter-spacing:.18em;color:#8fa0b2;margin-top:3px;}
     .logo-img{height:120px;width:auto;display:block;}
     h1{font-size:22px;font-weight:700;margin-bottom:2px;}
     .advisor{font-size:12px;color:#5a6e84;margin-top:4px;}
     .date{font-size:11px;color:#8fa0b2;margin-top:2px;}
-    h2{font-size:14px;font-weight:800;color:#092b49;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid #ceb684;letter-spacing:.06em;text-transform:uppercase;}
+    h2{font-size:14px;font-weight:800;color:${B.navy};margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid ${B.gold};letter-spacing:.06em;text-transform:uppercase;}
     table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px;}
-    th{background:#092b49;color:#ceb684;padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
+    th{background:${B.navy};color:${B.gold};padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
     td{padding:6px 10px;border-bottom:1px solid #ede8de;color:#293d5c;vertical-align:top;}
-    tr:nth-child(even) td{background:#f9f7f3;}
+    tr:nth-child(even) td{background:${B.bg};}
     .stats{display:flex;gap:16px;margin-bottom:20px;}
-    .stat{background:#f9f7f3;border-radius:8px;padding:12px 16px;flex:1;border-top:2px solid #ceb684;}
+    .stat{background:${B.bg};border-radius:8px;padding:12px 16px;flex:1;border-top:2px solid ${B.gold};}
     .stat-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:4px;}
-    .stat-v{font-size:18px;font-weight:700;color:#092b49;}
+    .stat-v{font-size:18px;font-weight:700;color:${B.navy};}
     .note{padding:8px 0;border-bottom:1px solid #ede8de;}
     .note-date{font-size:10px;color:#8fa0b2;margin-top:2px;}
-    .footer{margin-top:40px;padding-top:14px;border-top:2px solid #ceb684;display:flex;justify-content:space-between;align-items:center;position:fixed;bottom:20px;left:40px;right:40px;}
+    .footer{margin-top:40px;padding-top:14px;border-top:2px solid ${B.gold};display:flex;justify-content:space-between;align-items:center;position:fixed;bottom:20px;left:40px;right:40px;}
     .footer-l{font-size:10px;color:#8fa0b2;line-height:1.6;}
-    .footer-c{font-size:11px;font-weight:800;color:#092b49;letter-spacing:0.12em;text-transform:uppercase;text-align:right;}
+    .footer-c{font-size:11px;font-weight:800;color:${B.navy};letter-spacing:0.12em;text-transform:uppercase;text-align:right;}
     @media print{body{padding:20px;}}
     </style></head><body>
     <div class="header">
@@ -1040,7 +1060,7 @@ function FamilyAssistant({family,data,reload,compact,toast}){
     if(!w)return;
     const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${esc(assistantName)} — Answer</title><style>
-body{font-family:'DM Sans',Helvetica,Arial,sans-serif;color:#092b49;padding:36px;line-height:1.6;}
+body{font-family:'DM Sans',Helvetica,Arial,sans-serif;color:${B.navy};padding:36px;line-height:1.6;}
 h1{font-family:Georgia,serif;font-size:20px;margin:0 0 4px;}
 p.meta{color:#5a6e84;font-size:12px;margin:0 0 24px;}
 div.body{font-size:14px;white-space:pre-wrap;}
@@ -2362,31 +2382,31 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
     }).join("");
     const zeroLine=maxNeg>0?`<line x1="${padL}" x2="${chartW-padR}" y1="${zeroY}" y2="${zeroY}" stroke="#5a6e84" stroke-width="0.5" stroke-dasharray="2,2"/>`:"";
     w.document.write(`<!DOCTYPE html><html><head><title> </title>
-    <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:#092b49;background:#fff;padding:40px;font-size:12px;line-height:1.6;}
-    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #ceb684;}
+    <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:${B.navy};background:#fff;padding:40px;font-size:12px;line-height:1.6;}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid ${B.gold};}
     .logo-img{height:120px;width:auto;display:block;}
     h1{font-size:22px;font-weight:700;margin-bottom:2px;}
     .sub{font-size:12px;color:#5a6e84;margin-top:4px;}
     .date{font-size:11px;color:#8fa0b2;margin-top:2px;}
-    h2{font-size:13px;font-weight:800;color:#092b49;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #ceb684;letter-spacing:.06em;text-transform:uppercase;}
-    .assumptions{background:#f9f7f3;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
+    h2{font-size:13px;font-weight:800;color:${B.navy};margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid ${B.gold};letter-spacing:.06em;text-transform:uppercase;}
+    .assumptions{background:${B.bg};border-radius:8px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
     .a-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:3px;}
-    .a-v{font-size:13px;font-weight:700;color:#092b49;white-space:nowrap;overflow:visible;}
+    .a-v{font-size:13px;font-weight:700;color:${B.navy};white-space:nowrap;overflow:visible;}
     .stats{display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap;}
-    .stat{background:#f9f7f3;border-radius:8px;padding:12px 16px;flex:1;min-width:120px;border-top:2px solid #ceb684;}
+    .stat{background:${B.bg};border-radius:8px;padding:12px 16px;flex:1;min-width:120px;border-top:2px solid ${B.gold};}
     .stat-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:4px;}
-    .stat-v{font-size:18px;font-weight:700;color:#092b49;white-space:nowrap;overflow:visible;}
+    .stat-v{font-size:18px;font-weight:700;color:${B.navy};white-space:nowrap;overflow:visible;}
     .stat-red{border-top-color:#d43030;}
     table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11px;}
-    th{background:#092b49;color:#ceb684;padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
+    th{background:${B.navy};color:${B.gold};padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
     td{padding:5px 10px;border-bottom:1px solid #ede8de;color:#293d5c;vertical-align:top;}
-    tr:nth-child(even) td{background:#f9f7f3;}
+    tr:nth-child(even) td{background:${B.bg};}
     .num{text-align:right;font-variant-numeric:tabular-nums;}
     .neg{color:#8b1a1a;}
     .legend{display:flex;gap:14px;font-size:9px;color:#5a6e84;margin-top:6px;}
     .legend span{display:flex;align-items:center;gap:4px;}
     .legend i{display:inline-block;width:8px;height:8px;border-radius:1px;}
-    .chart-box{background:#f9f7f3;border-radius:8px;padding:14px;margin-bottom:14px;}
+    .chart-box{background:${B.bg};border-radius:8px;padding:14px;margin-bottom:14px;}
     .disclaimer{margin-top:24px;padding:12px 14px;background:#fef3e2;border:1px solid #fcd97d;border-radius:6px;font-size:10px;color:#8a5c00;line-height:1.5;}
     @media print{body{padding:20px;}}
     </style></head><body>
@@ -2413,11 +2433,11 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
       <svg viewBox="0 0 ${chartW} ${chartH}" width="100%" style="display:block">
         ${bars}
         ${zeroLine}
-        <path d="${cumPath}" fill="none" stroke="#092b49" stroke-width="1.5"/>
+        <path d="${cumPath}" fill="none" stroke="${B.navy}" stroke-width="1.5"/>
         ${yLabels}
         ${xLabels}
       </svg>
-      <div class="legend"><span><i style="background:#1f9d57"></i>Income (net)</span><span><i style="background:#d43030"></i>Expenses</span><span><i style="background:#092b49;width:14px;height:2px;border-radius:0"></i>Cumulative</span></div>
+      <div class="legend"><span><i style="background:#1f9d57"></i>Income (net)</span><span><i style="background:#d43030"></i>Expenses</span><span><i style="background:${B.navy};width:14px;height:2px;border-radius:0"></i>Cumulative</span></div>
     </div>
     ${incomeEvents.length>0?`<h2>Income Events</h2>
     <table><thead><tr><th>Type</th><th>Description</th><th>Frequency</th><th>Start</th><th class="num">Gross</th><th>Tax</th><th class="num">Net (proj.)</th></tr></thead><tbody>
@@ -2640,25 +2660,25 @@ function CashFlowView({family,events,paymentLog=[],properties,reload,toast,readO
       return `<tr><td>${m.label}</td><td class="num ${negA?"neg":""}">${negA?"−":""}${fmtUSD(Math.abs(m.net))}</td><td class="num ${negB?"neg":""}">${negB?"−":""}${fmtUSD(Math.abs(cn))}</td><td class="num ${negD?"neg":"pos"}">${diff>=0?"+":"−"}${fmtUSD(Math.abs(diff))}</td></tr>`;
     }).join("");
     w.document.write(`<!DOCTYPE html><html><head><title> </title>
-    <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:#092b49;background:#fff;padding:40px;font-size:12px;line-height:1.6;}
-    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #ceb684;}
+    <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:${B.navy};background:#fff;padding:40px;font-size:12px;line-height:1.6;}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid ${B.gold};}
     .logo-img{height:120px;width:auto;display:block;}
     h1{font-size:22px;font-weight:700;margin-bottom:2px;}
     .sub{font-size:12px;color:#5a6e84;margin-top:4px;}
     .date{font-size:11px;color:#8fa0b2;margin-top:2px;}
-    h2{font-size:13px;font-weight:800;color:#092b49;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #ceb684;letter-spacing:.06em;text-transform:uppercase;}
-    .assumptions{background:#f9f7f3;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
+    h2{font-size:13px;font-weight:800;color:${B.navy};margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid ${B.gold};letter-spacing:.06em;text-transform:uppercase;}
+    .assumptions{background:${B.bg};border-radius:8px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
     .a-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:3px;}
-    .a-v{font-size:13px;font-weight:700;color:#092b49;white-space:nowrap;overflow:visible;}
+    .a-v{font-size:13px;font-weight:700;color:${B.navy};white-space:nowrap;overflow:visible;}
     .cols{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap;}
-    .col{flex:1;min-width:220px;background:#f9f7f3;border-radius:10px;padding:16px 18px;border-top:3px solid #ceb684;}
-    .col.cmp{border-top-color:#092b49;}
-    .col-name{font-size:15px;font-weight:800;color:#092b49;margin-bottom:2px;}
+    .col{flex:1;min-width:220px;background:${B.bg};border-radius:10px;padding:16px 18px;border-top:3px solid ${B.gold};}
+    .col.cmp{border-top-color:${B.navy};}
+    .col-name{font-size:15px;font-weight:800;color:${B.navy};margin-bottom:2px;}
     .col-meta{font-size:10px;color:#8fa0b2;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;}
     .line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:5px 0;border-bottom:1px solid #ede8de;overflow:hidden;}
     .line:last-child{border-bottom:none;}
     .line .k{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#5a6e84;flex:0 0 auto;}
-    .line .v{font-size:15px;font-weight:700;color:#092b49;white-space:nowrap;text-align:right;}
+    .line .v{font-size:15px;font-weight:700;color:${B.navy};white-space:nowrap;text-align:right;}
     .line .v.tax{color:#8b1a1a;}
     .verdict{border-radius:10px;padding:16px 20px;margin-bottom:16px;text-align:center;}
     .verdict.save{background:#e0f5e9;border:1px solid #18a850;}
@@ -2669,12 +2689,12 @@ function CashFlowView({family,events,paymentLog=[],properties,reload,toast,readO
     .verdict.cost .verdict-v{color:#8b1a1a;}
     .verdict-sub{font-size:11px;color:#5a6e84;margin-top:4px;}
     table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11px;}
-    th{background:#092b49;color:#ceb684;padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
+    th{background:${B.navy};color:${B.gold};padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
     td{padding:5px 10px;border-bottom:1px solid #ede8de;color:#293d5c;}
-    tr:nth-child(even) td{background:#f9f7f3;}
+    tr:nth-child(even) td{background:${B.bg};}
     .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
     .neg{color:#8b1a1a;}.pos{color:#0d5c2b;}
-    tfoot td{font-weight:800;border-top:2px solid #092b49;background:#fff;}
+    tfoot td{font-weight:800;border-top:2px solid ${B.navy};background:#fff;}
     .disclaimer{margin-top:24px;padding:12px 14px;background:#fef3e2;border:1px solid #fcd97d;border-radius:6px;font-size:10px;color:#8a5c00;line-height:1.5;}
     @media print{body{padding:20px;}}
     </style></head><body>
@@ -2943,7 +2963,7 @@ function CashFlowView({family,events,paymentLog=[],properties,reload,toast,readO
             <defs>
               <linearGradient id="cfIncome" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#34b36b"/><stop offset="100%" stopColor="#1f9d57"/></linearGradient>
               <linearGradient id="cfExpense" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#e05a5a"/><stop offset="100%" stopColor="#c92e2e"/></linearGradient>
-              <linearGradient id="cfArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#092b49" stopOpacity="0.16"/><stop offset="100%" stopColor="#092b49" stopOpacity="0"/></linearGradient>
+              <linearGradient id="cfArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={B.navy} stopOpacity="0.16"/><stop offset="100%" stopColor={B.navy} stopOpacity="0"/></linearGradient>
             </defs>
             {/* Horizontal gridlines + left $ axis */}
             {yTicks.map((v,i)=>{const y=padT+innerH-((v-minOverall)/range)*innerH;return <g key={i}>
@@ -3166,21 +3186,21 @@ function printAdvisorReport(adv,data){
   const stat=(l,v)=>`<div class="stat"><div class="stat-l">${l}</div><div class="stat-v">${v}</div></div>`;
   const w=window.open("","_blank");
   w.document.write(`<!DOCTYPE html><html><head><title> </title>
-  <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:#092b49;background:#fff;padding:40px;font-size:13px;line-height:1.6;}
-  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #ceb684;}
+  <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;color:${B.navy};background:#fff;padding:40px;font-size:13px;line-height:1.6;}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid ${B.gold};}
   .logo-img{height:110px;width:auto;display:block;}
   h1{font-size:22px;font-weight:700;margin-bottom:2px;}
   .advisor{font-size:12px;color:#5a6e84;margin-top:4px;}
   .date{font-size:11px;color:#8fa0b2;margin-top:2px;}
-  h2{font-size:14px;font-weight:800;color:#092b49;margin:22px 0 8px;padding-bottom:4px;border-bottom:1px solid #ceb684;letter-spacing:.06em;text-transform:uppercase;}
+  h2{font-size:14px;font-weight:800;color:${B.navy};margin:22px 0 8px;padding-bottom:4px;border-bottom:1px solid ${B.gold};letter-spacing:.06em;text-transform:uppercase;}
   table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px;}
-  th{background:#092b49;color:#ceb684;padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
+  th{background:${B.navy};color:${B.gold};padding:6px 10px;text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;}
   td{padding:6px 10px;border-bottom:1px solid #ede8de;color:#293d5c;vertical-align:top;}
-  tr:nth-child(even) td{background:#f9f7f3;}
+  tr:nth-child(even) td{background:${B.bg};}
   .stats{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px;}
-  .stat{background:#f9f7f3;border-radius:8px;padding:12px 16px;flex:1;min-width:120px;border-top:2px solid #ceb684;}
+  .stat{background:${B.bg};border-radius:8px;padding:12px 16px;flex:1;min-width:120px;border-top:2px solid ${B.gold};}
   .stat-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:4px;}
-  .stat-v{font-size:18px;font-weight:700;color:#092b49;}
+  .stat-v{font-size:18px;font-weight:700;color:${B.navy};}
   .note{padding:8px 0;border-bottom:1px solid #ede8de;}
   .note-meta{font-size:10px;color:#8fa0b2;margin-top:2px;}
   @media print{body{padding:20px;}}
