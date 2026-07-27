@@ -58,24 +58,38 @@ export default defineConfig(({ mode }) => {
       react(),
       {
         name: 'brand-html',
-        transformIndexHtml(html) {
-          const tokens = {
-            '%BRAND_NAME%': esc(brand.name),
-            '%BRAND_SHORT%': esc(brand.short),
-            '%BRAND_DESCRIPTION%': esc(brand.description),
-            '%BRAND_OG_IMAGE%': esc(absoluteOg),
-            '%BRAND_PRIMARY%': esc(brand.primary),
-            '%BRAND_FAVICON%': esc(brand.favicon),
-            '%BRAND_FAVICON_16%': esc(brand.favicon16),
-            '%BRAND_FAVICON_32%': esc(brand.favicon32),
-            '%BRAND_APPLE_ICON%': esc(brand.appleIcon),
-            '%BRAND_FAVICON_192%': esc(brand.favicon192),
-            '%BRAND_FAVICON_512%': esc(brand.favicon512),
-          }
-          return Object.entries(tokens).reduce(
-            (out, [token, value]) => out.split(token).join(value),
-            html,
-          )
+        // MUST run before Vite's own build-html pass. That pass calls decodeURI()
+        // on every href/src it finds, so an unresolved token left inside an icon
+        // href fails the whole build ("URI malformed"). Running 'pre' means the
+        // attributes already hold real paths by the time Vite parses them.
+        // Tokens also deliberately avoid % delimiters, which decodeURI would
+        // read as percent-escapes.
+        transformIndexHtml: {
+          order: 'pre',
+          handler(html) {
+            const tokens = {
+              __BRAND_NAME__: esc(brand.name),
+              __BRAND_SHORT__: esc(brand.short),
+              __BRAND_DESCRIPTION__: esc(brand.description),
+              __BRAND_OG_IMAGE__: esc(absoluteOg),
+              __BRAND_PRIMARY__: esc(brand.primary),
+              __BRAND_FAVICON__: esc(brand.favicon),
+              __BRAND_FAVICON_16__: esc(brand.favicon16),
+              __BRAND_FAVICON_32__: esc(brand.favicon32),
+              __BRAND_APPLE_ICON__: esc(brand.appleIcon),
+              __BRAND_FAVICON_192__: esc(brand.favicon192),
+              __BRAND_FAVICON_512__: esc(brand.favicon512),
+            }
+            const out = Object.entries(tokens).reduce(
+              (acc, [token, value]) => acc.split(token).join(value),
+              html,
+            )
+            // Fail loudly here rather than letting a typo'd token reach the
+            // browser as literal text in a <title> or link preview.
+            const missed = out.match(/__BRAND_[A-Z0-9_]*__/g)
+            if (missed) throw new Error(`brand-html: unresolved tokens ${[...new Set(missed)].join(', ')}`)
+            return out
+          },
         },
       },
     ],
