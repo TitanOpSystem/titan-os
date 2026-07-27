@@ -12,7 +12,7 @@ import react from '@vitejs/plugin-react'
 const TITANOS_DEFAULTS = {
   name: 'TitanOS',
   short: 'TitanOS',
-  description: 'TitanOS — the family office operating system. White-label client portals, reporting, and AI concierge for advisory firms.',
+  description: 'TitanOS — the private wealth operating system. White-label client portals, reporting, and AI concierge for advisory firms.',
   ogImage: '/titanos-og.png',
   primary: '#092b49',
   favicon: '/titanos-favicon.ico',

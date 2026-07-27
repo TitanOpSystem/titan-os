@@ -29,7 +29,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 const BRAND = {
   name: import.meta.env.VITE_BRAND_NAME || "TitanOS",
   short: import.meta.env.VITE_BRAND_SHORT || "TitanOS",
-  tagline: import.meta.env.VITE_BRAND_TAGLINE || "THE FAMILY OFFICE OPERATING SYSTEM",
+  tagline: import.meta.env.VITE_BRAND_TAGLINE || "PRIVATE WEALTH OPERATING SYSTEM",
   contactEmail: import.meta.env.VITE_BRAND_CONTACT_EMAIL || "",
   emailDomain: import.meta.env.VITE_BRAND_EMAIL_DOMAIN || "titanos.com",
   logo: import.meta.env.VITE_BRAND_LOGO_URL || "/titanos-logo-full.png",
