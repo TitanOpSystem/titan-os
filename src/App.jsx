@@ -13,9 +13,27 @@ import { PCM_LIFESTYLE_TEMPLATE_B64 } from "./pcmLifestyleTemplate.js";
 // PCM tree emblem (transparent PNG) — used as the icon on document cards in place of file-type emoji.
 // PCM Platform v5.0 — build 20260429
 
-const SUPABASE_URL = "https://unkirihxtruhdjeldfpm.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVua2lyaWh4dHJ1aGRqZWxkZnBtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNTA3MjUsImV4cCI6MjA5MTcyNjcyNX0._Ve9Pr3ooja-YdHYFIupebaZRhDjmJDnz2b-vzrhY04";
+// Backend + brand are env-overridable so the exact same codebase can be
+// deployed as a white-label instance (e.g. TitanOS demo) from a second Vercel
+// project with different VITE_* env vars — with NO env vars set, everything
+// defaults to the PCM production values below, so this deploy is unaffected.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://unkirihxtruhdjeldfpm.supabase.co";
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVua2lyaWh4dHJ1aGRqZWxkZnBtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNTA3MjUsImV4cCI6MjA5MTcyNjcyNX0._Ve9Pr3ooja-YdHYFIupebaZRhDjmJDnz2b-vzrhY04";
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── WHITE-LABEL BRAND CONFIG ─────────────────────────────────────────────────
+const BRAND = {
+  name: import.meta.env.VITE_BRAND_NAME || "PCM Family Office",
+  short: import.meta.env.VITE_BRAND_SHORT || "PCM",
+  tagline: import.meta.env.VITE_BRAND_TAGLINE || "DISCOVER · SIMPLIFY · EXECUTE",
+  contactEmail: import.meta.env.VITE_BRAND_CONTACT_EMAIL || "info@pcmfamilyoffice.com",
+  emailDomain: import.meta.env.VITE_BRAND_EMAIL_DOMAIN || "pcmfamilyoffice.com",
+  logo: import.meta.env.VITE_BRAND_LOGO_URL || PCM_LOGO,
+  mark: import.meta.env.VITE_BRAND_MARK_URL || PCM_MARK,
+};
+// Keep the browser tab title in sync with the brand (index.html ships the PCM
+// default; a white-label deploy overrides it here at startup).
+if(typeof document!=="undefined"&&BRAND.name!=="PCM Family Office")document.title=BRAND.name;
 
 // ── MOBILE DETECTION ──────────────────────────────────────────────────────────
 const MOBILE_BREAKPOINT = 768;
@@ -524,9 +542,9 @@ function StatBox({label,value,accent}){
 }
 
 function PCMLogo({dark=false,compact=false}){
-  if(dark)return <div style={{background:"rgba(255,255,255,0.97)",borderRadius:8,padding:"8px 14px",display:"inline-block"}}><img src={PCM_LOGO} alt="PCM Family Office" style={{height:64,width:"auto",display:"block"}}/></div>;
-  if(compact)return <img src={PCM_LOGO} alt="PCM Family Office" style={{height:64,width:"auto",display:"block"}}/>;
-  return <img src={PCM_LOGO} alt="PCM Family Office" style={{height:110,width:"auto",display:"block",margin:"0 auto"}}/>;
+  if(dark)return <div style={{background:"rgba(255,255,255,0.97)",borderRadius:8,padding:"8px 14px",display:"inline-block"}}><img src={BRAND.logo} alt={BRAND.name} style={{height:64,width:"auto",display:"block"}}/></div>;
+  if(compact)return <img src={BRAND.logo} alt={BRAND.name} style={{height:64,width:"auto",display:"block"}}/>;
+  return <img src={BRAND.logo} alt={BRAND.name} style={{height:110,width:"auto",display:"block",margin:"0 auto"}}/>;
 }
 
 // ── LOGIN INTRO (tumbling cubes) ────────────────────────────────────────────
@@ -719,7 +737,7 @@ function LoginScreen(){
           </div>
         ):(
           <>
-            <Field label="Email"><input type="email" value={email} onChange={e=>{setEmail(e.target.value);setError("");}} onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():handleReset())} placeholder="you@pcmfamilyoffice.com" autoFocus style={{...inp,fontSize:15,padding:"13px 16px"}}/></Field>
+            <Field label="Email"><input type="email" value={email} onChange={e=>{setEmail(e.target.value);setError("");}} onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():handleReset())} placeholder={"you@"+BRAND.emailDomain} autoFocus style={{...inp,fontSize:15,padding:"13px 16px"}}/></Field>
             {mode==="login"&&<Field label="Password"><input type="password" value={password} onChange={e=>{setPassword(e.target.value);setError("");}} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••" style={{...inp,fontSize:15,padding:"13px 16px"}}/></Field>}
             {error&&<div style={{fontSize:12,color:"#d43030",marginBottom:12,fontWeight:600,padding:"8px 12px",background:"#fde8e8",borderRadius:8}}>{error}</div>}
             <button onClick={mode==="login"?handleLogin:handleReset} disabled={loading} style={{width:"100%",background:`linear-gradient(135deg,${B.navy},${B.navyMid})`,color:B.white,border:"none",borderRadius:10,padding:"13px",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",letterSpacing:"0.06em",marginBottom:16,opacity:loading?.7:1}}>
@@ -730,7 +748,7 @@ function LoginScreen(){
             </div>
           </>
         ))}
-        {introDone&&<div style={{textAlign:"center",marginTop:24,fontSize:11,color:B.textMute}}>PCM Family Office · DISCOVER · SIMPLIFY · EXECUTE</div>}
+        {introDone&&<div style={{textAlign:"center",marginTop:24,fontSize:11,color:B.textMute}}>{BRAND.name} · {BRAND.tagline}</div>}
       </div>
     </div>
   );
@@ -778,7 +796,7 @@ function FamilyReport({family,data,onClose}){
     @media print{body{padding:20px;}}
     </style></head><body>
     <div class="header">
-      <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/></div>
+      <div><img src="${BRAND.logo}" alt="${BRAND.name}" class="logo-img"/></div>
       <div style="text-align:right"><h1>${family.name}</h1><div class="advisor">Titan Expert: ${family.advisorName||"—"} | ${family.advisorEmail||""}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
     </div>
     <div class="stats">
@@ -2255,7 +2273,7 @@ function CashFlowEventForm({initial,onSave,onClose}){
       <Field label="Amount ($)"><MoneyInput value={f.amount||""} onChange={set("amount")}/></Field>
       <label style={{display:"flex",alignItems:"center",gap:8,margin:"2px 0 10px",cursor:"pointer",fontSize:13,color:B.text}}>
         <input type="checkbox" checked={!!f.pcmResponsible} onChange={e=>setF(p=>({...p,pcmResponsible:e.target.checked}))} style={{width:16,height:16,accentColor:B.navy}}/>
-        <span>PCM is responsible for making this payment</span>
+        <span>{BRAND.short} is responsible for making this payment</span>
       </label>
       </>
     :<Grid2>
@@ -2371,7 +2389,7 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
     @media print{body{padding:20px;}}
     </style></head><body>
     <div class="header">
-      <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/></div>
+      <div><img src="${BRAND.logo}" alt="${BRAND.name}" class="logo-img"/></div>
       <div style="text-align:right"><h1>Cash Flow Projection</h1><div class="sub">${family.name}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
     </div>
     <div class="assumptions">
@@ -2659,7 +2677,7 @@ function CashFlowView({family,events,paymentLog=[],properties,reload,toast,readO
     @media print{body{padding:20px;}}
     </style></head><body>
     <div class="header">
-      <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/></div>
+      <div><img src="${BRAND.logo}" alt="${BRAND.name}" class="logo-img"/></div>
       <div style="text-align:right"><h1>Relocation Tax Comparison</h1><div class="sub">${family.name}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
     </div>
     <div class="assumptions">
@@ -2993,9 +3011,9 @@ function CashFlowView({family,events,paymentLog=[],properties,reload,toast,readO
               {e._synthetic&&isNegative&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>Net Outflow</Badge>}
               {e._excluded&&<Badge scheme={{bg:B.bg,text:B.textMute,dot:B.textMute}}>Excluded</Badge>}
               {isExpense&&e.pcmResponsible&&!e._synthetic&&!isRegisterFreq(e)&&(e.paid
-                ?<Badge scheme={{bg:"#e0f5e9",text:"#0d5c2b",dot:"#18a850"}}>✓ Paid by PCM</Badge>
-                :<Badge scheme={{bg:"#e8f0f8",text:B.navy,dot:B.navy}}>PCM Pays</Badge>)}
-              {isExpense&&e.pcmResponsible&&!e._synthetic&&isRegisterFreq(e)&&<Badge scheme={{bg:"#e8f0f8",text:B.navy,dot:B.navy}}>PCM Pays · {e.frequency}</Badge>}
+                ?<Badge scheme={{bg:"#e0f5e9",text:"#0d5c2b",dot:"#18a850"}}>✓ Paid by {BRAND.short}</Badge>
+                :<Badge scheme={{bg:"#e8f0f8",text:B.navy,dot:B.navy}}>{BRAND.short} Pays</Badge>)}
+              {isExpense&&e.pcmResponsible&&!e._synthetic&&isRegisterFreq(e)&&<Badge scheme={{bg:"#e8f0f8",text:B.navy,dot:B.navy}}>{BRAND.short} Pays · {e.frequency}</Badge>}
             </div>
             {e.description&&<div style={{fontSize:13,color:B.textMid,marginBottom:4}}>{e.description}</div>}
             <div style={{fontSize:11,color:B.textSoft}}>{fmt(e.startDate)}{e.endDate?` → ${fmt(e.endDate)}`:""}{!isExpense?` · ${treatLabel}`:""}</div>
@@ -3166,7 +3184,7 @@ function printAdvisorReport(adv,data){
   @media print{body{padding:20px;}}
   </style></head><body>
   <div class="header">
-    <div><img src="${PCM_LOGO}" alt="PCM Family Office" class="logo-img"/></div>
+    <div><img src="${BRAND.logo}" alt="${BRAND.name}" class="logo-img"/></div>
     <div style="text-align:right"><h1>Titan Expert Activity Report</h1><div class="advisor">${esc(adv.name||email)}${email?` | ${esc(email)}`:""}</div><div class="date">${new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div></div>
   </div>
   <div class="stats">
@@ -4163,7 +4181,7 @@ function Dashboard({data,userProfile,reload,toast}){
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap",marginBottom:isMobile?16:24}}>
       <div>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?22:28,color:B.navy,fontWeight:600,marginBottom:4}}>Good {hr<12?"Morning":hr<17?"Afternoon":"Evening"}</div>
-        <div style={{color:B.textSoft,fontSize:isMobile?12:14}}>PCM Family Office — Portfolio & Client Overview{isAdmin&&scope?" · filtered by Titan Expert":""}</div>
+        <div style={{color:B.textSoft,fontSize:isMobile?12:14}}>{BRAND.name} — Portfolio & Client Overview{isAdmin&&scope?" · filtered by Titan Expert":""}</div>
         <div style={{height:2,width:56,background:B.gold,marginTop:10,borderRadius:2}}/>
       </div>
       <AdvisorScopeBar userProfile={userProfile} value={scope} onChange={setScope}/>
@@ -4900,7 +4918,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
                     <div style={{display:"flex",gap:12,alignItems:"flex-start",minWidth:0}}>
                       <div style={{flexShrink:0,width:46,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-                        <img src={PCM_MARK} alt="PCM" style={{height:40,width:"auto",display:"block"}}/>
+                        <img src={BRAND.mark} alt={BRAND.short} style={{height:40,width:"auto",display:"block"}}/>
                         <span style={{fontSize:8.5,fontWeight:800,letterSpacing:"0.06em",color:B.navyMid,background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:4,padding:"1px 5px",lineHeight:1.45,whiteSpace:"nowrap"}}>{fileLabel(doc.fileType,doc.name)}</span>
                       </div>
                       <div style={{minWidth:0}}>
@@ -5246,7 +5264,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
 
     {/* Footer */}
     <div style={{background:B.white,borderTop:`1px solid ${B.borderLight}`,padding:isMobile?"12px 16px":"16px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:isMobile?20:40,gap:8,flexDirection:isMobile?"column":"row",textAlign:"center"}}>
-      <div style={{fontSize:isMobile?10:11,color:B.textMute}}>PCM Family Office · info@pcmfamilyoffice.com</div>
+      <div style={{fontSize:isMobile?10:11,color:B.textMute}}>{BRAND.name} · {BRAND.contactEmail}</div>
       <div style={{fontSize:isMobile?9:10,color:B.textMute,letterSpacing:"0.1em"}}>CONFIDENTIAL · FOR AUTHORIZED RECIPIENTS ONLY</div>
     </div>
   </div>;
@@ -5294,7 +5312,7 @@ function PartnerDashboard({data,userProfile,logout,toast,reload}){
     <HeaderBar/>
     <div style={{padding:24,maxWidth:960,margin:"0 auto"}}>
       <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600,marginBottom:16}}>Select a Family</div>
-      {myFamilies.length===0&&<Empty text="No families are linked to your account yet. Contact your PCM representative."/>}
+      {myFamilies.length===0&&<Empty text={`No families are linked to your account yet. Contact your ${BRAND.short} representative.`}/>}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16}}>
         {myFamilies.map(f=><div key={f.id} onClick={()=>setSelectedId(f.id)} style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,padding:20,cursor:"pointer",boxShadow:B.shadow,transition:"box-shadow .15s"}}
           onMouseEnter={e=>e.currentTarget.style.boxShadow=B.shadowMd}
@@ -5650,12 +5668,15 @@ function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
         if(error)throw new Error(error.message);
         id=data.id;
       }
-      const{data,error}=await sb.functions.invoke("run-scheduled-prompts",{body:{forcePromptId:id}});
-      if(error)throw new Error(error.message||"Failed to run");
-      const r=(data&&data.results&&data.results[0])||null;
-      if(r&&r.status==="error")throw new Error(r.error||"Failed to run");
-      toast("Report sent to "+userProfile.email);
+      // Runs in the background on the server (a web-search report can take
+      // over a minute) — this call just kicks it off, it doesn't wait for it
+      // to finish. The card will show the real success/failure once it's
+      // done; reload a couple of times to pick that up without a manual refresh.
+      const{error}=await sb.functions.invoke("run-scheduled-prompts",{body:{forcePromptId:id}});
+      if(error)throw new Error(error.message||"Failed to start the run");
+      toast("Running now — "+userProfile.email+" will get an email when it's ready");
       setModal(null);load();
+      setTimeout(load,8000);setTimeout(load,25000);
     }catch(e){toast(e.message||"Could not run now","error");}
     finally{setRunningNow(false);}
   };
@@ -5674,12 +5695,15 @@ function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
   const runNow=async p=>{
     setRunningId(p.id);
     try{
-      const{data,error}=await sb.functions.invoke("run-scheduled-prompts",{body:{forcePromptId:p.id}});
-      if(error)throw new Error(error.message||"Failed to run");
-      const r=(data&&data.results&&data.results[0])||null;
-      if(r&&r.status==="error")throw new Error(r.error||"Failed to run");
-      toast("Report sent to "+p.ownerEmail);
+      // Runs in the background on the server (a web-search report can take
+      // over a minute) — this call just kicks it off, it doesn't wait for it
+      // to finish. Reload a couple of times to pick up the real result
+      // (shown in the "Last run" line below) without a manual refresh.
+      const{error}=await sb.functions.invoke("run-scheduled-prompts",{body:{forcePromptId:p.id}});
+      if(error)throw new Error(error.message||"Failed to start the run");
+      toast("Running now — "+p.ownerEmail+" will get an email when it's ready");
       load();
+      setTimeout(load,8000);setTimeout(load,25000);
     }catch(e){toast(e.message||"Could not run now","error");}
     finally{setRunningId(null);}
   };
@@ -5726,7 +5750,7 @@ function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
           <option value="digest">Book of Business Digest</option>
           <option value="concierge">Concierge Search (for one client)</option>
         </Sel>
-        <div style={{fontSize:11,color:B.textMute,marginTop:4}}>{mode==="concierge"?"Searches the live web for something a client asked you to look out for — real estate, boats, watches, tickets, anything.":"Reports on your own book of business (or one client) using data already in PCM."}</div>
+        <div style={{fontSize:11,color:B.textMute,marginTop:4}}>{mode==="concierge"?"Searches the live web for something a client asked you to look out for — real estate, boats, watches, tickets, anything.":`Reports on your own book of business (or one client) using data already in ${BRAND.short}.`}</div>
       </Field>
       <Field label="Name"><Inp placeholder={mode==="concierge"?"34' Boat Under $250k":"Monday Overdue Tasks Digest"} value={name} onChange={e=>setName(e.target.value)}/></Field>
 
@@ -6023,7 +6047,7 @@ export default function App(){
       <div style={{padding:"14px 16px 12px",borderBottom:`1px solid ${B.borderLight}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
         <div style={{flex:1}}>
           <PCMLogo compact/>
-          <div style={{fontSize:8,color:B.textMute,letterSpacing:"0.18em",marginTop:8}}>DISCOVER · SIMPLIFY · EXECUTE</div>
+          <div style={{fontSize:8,color:B.textMute,letterSpacing:"0.18em",marginTop:8}}>{BRAND.tagline}</div>
         </div>
         {isMobile&&<button onClick={()=>setSidebarOpen(false)} style={{background:"none",border:"none",color:B.textMute,fontSize:22,cursor:"pointer",padding:4,marginTop:-2}}>✕</button>}
       </div>
