@@ -76,6 +76,62 @@ const B = {
   shadowMd:`0 8px 40px rgba(${_pr[0]},${_pr[1]},${_pr[2]},0.13)`,
 };
 
+// ── RUNTIME BRAND PROFILES ───────────────────────────────────────────────────
+// Opt-in (VITE_BRAND_RUNTIME=1) database-driven branding, used on the demo /
+// pitch instance so it can be re-skinned for a different prospect instantly,
+// with no rebuild, and switched back and forth between concurrent sales cycles.
+// Deployments without the flag (i.e. PCM production) never query for it and
+// behave exactly as before.
+const RUNTIME_BRAND = String(import.meta.env.VITE_BRAND_RUNTIME||"")==="1";
+// BRAND and B are plain objects referenced by identity throughout the app, so
+// applying a profile is an in-place merge — no re-plumbing of the hundreds of
+// existing B.navy / BRAND.name references, and one re-render picks it all up.
+function applyBrandProfile(row){
+  if(!row)return;
+  const set=(obj,key,val)=>{if(val!==null&&val!==undefined&&val!=="")obj[key]=val;};
+  set(BRAND,"name",row.brand_name);
+  set(BRAND,"short",row.brand_short);
+  set(BRAND,"tagline",row.tagline);
+  set(BRAND,"contactEmail",row.contact_email);
+  set(BRAND,"emailDomain",row.email_domain);
+  set(BRAND,"logo",row.logo_url);
+  set(BRAND,"mark",row.mark_url);
+  set(B,"navy",row.color_primary);
+  set(B,"text",row.color_primary);
+  set(B,"navyMid",row.color_primary_mid);
+  set(B,"textMid",row.color_primary_mid);
+  set(B,"gold",row.color_accent);
+  set(B,"goldLight",row.color_accent_light);
+  set(B,"bg",row.color_bg);
+  set(B,"border",row.color_border);
+  set(B,"borderLight",row.color_border_light);
+  set(B,"textSoft",row.color_text_soft);
+  set(B,"textMute",row.color_text_mute);
+  const rgb=hexToRgb(B.navy);
+  B.shadow=`0 2px 16px rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.07)`;
+  B.shadowMd=`0 8px 40px rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.13)`;
+  // `inp` (the shared text-input style) snapshots B's values when this module is
+  // first evaluated, which happens before the profile is fetched — so it has to
+  // be re-synced explicitly or every input would keep the previous palette.
+  inp.background=B.bg;inp.border=`1px solid ${B.border}`;inp.color=B.text;
+  if(typeof document!=="undefined"){
+    document.title=BRAND.name;
+    const meta=document.querySelector('meta[name="theme-color"]');
+    if(meta)meta.setAttribute("content",B.navy);
+  }
+}
+// Read the active profile. Anonymous-readable by design: the login screen has to
+// be branded before anyone signs in. Any failure is non-fatal — the app simply
+// keeps its build-time branding rather than failing to load.
+async function loadActiveBrandProfile(){
+  if(!RUNTIME_BRAND)return;
+  try{
+    const{data,error}=await sb.from("brand_profiles").select("*").eq("is_active",true).maybeSingle();
+    if(error||!data)return;
+    applyBrandProfile(data);
+  }catch(_e){/* keep build-time branding */}
+}
+
 const STAGES=["Lead","Qualified","Proposal","Negotiation","Closed Won","Closed Lost"];
 const STAGE_COLORS={
   "Lead":{bg:"#e8f0f8",text:"#293d5c",dot:"#293d5c"},
@@ -5915,6 +5971,221 @@ function ResourcesView({data,userProfile,toast}){
 }
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
+// ── BRANDING (white-label profile manager) ───────────────────────────────────
+// Admin-only. Lets one deployment be re-skinned for whichever prospect is being
+// pitched, keeping every brand saved so concurrent sales cycles can be switched
+// back and forth without a rebuild.
+const BRAND_COLOR_FIELDS=[
+  {key:"color_primary",     label:"Primary"},
+  {key:"color_primary_mid", label:"Primary (mid)"},
+  {key:"color_accent",      label:"Accent"},
+  {key:"color_accent_light",label:"Accent (light)"},
+  {key:"color_bg",          label:"Page background"},
+  {key:"color_border",      label:"Border"},
+  {key:"color_border_light",label:"Border (light)"},
+  {key:"color_text_soft",   label:"Text (soft)"},
+  {key:"color_text_mute",   label:"Text (muted)"},
+];
+const BLANK_BRAND={
+  label:"",brand_name:"",brand_short:"",tagline:"",contact_email:"",email_domain:"",
+  logo_url:"",mark_url:"",notes:"",
+  color_primary:"#0f2a44",color_primary_mid:"#35507f",color_accent:"#c9a878",
+  color_accent_light:"#dfc99a",color_bg:"#f8f8f6",color_border:"#d8d3c8",
+  color_border_light:"#ecebe6",color_text_soft:"#5a6e84",color_text_mute:"#8fa0b2",
+};
+
+function ColorField({label,value,onChange}){
+  const v=/^#[0-9a-fA-F]{6}$/.test(value||"")?value:"#000000";
+  return <div style={{marginBottom:10}}>
+    <label style={{display:"block",fontSize:10,color:B.textSoft,marginBottom:4,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase"}}>{label}</label>
+    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+      <input type="color" value={v} onChange={e=>onChange(e.target.value)}
+        style={{width:36,height:34,padding:0,border:`1px solid ${B.border}`,borderRadius:6,background:B.white,cursor:"pointer",flexShrink:0}}/>
+      <input value={value||""} onChange={e=>onChange(e.target.value)} placeholder="#000000"
+        style={{...inp,fontFamily:"ui-monospace,monospace",fontSize:12,padding:"7px 10px"}}/>
+    </div>
+  </div>;
+}
+
+function BrandingView({toast}){
+  const[rows,setRows]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[modal,setModal]=useState(null); // {row, isNew}
+  const[saving,setSaving]=useState(false);
+  const[busyId,setBusyId]=useState(null);
+  const[uploading,setUploading]=useState("");
+
+  const load=async()=>{
+    setLoading(true);
+    const{data,error}=await sb.from("brand_profiles").select("*").order("label");
+    if(error)toast(error.message,"error");else setRows(data||[]);
+    setLoading(false);
+  };
+  useEffect(()=>{load();},[]);
+
+  // A switch changes colours captured in module-level style objects, so the only
+  // way to guarantee every corner of the UI (and the print/export templates)
+  // picks up the new palette is a clean reload.
+  const activate=async row=>{
+    setBusyId(row.id);
+    try{
+      const{error}=await sb.rpc("activate_brand_profile",{target:row.id});
+      if(error)throw new Error(error.message);
+      window.location.reload();
+    }catch(e){toast(e.message||"Could not switch brand","error");setBusyId(null);}
+  };
+
+  const save=async()=>{
+    const r=modal.row;
+    if(!r.label.trim()||!r.brand_name.trim()){toast("Profile name and brand name are required","error");return;}
+    setSaving(true);
+    try{
+      const payload={...r};delete payload.id;delete payload.is_active;delete payload.created_at;
+      payload.updated_at=new Date().toISOString();
+      if(modal.isNew){
+        const{error}=await sb.from("brand_profiles").insert(payload);
+        if(error)throw new Error(error.message);
+      }else{
+        const{error}=await sb.from("brand_profiles").update(payload).eq("id",r.id);
+        if(error)throw new Error(error.message);
+      }
+      // Editing the brand that's currently live? Reload so the change is visible.
+      if(!modal.isNew&&r.is_active){window.location.reload();return;}
+      toast(modal.isNew?"Brand profile created":"Brand profile saved");
+      setModal(null);load();
+    }catch(e){toast(e.message||"Could not save","error");}
+    finally{setSaving(false);}
+  };
+
+  const remove=async row=>{
+    if(row.is_active){toast("Switch to another brand before deleting this one","error");return;}
+    if(!window.confirm(`Delete the "${row.label}" brand profile?`))return;
+    const{error}=await sb.from("brand_profiles").delete().eq("id",row.id);
+    if(error)toast(error.message,"error");else{toast("Brand profile deleted");load();}
+  };
+
+  const duplicate=row=>{
+    const copy={...row,label:`${row.label} (copy)`};
+    delete copy.id;delete copy.created_at;copy.is_active=false;
+    setModal({row:copy,isNew:true});
+  };
+
+  const uploadAsset=async(file,field)=>{
+    if(!file)return;
+    if(!/^image\//.test(file.type)){toast("Please choose an image file","error");return;}
+    if(file.size>4*1024*1024){toast("Image must be under 4 MB","error");return;}
+    setUploading(field);
+    try{
+      const ext=(file.name.split(".").pop()||"png").toLowerCase();
+      const path=`${Date.now()}-${field}.${ext}`;
+      const{error}=await sb.storage.from("brand").upload(path,file,{upsert:true,contentType:file.type});
+      if(error)throw new Error(error.message);
+      const{data}=sb.storage.from("brand").getPublicUrl(path);
+      setModal(m=>({...m,row:{...m.row,[field]:data.publicUrl}}));
+      toast("Image uploaded");
+    }catch(e){toast(e.message||"Upload failed","error");}
+    finally{setUploading("");}
+  };
+
+  const set=(k,v)=>setModal(m=>({...m,row:{...m.row,[k]:v}}));
+
+  if(loading)return <div style={{padding:40}}><Spinner/></div>;
+
+  return <div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap",marginBottom:18}}>
+      <div>
+        <div style={{fontSize:13,color:B.textSoft,maxWidth:620,lineHeight:1.5}}>
+          Save a brand for each firm you're pitching and switch the whole platform over in one click —
+          logo, name, colours, and exported reports. Nothing here touches client data.
+        </div>
+      </div>
+      <Btn onClick={()=>setModal({row:{...BLANK_BRAND},isNew:true})}>+ New Brand</Btn>
+    </div>
+
+    {rows.length===0&&<Empty text="No brand profiles yet. Create one to get started."/>}
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
+      {rows.map(r=><div key={r.id} style={{background:B.white,border:`1px solid ${r.is_active?B.gold:B.borderLight}`,borderTop:`3px solid ${r.color_primary}`,borderRadius:12,padding:"16px 18px",boxShadow:B.shadow}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:8}}>
+          <div style={{minWidth:0}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600,lineHeight:1.2}}>{r.label}</div>
+            <div style={{fontSize:12,color:B.textSoft,marginTop:2}}>{r.brand_name}</div>
+          </div>
+          {r.is_active&&<Badge scheme={{bg:"#e0f5e9",text:"#0d5c2b",dot:"#18a850"}}>Live</Badge>}
+        </div>
+
+        {r.logo_url&&<div style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:8,padding:"10px 12px",marginBottom:10,textAlign:"center"}}>
+          <img src={r.logo_url} alt={r.brand_name} style={{maxHeight:38,maxWidth:"100%",width:"auto",display:"inline-block"}}/>
+        </div>}
+
+        <div style={{display:"flex",gap:5,marginBottom:12}}>
+          {["color_primary","color_primary_mid","color_accent","color_accent_light","color_bg"].map(k=>
+            <div key={k} title={r[k]} style={{width:26,height:26,borderRadius:6,background:r[k],border:`1px solid ${B.borderLight}`}}/>)}
+        </div>
+
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {!r.is_active&&<Btn small variant="gold" onClick={()=>activate(r)} disabled={busyId===r.id}>{busyId===r.id?"Switching…":"Make Live"}</Btn>}
+          <Btn small variant="ghost" onClick={()=>setModal({row:{...r},isNew:false})}>Edit</Btn>
+          <Btn small variant="ghost" onClick={()=>duplicate(r)}>Duplicate</Btn>
+          {!r.is_active&&<Btn small variant="danger" onClick={()=>remove(r)}>Delete</Btn>}
+        </div>
+      </div>)}
+    </div>
+
+    {modal&&<Modal wide title={modal.isNew?"New Brand Profile":`Edit — ${modal.row.label}`} onClose={()=>setModal(null)}>
+      <SectionLabel>Identity</SectionLabel>
+      <Grid2>
+        <Field label="Profile Name (internal)"><Inp value={modal.row.label||""} onChange={e=>set("label",e.target.value)} placeholder="Accurate Advisory Group"/></Field>
+        <Field label="Brand Name (shown in app)"><Inp value={modal.row.brand_name||""} onChange={e=>set("brand_name",e.target.value)} placeholder="Accurate Advisory Group"/></Field>
+        <Field label="Short Name"><Inp value={modal.row.brand_short||""} onChange={e=>set("brand_short",e.target.value)} placeholder="Accurate"/></Field>
+        <Field label="Tagline"><Inp value={modal.row.tagline||""} onChange={e=>set("tagline",e.target.value)} placeholder="GUIDANCE FOR A LIFETIME"/></Field>
+        <Field label="Contact Email"><Inp value={modal.row.contact_email||""} onChange={e=>set("contact_email",e.target.value)} placeholder="info@firm.com"/></Field>
+        <Field label="Email Domain"><Inp value={modal.row.email_domain||""} onChange={e=>set("email_domain",e.target.value)} placeholder="firm.com"/></Field>
+      </Grid2>
+
+      <SectionLabel>Logo</SectionLabel>
+      <Grid2>
+        {[{f:"logo_url",l:"Full Logo (sidebar & login)"},{f:"mark_url",l:"Icon / Mark (optional)"}].map(({f,l})=>
+          <Field key={f} label={l}>
+            {modal.row[f]&&<div style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:8,padding:10,marginBottom:8,textAlign:"center"}}>
+              <img src={modal.row[f]} alt="" style={{maxHeight:44,maxWidth:"100%",width:"auto"}}/>
+            </div>}
+            <input type="file" accept="image/*" onChange={e=>uploadAsset(e.target.files?.[0],f)} disabled={!!uploading}
+              style={{fontSize:12,marginBottom:6,width:"100%",color:B.textSoft}}/>
+            {uploading===f&&<div style={{fontSize:11,color:B.textSoft,marginBottom:4}}>Uploading…</div>}
+            <Inp value={modal.row[f]||""} onChange={e=>set(f,e.target.value)} placeholder="…or paste an image URL"
+              style={{fontSize:12}}/>
+          </Field>)}
+      </Grid2>
+      <div style={{fontSize:11,color:B.textMute,marginTop:-4,marginBottom:4,lineHeight:1.5}}>
+        Use a logo that reads on a light background — transparent PNG works best. Leave the mark blank to reuse the full logo.
+      </div>
+
+      <SectionLabel>Colours</SectionLabel>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:"0 14px"}}>
+        {BRAND_COLOR_FIELDS.map(({key,label})=>
+          <ColorField key={key} label={label} value={modal.row[key]} onChange={v=>set(key,v)}/>)}
+      </div>
+
+      <SectionLabel>Notes</SectionLabel>
+      <Field label="Internal Notes (optional)">
+        <textarea value={modal.row.notes||""} onChange={e=>set("notes",e.target.value)} rows={2}
+          placeholder="Pitch date, contacts, anything worth remembering"
+          style={{...inp,resize:"vertical",fontFamily:"inherit"}}/>
+      </Field>
+
+      {!modal.isNew&&modal.row.is_active&&<div style={{fontSize:11.5,color:B.textSoft,background:B.bg,border:`1px solid ${B.border}`,borderRadius:8,padding:"9px 12px",marginBottom:14}}>
+        This brand is currently live — saving will reload the page to apply your changes.
+      </div>}
+
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
+        <Btn variant="ghost" onClick={()=>setModal(null)} disabled={saving}>Cancel</Btn>
+        <Btn onClick={save} disabled={saving}>{saving?"Saving…":modal.isNew?"Create":"Save"}</Btn>
+      </div>
+    </Modal>}
+  </div>;
+}
+
 const NAV_SECTIONS=[
   {section:"CLIENT MANAGEMENT",items:[
     {id:"dashboard",label:"Dashboard",icon:"⬡"},
@@ -5934,6 +6205,9 @@ const NAV_SECTIONS=[
   ]},
   {section:"ADMIN",items:[
     {id:"users",label:"Users",icon:"⊕"},
+    // Only surfaced on instances running database-driven branding (the demo /
+    // pitch instance); a normal tenant deploy has no use for it.
+    ...(RUNTIME_BRAND?[{id:"branding",label:"Branding",icon:"◐"}]:[]),
   ]},
 ];
 const ALL_NAV=NAV_SECTIONS.flatMap(s=>s.items);
@@ -5948,6 +6222,10 @@ export default function App(){
   const[userProfile,setUserProfile]=useState(null);
   const[authLoading,setAuthLoading]=useState(true);
   const[sidebarOpen,setSidebarOpen]=useState(false);
+  // Runtime branding must be applied before the first paint, otherwise the login
+  // screen would flash the previous tenant's colours. Instances without
+  // VITE_BRAND_RUNTIME resolve immediately and never wait on a request.
+  const[brandReady,setBrandReady]=useState(!RUNTIME_BRAND);
   // Bumped on every sidebar nav click (even re-clicking the current section) and
   // used as a remount `key` for the active view below. This forces views like
   // FamiliesView to drop any drilled-in state (e.g. an open family dashboard)
@@ -5964,6 +6242,13 @@ export default function App(){
   const loadProfile=useCallback(async userId=>{
     const{data:d}=await sb.from("user_profiles").select("*").eq("id",userId).single();
     if(d){const p={id:d.id,email:d.email,role:d.role,fullName:d.full_name,active:d.active,familyId:d.family_id,canRunScheduledPrompts:!!d.can_run_scheduled_prompts};profileRef.current=p;setUserProfile(p);CURRENT_USER_LABEL=(d.full_name||d.email||"").trim();}
+  },[]);
+
+  useEffect(()=>{
+    if(!RUNTIME_BRAND)return;
+    let cancelled=false;
+    loadActiveBrandProfile().finally(()=>{if(!cancelled)setBrandReady(true);});
+    return()=>{cancelled=true;};
   },[]);
 
   useEffect(()=>{
@@ -6036,7 +6321,9 @@ export default function App(){
   const currentLabel=ALL_NAV.find(n=>n.id===tab)?.label||"";
   const currentSection=NAV_SECTIONS.find(s=>s.items.some(i=>i.id===tab))?.section||"";
 
-  if(authLoading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
+  // Hold the first paint until runtime branding has resolved, so the login
+  // screen never flashes the previously active tenant's colours or logo.
+  if(!brandReady||authLoading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
   if(!authed||!userProfile)return <LoginScreen/>;
   if(userProfile.active===false)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,fontFamily:"'DM Sans',sans-serif",color:B.navy,fontSize:16,flexDirection:"column",gap:12}}><div style={{fontSize:40}}>🔒</div>Your account has been deactivated. Contact your administrator.</div>;
 
@@ -6127,6 +6414,7 @@ export default function App(){
           {tab==="cm-notes"    &&<NotesView key={navNonce} data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="cm-tasks"    &&<TasksView key={navNonce} data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="users"       &&<UserManagementView key={navNonce} userProfile={userProfile} data={data} toast={showToast}/>}
+          {tab==="branding"    &&RUNTIME_BRAND&&<BrandingView key={navNonce} toast={showToast}/>}
           {tab==="resources"   &&<ResourcesView key={navNonce} data={data} userProfile={userProfile} toast={showToast}/>}
           {tab==="p-contacts"  &&<ProspectContactsView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="p-pipeline"  &&<ProspectPipelineView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
