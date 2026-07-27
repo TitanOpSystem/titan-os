@@ -22,18 +22,19 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── WHITE-LABEL BRAND CONFIG ─────────────────────────────────────────────────
+// TitanOS is the product. Every deployment — including PCM's own — is a tenant
+// that supplies its own identity through these env vars; with none set you get
+// plain TitanOS. (PCM_LOGO/PCM_MARK stay bundled only as the last-resort image
+// fallback so the app never renders a broken logo.)
 const BRAND = {
-  name: import.meta.env.VITE_BRAND_NAME || "PCM Family Office",
-  short: import.meta.env.VITE_BRAND_SHORT || "PCM",
-  tagline: import.meta.env.VITE_BRAND_TAGLINE || "DISCOVER · SIMPLIFY · EXECUTE",
-  contactEmail: import.meta.env.VITE_BRAND_CONTACT_EMAIL || "info@pcmfamilyoffice.com",
-  emailDomain: import.meta.env.VITE_BRAND_EMAIL_DOMAIN || "pcmfamilyoffice.com",
-  logo: import.meta.env.VITE_BRAND_LOGO_URL || PCM_LOGO,
-  mark: import.meta.env.VITE_BRAND_MARK_URL || PCM_MARK,
+  name: import.meta.env.VITE_BRAND_NAME || "TitanOS",
+  short: import.meta.env.VITE_BRAND_SHORT || "TitanOS",
+  tagline: import.meta.env.VITE_BRAND_TAGLINE || "THE FAMILY OFFICE OPERATING SYSTEM",
+  contactEmail: import.meta.env.VITE_BRAND_CONTACT_EMAIL || "",
+  emailDomain: import.meta.env.VITE_BRAND_EMAIL_DOMAIN || "titanos.com",
+  logo: import.meta.env.VITE_BRAND_LOGO_URL || "/titanos-logo-full.png",
+  mark: import.meta.env.VITE_BRAND_MARK_URL || "/titanos-mark.png",
 };
-// Keep the browser tab title in sync with the brand (index.html ships the PCM
-// default; a white-label deploy overrides it here at startup).
-if(typeof document!=="undefined"&&BRAND.name!=="PCM Family Office")document.title=BRAND.name;
 
 // ── MOBILE DETECTION ──────────────────────────────────────────────────────────
 const MOBILE_BREAKPOINT = 768;
@@ -118,6 +119,13 @@ function applyBrandProfile(row){
     document.title=BRAND.name;
     const meta=document.querySelector('meta[name="theme-color"]');
     if(meta)meta.setAttribute("content",B.navy);
+    // Swap the tab icon to the tenant's mark as well. Note this only affects a
+    // live browser session — link-preview crawlers and the initial favicon come
+    // from the build-time <head> (see vite.config.js).
+    if(BRAND.mark){
+      document.querySelectorAll('link[rel="icon"],link[rel="apple-touch-icon"]')
+        .forEach(l=>l.setAttribute("href",BRAND.mark));
+    }
   }
 }
 // Read the active profile. Anonymous-readable by design: the login screen has to
