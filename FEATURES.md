@@ -95,7 +95,7 @@ something done.
 | Capability | Status |
 |---|---|
 | Recurring obligations: premiums, estimated tax, RMDs, capital calls, loan payments | LIVE |
-| Four starter playbooks ship with the product | LIVE |
+| Nine starter playbooks ship with the product, across four disciplines | LIVE |
 | Lead times measured back from the due date, per playbook | LIVE |
 | Conditional steps — e.g. Crummey notices only where the trust requires them | LIVE |
 | Conditions resolved before dates are set, because they change the schedule | LIVE |
