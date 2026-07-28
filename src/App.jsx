@@ -6304,6 +6304,196 @@ function ResourcesView({data,userProfile,toast}){
     {activeDoc&&family&&<FillClientDocModal docId={activeDoc} family={family} contact={primaryContact} userProfile={userProfile} bankAccount={bankAccount} onClose={()=>setActiveDoc(null)} toast={toast}/>}
 
     <ScheduledPromptsSection userProfile={userProfile} families={families} toast={toast}/>
+    <WorkflowTemplatesSection userProfile={userProfile} toast={toast}/>
+  </div>;
+}
+
+// ── WORKFLOW TEMPLATE LIBRARY ────────────────────────────────────────────────
+// The playbooks behind recurring obligations. Read-only for Titan Experts and
+// Partners so they can see exactly what a workflow will do before it runs;
+// editable by admins, because changing a lead time changes what happens to real
+// client money.
+const STEP_ACTORS=[
+  {v:"ai",      label:"AI prepares"},
+  {v:"expert",  label:"Expert acts"},
+  {v:"external",label:"Waiting on someone else"},
+];
+const STEP_KINDS=[
+  {v:"extract",       label:"Read a document"},
+  {v:"check",         label:"Verify / sanity-check"},
+  {v:"draft_document",label:"Draft a document"},
+  {v:"draft_email",   label:"Draft an email"},
+  {v:"draft_letter",  label:"Draft a letter"},
+  {v:"confirm",       label:"Confirm something happened"},
+  {v:"file",          label:"File / record"},
+];
+const STEP_RECIPIENTS=["","bank","grantor","beneficiaries","trustee","carrier","internal"];
+const actorLabel=v=>STEP_ACTORS.find(a=>a.v===v)?.label||v;
+const kindLabel=v=>STEP_KINDS.find(a=>a.v===v)?.label||v;
+// Negative offsets read as "N days before", which is how the firm talks about them.
+const offsetLabel=n=>{
+  const d=Number(n)||0;
+  if(d<0)return `${Math.abs(d)} days before`;
+  if(d>0)return `${d} days after`;
+  return "on the due date";
+};
+const ACTOR_TINT={ai:{bg:"rgba(206,182,132,0.20)",dot:"#c9a878"},expert:{bg:"rgba(9,43,73,0.09)",dot:"#0f2a44"},external:{bg:"rgba(143,160,178,0.16)",dot:"#8fa0b2"}};
+
+function WorkflowTemplatesSection({userProfile,toast}){
+  const isAdmin=userProfile?.role==="admin";
+  const[rows,setRows]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[openKey,setOpenKey]=useState(null);
+  const[editing,setEditing]=useState(null);  // {template, steps:[…]}
+  const[saving,setSaving]=useState(false);
+
+  const load=async()=>{
+    setLoading(true);
+    const{data,error}=await sb.from("workflow_templates").select("*").eq("active",true).order("category").order("name");
+    if(error)toast(error.message,"error");else setRows(data||[]);
+    setLoading(false);
+  };
+  useEffect(()=>{load();},[]);
+
+  const save=async()=>{
+    if(!editing)return;
+    // Steps run in date order regardless of how they were entered, so sort before
+    // saving rather than trusting the order in the editor.
+    const steps=[...editing.steps].sort((a,b)=>(Number(a.offset_days)||0)-(Number(b.offset_days)||0));
+    if(steps.some(s=>!String(s.title||"").trim())){toast("Every step needs a title","error");return;}
+    setSaving(true);
+    const{error}=await sb.from("workflow_templates")
+      .update({steps,updated_at:new Date().toISOString()}).eq("id",editing.template.id);
+    if(error)toast(error.message,"error");
+    else{toast("Playbook updated");setEditing(null);load();}
+    setSaving(false);
+  };
+
+  const setStep=(i,patch)=>setEditing(e=>({...e,steps:e.steps.map((s,j)=>j===i?{...s,...patch}:s)}));
+  const addStep=()=>setEditing(e=>({...e,steps:[...e.steps,
+    {key:`step_${Date.now().toString(36)}`,title:"",offset_days:-30,actor:"expert",kind:"draft_email",recipient:"",note:""}]}));
+  const removeStep=i=>setEditing(e=>({...e,steps:e.steps.filter((_,j)=>j!==i)}));
+
+  if(loading)return null;
+
+  return <div style={{marginTop:34}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:12,flexWrap:"wrap",marginBottom:6}}>
+      <div>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600}}>Workflow Playbooks</div>
+        <div style={{fontSize:12,color:B.textSoft,marginTop:2,maxWidth:660,lineHeight:1.5}}>
+          How a recurring obligation is carried to completion. Every outbound step waits for a named approval —
+          nothing is sent, and no money is moved, without a person deciding.
+        </div>
+      </div>
+      {!isAdmin&&<div style={{fontSize:11,color:B.textMute,fontStyle:"italic"}}>View only</div>}
+    </div>
+    <GoldLine/>
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14,marginTop:14}}>
+      {rows.map(t=>{
+        const steps=Array.isArray(t.steps)?t.steps:[];
+        const earliest=steps.reduce((m,s)=>Math.min(m,Number(s.offset_days)||0),0);
+        const conditional=steps.filter(s=>s.requires).length;
+        const approvals=steps.filter(s=>s.actor==="expert").length;
+        const isOpen=openKey===t.key;
+        return <div key={t.id} style={{background:B.white,border:`1px solid ${isOpen?B.gold:B.borderLight}`,borderTop:`3px solid ${B.navy}`,borderRadius:12,padding:"16px 18px",boxShadow:B.shadow,gridColumn:isOpen?"1 / -1":"auto"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+            <div style={{minWidth:0}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,color:B.navy,fontWeight:600,lineHeight:1.2}}>{t.name}</div>
+              <div style={{fontSize:11,color:B.textMute,marginTop:2,letterSpacing:"0.06em",textTransform:"uppercase"}}>{t.category}</div>
+            </div>
+            {t.is_starter&&<Badge scheme={{bg:"rgba(206,182,132,0.22)",text:"#7a5a19",dot:B.gold}}>Included</Badge>}
+          </div>
+
+          {t.description&&<div style={{fontSize:12,color:B.textSoft,marginTop:8,lineHeight:1.55}}>{t.description}</div>}
+
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:11,marginBottom:11}}>
+            {[[`${steps.length} steps`,null],[`starts ${Math.abs(earliest)}d ahead`,null],
+              [`${approvals} approvals`,null],...(conditional?[[`${conditional} conditional`,null]]:[])]
+              .map(([lbl])=><span key={lbl} style={{fontSize:10.5,color:B.navyMid,background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:20,padding:"3px 9px"}}>{lbl}</span>)}
+          </div>
+
+          <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+            <Btn small variant="ghost" onClick={()=>setOpenKey(isOpen?null:t.key)}>{isOpen?"Hide steps":"View steps"}</Btn>
+            {isAdmin&&<Btn small onClick={()=>{setOpenKey(t.key);setEditing({template:t,steps:steps.map(s=>({...s}))});}}>Edit</Btn>}
+          </div>
+
+          {isOpen&&<div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${B.borderLight}`}}>
+            {steps.map((s,i)=>{
+              const tint=ACTOR_TINT[s.actor]||ACTOR_TINT.external;
+              return <div key={s.key||i} style={{display:"flex",gap:12,alignItems:"flex-start",padding:"9px 0",borderBottom:i<steps.length-1?`1px solid ${B.borderLight}`:"none"}}>
+                <div style={{minWidth:104,textAlign:"right",fontSize:11,fontWeight:700,color:B.navy,paddingTop:2}}>{offsetLabel(s.offset_days)}</div>
+                <div style={{width:10,height:10,borderRadius:"50%",background:tint.dot,marginTop:5,flexShrink:0}}/>
+                <div style={{minWidth:0,flex:1}}>
+                  <div style={{fontSize:13,color:B.text,fontWeight:600}}>
+                    {s.title}
+                    {s.requires&&<span style={{marginLeft:7,fontSize:10,color:"#7a5a19",background:"rgba(206,182,132,0.22)",border:`1px solid ${B.gold}`,borderRadius:20,padding:"1px 7px"}}>only if {String(s.requires).replace(/_/g," ")}</span>}
+                  </div>
+                  <div style={{fontSize:11,color:B.textSoft,marginTop:2}}>
+                    <span style={{background:tint.bg,borderRadius:4,padding:"1px 6px"}}>{actorLabel(s.actor)}</span>
+                    {" · "}{kindLabel(s.kind)}
+                    {s.recipient?` · to ${s.recipient}`:""}
+                    {s.opens_window_days?` · opens a ${s.opens_window_days}-day window`:""}
+                  </div>
+                  {s.note&&<div style={{fontSize:11,color:B.textMute,marginTop:3,lineHeight:1.5}}>{s.note}</div>}
+                </div>
+              </div>;
+            })}
+            {!steps.length&&<Empty text="This playbook has no steps yet."/>}
+          </div>}
+        </div>;
+      })}
+    </div>
+
+    {editing&&<Modal wide title={`Edit — ${editing.template.name}`} onClose={()=>setEditing(null)}>
+      <div style={{fontSize:11.5,color:B.textSoft,marginBottom:14,lineHeight:1.55}}>
+        Timing is measured from the obligation's due date. Steps are saved in date order.
+        Changing a lead time changes when real client money is requested, so review carefully.
+      </div>
+      {editing.steps.map((s,i)=><div key={s.key||i} style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderLeft:`3px solid ${(ACTOR_TINT[s.actor]||ACTOR_TINT.external).dot}`,borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+        <Field label={`Step ${i+1} — title`}><Inp value={s.title||""} onChange={e=>setStep(i,{title:e.target.value})} placeholder="Prepare transfer request for the bank"/></Field>
+        <Grid2>
+          <Field label="Days from due date (negative = before)">
+            <Inp type="number" value={s.offset_days??0} onChange={e=>setStep(i,{offset_days:parseInt(e.target.value,10)||0})}/>
+          </Field>
+          <Field label="Who acts">
+            <Sel value={s.actor||"expert"} onChange={e=>setStep(i,{actor:e.target.value})}>
+              {STEP_ACTORS.map(a=><option key={a.v} value={a.v}>{a.label}</option>)}
+            </Sel>
+          </Field>
+          <Field label="What happens">
+            <Sel value={s.kind||"draft_email"} onChange={e=>setStep(i,{kind:e.target.value})}>
+              {STEP_KINDS.map(a=><option key={a.v} value={a.v}>{a.label}</option>)}
+            </Sel>
+          </Field>
+          <Field label="Recipient">
+            <Sel value={s.recipient||""} onChange={e=>setStep(i,{recipient:e.target.value})}>
+              {STEP_RECIPIENTS.map(r=><option key={r||"none"} value={r}>{r||"— none —"}</option>)}
+            </Sel>
+          </Field>
+          <Field label="Only if this flag is set (optional)">
+            <Inp value={s.requires||""} onChange={e=>setStep(i,{requires:e.target.value||undefined})} placeholder="crummey_required"/>
+          </Field>
+          <Field label="Opens a waiting window (days)">
+            <Inp type="number" value={s.opens_window_days??""} onChange={e=>setStep(i,{opens_window_days:e.target.value?parseInt(e.target.value,10):undefined})} placeholder="30"/>
+          </Field>
+        </Grid2>
+        <Field label="Guidance shown to the reviewer">
+          <textarea value={s.note||""} onChange={e=>setStep(i,{note:e.target.value})} rows={2}
+            style={{...inp,resize:"vertical",fontFamily:"inherit"}}/>
+        </Field>
+        <div style={{textAlign:"right"}}>
+          <Btn small variant="danger" onClick={()=>removeStep(i)}>Remove step</Btn>
+        </div>
+      </div>)}
+      <div style={{display:"flex",gap:10,justifyContent:"space-between",marginTop:6,flexWrap:"wrap"}}>
+        <Btn small variant="ghost" onClick={addStep}>+ Add step</Btn>
+        <div style={{display:"flex",gap:10}}>
+          <Btn variant="ghost" onClick={()=>setEditing(null)} disabled={saving}>Cancel</Btn>
+          <Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save playbook"}</Btn>
+        </div>
+      </div>
+    </Modal>}
   </div>;
 }
 
