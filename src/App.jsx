@@ -4405,6 +4405,7 @@ function collectDeadlines({tasks=[],properties=[],deals=[],contacts=[],families=
 function ReviewQueue({families,toast,userProfile}){
   const[rows,setRows]=useState([]);
   const[busy,setBusy]=useState(null);
+  const[review,setReview]=useState(null);
   const famName=id=>(families.find(f=>f.id===id)?.name||"").replace(" [DEMO]","");
 
   const load=async()=>{
@@ -4459,8 +4460,8 @@ function ReviewQueue({families,toast,userProfile}){
             {statusWord(s.status)}
           </span>
           <Btn small variant={outbound?"gold":"ghost"} disabled={busy===s.id}
-            onClick={()=>act(s,outbound?"sent":"done")}>
-            {busy===s.id?"…":outbound?"Approve & send":"Mark done"}
+            onClick={()=>outbound?setReview(s):act(s,"done")}>
+            {busy===s.id?"…":outbound?(s.draft_body?"Review draft":"Prepare draft"):"Mark done"}
           </Btn>
         </div>;
       })}
@@ -4468,6 +4469,8 @@ function ReviewQueue({families,toast,userProfile}){
     <div style={{fontSize:11,color:B.textMute,marginTop:10,lineHeight:1.5}}>
       Approving records your name against the step. Nothing here has been sent yet.
     </div>
+    {review&&<DraftReviewModal step={review} toast={toast} userProfile={userProfile}
+      onClose={()=>setReview(null)} onApproved={load}/>}
   </div>;
 }
 
@@ -6450,6 +6453,108 @@ async function generateWorkflowCycle({template,obligation,dueDate,familyId}){
   return inst;
 }
 
+// ── DRAFT REVIEW ─────────────────────────────────────────────────────────────
+// Where a person actually reads what the AI wrote, edits it, and decides. The
+// approve action is deliberately the only route to "sent": there is no path that
+// dispatches a draft without someone putting their name to it.
+const OUTBOUND_KINDS=["draft_email","draft_letter","draft_document"];
+const isOutbound=k=>OUTBOUND_KINDS.includes(k);
+
+function DraftReviewModal({step,onClose,onApproved,toast,userProfile}){
+  const[to,setTo]=useState(step.draftTo||step.draft_to||"");
+  const[subject,setSubject]=useState(step.draftSubject||step.draft_subject||"");
+  const[body,setBody]=useState(step.draftBody||step.draft_body||"");
+  const[drafting,setDrafting]=useState(false);
+  const[busy,setBusy]=useState(false);
+  const[attached,setAttached]=useState(null);
+  const hasDraft=!!String(body||"").trim();
+
+  const generate=async()=>{
+    setDrafting(true);
+    try{
+      const{data,error}=await sb.functions.invoke("draft-workflow-step",{body:{stepId:step.id}});
+      if(error)throw new Error(error.message||"Could not prepare a draft");
+      if(data?.error)throw new Error(data.error);
+      setTo(data.to||"");setSubject(data.subject||"");setBody(data.body||"");
+      setAttached(data.attached||null);
+      toast(data.attached?`Draft prepared — ${data.attached} attached`:"Draft prepared");
+    }catch(e){toast(e.message||"Drafting failed","error");}
+    setDrafting(false);
+  };
+
+  // Saving edits without approving: the reviewer can park a revision and come back.
+  const persist=async(extra)=>{
+    const{error}=await sb.from("workflow_instance_steps").update({
+      draft_to:to||null,draft_subject:subject||null,draft_body:body||null,
+      updated_at:new Date().toISOString(),...extra,
+    }).eq("id",step.id);
+    if(error)throw new Error(error.message);
+  };
+
+  const saveOnly=async()=>{
+    setBusy(true);
+    try{await persist({});toast("Draft saved");onApproved&&onApproved();onClose();}
+    catch(e){toast(e.message,"error");}
+    setBusy(false);
+  };
+
+  const approve=async()=>{
+    if(!hasDraft){toast("Prepare or write a draft first","error");return;}
+    setBusy(true);
+    try{
+      await persist({status:"sent",approved_by:CURRENT_USER_LABEL||userProfile?.email||"—",
+        approved_at:new Date().toISOString(),sent_at:new Date().toISOString()});
+      toast("Approved — recorded against your name");
+      onApproved&&onApproved();onClose();
+    }catch(e){toast(e.message,"error");}
+    setBusy(false);
+  };
+
+  return <Modal wide title={step.title} onClose={onClose}>
+    <div style={{fontSize:11.5,color:B.textSoft,marginBottom:14,lineHeight:1.55}}>
+      {kindLabel(step.kind)}{step.recipient?` · to ${step.recipient}`:""} · scheduled {fmt(step.dueOn||step.due_on)}
+      {step.notes?<div style={{marginTop:6,color:B.textMute}}>{step.notes}</div>:null}
+    </div>
+
+    {!hasDraft&&<div style={{background:B.bg,border:`1px dashed ${B.border}`,borderRadius:10,padding:"18px",textAlign:"center",marginBottom:14}}>
+      <div style={{fontSize:12.5,color:B.textSoft,marginBottom:10,lineHeight:1.55}}>
+        Nothing drafted yet. TitanOS will assemble this from the obligation, the funding
+        accounts and the source document on file — then you review it.
+      </div>
+      <Btn onClick={generate} disabled={drafting}>{drafting?"Preparing…":"✦ Prepare draft"}</Btn>
+    </div>}
+
+    {hasDraft&&<>
+      <Grid2>
+        <Field label="To"><Inp value={to} onChange={e=>setTo(e.target.value)} placeholder="Recipient"/></Field>
+        <Field label="Subject"><Inp value={subject} onChange={e=>setSubject(e.target.value)}/></Field>
+      </Grid2>
+      <Field label="Draft — edit freely before approving">
+        <textarea value={body} onChange={e=>setBody(e.target.value)} rows={16}
+          style={{...inp,resize:"vertical",fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace",fontSize:12.5,lineHeight:1.6}}/>
+      </Field>
+      {attached&&<div style={{fontSize:11.5,color:B.navy,background:"rgba(206,182,132,0.18)",border:`1px solid ${B.gold}`,borderRadius:8,padding:"8px 12px",marginBottom:12}}>
+        📎 {attached} will go with this
+      </div>}
+      <div style={{fontSize:11,color:B.textMute,marginBottom:14,lineHeight:1.5}}>
+        Square-bracketed placeholders mark anything the record could not supply — complete those before approving.
+        Approving records your name and time against this step.
+      </div>
+    </>}
+
+    <div style={{display:"flex",gap:10,justifyContent:"space-between",flexWrap:"wrap"}}>
+      <div style={{display:"flex",gap:8}}>
+        {hasDraft&&<Btn small variant="ghost" onClick={generate} disabled={drafting}>{drafting?"Re-drafting…":"↻ Re-draft"}</Btn>}
+      </div>
+      <div style={{display:"flex",gap:10}}>
+        <Btn variant="ghost" onClick={onClose} disabled={busy}>Close</Btn>
+        {hasDraft&&<Btn variant="ghost" onClick={saveOnly} disabled={busy}>Save without approving</Btn>}
+        {hasDraft&&<Btn variant="gold" onClick={approve} disabled={busy}>{busy?"…":"Approve & mark sent"}</Btn>}
+      </div>
+    </div>
+  </Modal>;
+}
+
 // ── OBLIGATIONS + LIVE CYCLES (per family) ───────────────────────────────────
 const BLANK_OBLIGATION={
   name:"",kind:"premium",amount:"",due_date:"",recurrence:"annually",
@@ -6466,6 +6571,7 @@ function ObligationsSection({family,data,toast,canEdit,userProfile}){
   const[modal,setModal]=useState(null);
   const[saving,setSaving]=useState(false);
   const[openInst,setOpenInst]=useState(null);
+  const[review,setReview]=useState(null);   // outbound step being read before approval
   const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
 
   const load=async()=>{
@@ -6629,8 +6735,8 @@ function ObligationsSection({family,data,toast,canEdit,userProfile}){
                     </div>
                     <span style={{fontSize:10,fontWeight:700,borderRadius:20,padding:"3px 9px",background:tint.bg,color:tint.text,whiteSpace:"nowrap"}}>{statusWord(s.status)}</span>
                     {canEdit&&!finished&&<Btn small variant={outbound?"gold":"ghost"}
-                      onClick={()=>advance(s,outbound?"sent":"done")}>
-                      {outbound?"Approve & send":"Mark done"}
+                      onClick={()=>outbound?setReview(s):advance(s,"done")}>
+                      {outbound?(s.draft_body?"Review draft":"Prepare draft"):"Mark done"}
                     </Btn>}
                   </div>;
                 })}
@@ -6640,6 +6746,9 @@ function ObligationsSection({family,data,toast,canEdit,userProfile}){
         </div>;
       })}
     </div>
+
+    {review&&<DraftReviewModal step={review} toast={toast} userProfile={userProfile}
+      onClose={()=>setReview(null)} onApproved={load}/>}
 
     {modal&&<Modal wide title={modal.isNew?"New Obligation":`Edit — ${modal.row.name}`} onClose={()=>setModal(null)}>
       <Grid2>
