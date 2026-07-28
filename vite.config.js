@@ -30,6 +30,12 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const pick = (key, fallback) => (env[key] && env[key].trim() ? env[key].trim() : fallback)
 
+  // Stamped into the bundle and also published as /version.json, so an already-
+  // open tab can notice that a newer build has been deployed and offer to reload
+  // instead of silently running yesterday's code. Prefer Vercel's commit SHA so
+  // the id is stable across the build's own retries.
+  const buildId = (env.VITE_BUILD_ID || process.env.VERCEL_GIT_COMMIT_SHA || String(Date.now())).slice(0, 12)
+
   const brand = {
     name: pick('VITE_BRAND_NAME', TITANOS_DEFAULTS.name),
     short: pick('VITE_BRAND_SHORT', TITANOS_DEFAULTS.short),
@@ -54,8 +60,20 @@ export default defineConfig(({ mode }) => {
       : brand.ogImage
 
   return {
+    define: { __BUILD_ID__: JSON.stringify(buildId) },
     plugins: [
       react(),
+      {
+        // Publishes the build id as a tiny always-fresh file the running app polls.
+        name: 'emit-version',
+        generateBundle() {
+          this.emitFile({
+            type: 'asset',
+            fileName: 'version.json',
+            source: JSON.stringify({ build: buildId, builtAt: new Date().toISOString() }),
+          })
+        },
+      },
       {
         name: 'brand-html',
         // MUST run before Vite's own build-html pass. That pass calls decodeURI()

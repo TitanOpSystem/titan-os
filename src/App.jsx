@@ -77,6 +77,66 @@ const B = {
   shadowMd:`0 8px 40px rgba(${_pr[0]},${_pr[1]},${_pr[2]},0.13)`,
 };
 
+// ── BUILD VERSION / UPDATE DETECTION ─────────────────────────────────────────
+// This app is typically left open for hours, so a deploy would otherwise go
+// unnoticed until someone happened to reload. The build id is stamped into the
+// bundle at build time and also published as /version.json; polling that file
+// tells a running tab that a newer build is live.
+// eslint-disable-next-line no-undef
+const BUILD_ID=typeof __BUILD_ID__!=="undefined"?__BUILD_ID__:"dev";
+// Clears everything a browser might replay from an earlier build before reloading:
+// the Cache Storage entries the service worker keeps, and the worker itself.
+async function hardReload(){
+  try{
+    if("caches" in window){
+      const keys=await caches.keys();
+      await Promise.all(keys.map(k=>caches.delete(k)));
+    }
+    if(navigator.serviceWorker){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(async r=>{
+        if(r.waiting)r.waiting.postMessage("SKIP_WAITING");
+        try{await r.update();}catch(_e){}
+      }));
+    }
+  }catch(_e){/* a failed cleanup shouldn't block the reload */}
+  window.location.reload();
+}
+function useBuildUpdate(){
+  const[stale,setStale]=useState(false);
+  useEffect(()=>{
+    if(BUILD_ID==="dev")return;           // no deploys to detect while developing
+    let stopped=false;
+    const check=async()=>{
+      if(stopped||document.hidden)return;
+      try{
+        const r=await fetch("/version.json",{cache:"no-store"});
+        if(!r.ok)return;
+        const j=await r.json();
+        if(j&&j.build&&j.build!==BUILD_ID)setStale(true);
+      }catch(_e){/* offline or blocked — try again next tick */}
+    };
+    check();
+    const id=setInterval(check,120000);            // every two minutes
+    document.addEventListener("visibilitychange",check);
+    return()=>{stopped=true;clearInterval(id);document.removeEventListener("visibilitychange",check);};
+  },[]);
+  return stale;
+}
+function UpdateBanner(){
+  const stale=useBuildUpdate();
+  if(!stale)return null;
+  return <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:1200,background:B.navy,color:B.white,
+    padding:"11px 18px",display:"flex",alignItems:"center",justifyContent:"center",gap:14,flexWrap:"wrap",
+    boxShadow:"0 -4px 18px rgba(0,0,0,0.22)",borderTop:`2px solid ${B.gold}`}}>
+    <span style={{fontSize:13}}>A newer version of {BRAND.name} is available.</span>
+    <button onClick={hardReload} style={{background:B.gold,color:B.navy,border:"none",borderRadius:7,
+      padding:"7px 16px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.03em"}}>
+      Reload now
+    </button>
+  </div>;
+}
+
 // ── RUNTIME BRAND PROFILES ───────────────────────────────────────────────────
 // Opt-in (VITE_BRAND_RUNTIME=1) database-driven branding, used on the demo /
 // pitch instance so it can be re-skinned for a different prospect instantly,
@@ -90,13 +150,23 @@ const RUNTIME_BRAND = String(import.meta.env.VITE_BRAND_RUNTIME||"")==="1";
 function applyBrandProfile(row){
   if(!row)return;
   const set=(obj,key,val)=>{if(val!==null&&val!==undefined&&val!=="")obj[key]=val;};
+  // A tenant replacing their logo keeps the same filename, so the browser would
+  // happily go on showing the previous image. Tagging the URL with the profile's
+  // updated_at changes the URL whenever the brand record changes, which forces a
+  // fresh fetch exactly when it matters and still allows caching in between.
+  const stamp=row.updated_at?String(Date.parse(row.updated_at)||"").slice(-8):"";
+  const bust=u=>{
+    if(!u||!stamp)return u;
+    if(u.startsWith("data:"))return u;          // inline images have nothing to revalidate
+    return u+(u.includes("?")?"&":"?")+"v="+stamp;
+  };
   set(BRAND,"name",row.brand_name);
   set(BRAND,"short",row.brand_short);
   set(BRAND,"tagline",row.tagline);
   set(BRAND,"contactEmail",row.contact_email);
   set(BRAND,"emailDomain",row.email_domain);
-  set(BRAND,"logo",row.logo_url);
-  set(BRAND,"mark",row.mark_url);
+  set(BRAND,"logo",bust(row.logo_url));
+  set(BRAND,"mark",bust(row.mark_url));
   set(B,"navy",row.color_primary);
   set(B,"text",row.color_primary);
   set(B,"navyMid",row.color_primary_mid);
@@ -662,12 +732,20 @@ function StatBox({label,value,accent}){
   </div>;
 }
 
+// If the branded artwork fails to load (network blip, a tenant URL that has gone
+// away), fall back to the brand name as text rather than leaving an empty gap
+// where the logo should be — a blank header looks broken in front of a client.
+function BrandImg({src,alt,style}){
+  const[failed,setFailed]=useState(false);
+  if(!src||failed)return <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:B.navy,whiteSpace:"nowrap"}}>{alt}</span>;
+  return <img src={src} alt={alt} style={style} onError={()=>setFailed(true)}/>;
+}
 function PCMLogo({dark=false,compact=false}){
   // max constraints (not a fixed height) so wide white-label wordmarks scale
   // down to fit their container instead of overflowing the sidebar.
-  if(dark)return <div style={{background:"rgba(255,255,255,0.97)",borderRadius:8,padding:"8px 14px",display:"inline-block"}}><img src={BRAND.logo} alt={BRAND.name} style={{maxHeight:64,maxWidth:"100%",width:"auto",height:"auto",display:"block"}}/></div>;
-  if(compact)return <img src={BRAND.logo} alt={BRAND.name} style={{maxHeight:64,maxWidth:"100%",width:"auto",height:"auto",display:"block"}}/>;
-  return <img src={BRAND.logo} alt={BRAND.name} style={{maxHeight:110,maxWidth:"100%",width:"auto",height:"auto",display:"block",margin:"0 auto"}}/>;
+  if(dark)return <div style={{background:"rgba(255,255,255,0.97)",borderRadius:8,padding:"8px 14px",display:"inline-block"}}><BrandImg src={BRAND.logo} alt={BRAND.name} style={{maxHeight:64,maxWidth:"100%",width:"auto",height:"auto",display:"block"}}/></div>;
+  if(compact)return <BrandImg src={BRAND.logo} alt={BRAND.name} style={{maxHeight:64,maxWidth:"100%",width:"auto",height:"auto",display:"block"}}/>;
+  return <BrandImg src={BRAND.logo} alt={BRAND.name} style={{maxHeight:110,maxWidth:"100%",width:"auto",height:"auto",display:"block",margin:"0 auto"}}/>;
 }
 
 // ── LOGIN INTRO (tumbling cubes) ────────────────────────────────────────────
@@ -6635,13 +6713,13 @@ export default function App(){
     const clientFamily=data.families.find(f=>f.id===userProfile.familyId);
     if(loading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
     if(!clientFamily)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,flexDirection:"column",gap:12,color:B.navy,fontFamily:"'DM Sans',sans-serif"}}><PCMLogo/><div style={{marginTop:20,fontSize:16}}>No family assigned to your account. Contact your Titan Expert.</div><button onClick={logout} style={{marginTop:12,background:"none",border:`1px solid ${B.border}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontFamily:"inherit",color:B.textSoft}}>Sign Out</button></div>;
-    return <><ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout} toast={showToast} reload={reload}/><FloatingAssistant family={clientFamily} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
+    return <><ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout} toast={showToast} reload={reload}/><FloatingAssistant family={clientFamily} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}<UpdateBanner/></>;
   }
 
   // Partner role — view-only across their linked family/families; can upload/download documents only
   if(userProfile.role==="partner"){
     if(loading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
-    return <><PartnerDashboard data={data} userProfile={userProfile} logout={logout} toast={showToast} reload={reload}/><FloatingAssistant families={data.families||[]} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
+    return <><PartnerDashboard data={data} userProfile={userProfile} logout={logout} toast={showToast} reload={reload}/><FloatingAssistant families={data.families||[]} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}<UpdateBanner/></>;
   }
 
 
@@ -6732,6 +6810,6 @@ export default function App(){
       </div>
     </div>
     <FloatingAssistant families={data.families||[]} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>
-    {toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}
+    {toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}<UpdateBanner/>
   </div>;
 }
