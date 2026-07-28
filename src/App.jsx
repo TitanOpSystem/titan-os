@@ -505,7 +505,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError",data_source:"dataSource",can_run_scheduled_prompts:"canRunScheduledPrompts"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError",data_source:"dataSource",can_run_scheduled_prompts:"canRunScheduledPrompts",property_section:"propertySection",expiry_date:"expiryDate",doc_type:"docType",mime_type:"mimeType"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -615,6 +615,34 @@ function PhoneLink({value,style}){
   const href=String(value).replace(/[^\d+]/g,"");
   if(!href)return <span style={style}>{value}</span>;
   return <a href={`tel:${href}`} onClick={e=>e.stopPropagation()} style={{color:"inherit",textDecoration:"none",cursor:"pointer",...style}} onMouseEnter={e=>e.currentTarget.style.textDecoration="underline"} onMouseLeave={e=>e.currentTarget.style.textDecoration="none"}>{value}</a>;
+}
+// Opens a stored file in a new tab through a short-lived signed URL. Used by the
+// inline "supporting document" links that sit next to figures on the property and
+// valuables cards, so a user can go from a number straight to its source document
+// without hunting through the Vault.
+async function openStoredDoc(doc,toast){
+  if(!doc?.filePath){toast&&toast("No file on record for this document","error");return;}
+  const{data,error}=await sb.storage.from("documents").createSignedUrl(doc.filePath,300);
+  if(error||!data?.signedUrl){toast&&toast(error?.message||"Could not open that document","error");return;}
+  window.open(data.signedUrl,"_blank","noopener");
+}
+// Renders nothing when there is no supporting document, so the UI never shows a
+// link that leads nowhere.
+function DocLink({doc,toast,label}){
+  if(!doc)return null;
+  return <button onClick={e=>{e.stopPropagation();openStoredDoc(doc,toast);}} title={`Open: ${doc.name}`}
+    style={{background:"none",border:"none",padding:0,marginLeft:5,cursor:"pointer",color:B.gold,fontSize:10.5,lineHeight:1,verticalAlign:"middle"}}>
+    {label||"📄"}
+  </button>;
+}
+// Click-to-email: opens the user's mail client pre-addressed to the contact.
+// Mirrors PhoneLink — same stopPropagation reasoning, and falls back to plain
+// text if the value isn't a usable address.
+function EmailLink({value,style}){
+  if(!value)return null;
+  const addr=String(value).trim();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr))return <span style={style}>{value}</span>;
+  return <a href={`mailto:${addr}`} onClick={e=>e.stopPropagation()} style={{color:"inherit",textDecoration:"none",cursor:"pointer",...style}} onMouseEnter={e=>e.currentTarget.style.textDecoration="underline"} onMouseLeave={e=>e.currentTarget.style.textDecoration="none"}>{value}</a>;
 }
 function SectionLabel({children}){return <div style={{fontSize:10,fontWeight:800,color:B.textMute,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:8,marginTop:18,paddingBottom:4,borderBottom:`1px solid ${B.borderLight}`}}>{children}</div>;}
 function Empty({text}){return <div style={{fontSize:13,color:B.textMute,padding:"12px 0",textAlign:"center"}}>{text}</div>;}
@@ -1262,6 +1290,66 @@ function AssistantWelcome({family,data,reload,onClose,userProfile,toast}){
   </Modal>;
 }
 
+// ── FLOATING ASSISTANT ────────────────────────────────────────────────────────
+// A persistent, brand-marked button that opens the AI assistant from anywhere.
+//
+// The assistant is strictly per-family (it answers from ONE family's snapshot),
+// but the firm-wide screens — dashboard, portfolio, pipeline — have no family in
+// context. So when a family is supplied (client portal, or an advisor drilled
+// into a relationship) it opens straight into the chat; otherwise it first asks
+// which client to talk about. That keeps the button available on every page
+// without ever letting the assistant answer across families.
+function FloatingAssistant({family,families,data,reload,toast,userProfile}){
+  const[open,setOpen]=useState(false);
+  const[picked,setPicked]=useState(null);
+  const[q,setQ]=useState("");
+  const isMobile=useIsMobile();
+  const active=family||picked;
+  const list=(families||[]).filter(f=>!q.trim()||(f.name||"").toLowerCase().includes(q.trim().toLowerCase()));
+  const assistantName=((active&&active.assistantName)||"").trim()||"Titan";
+  const close=()=>{setOpen(false);setPicked(null);setQ("");};
+
+  return <>
+    <button onClick={()=>setOpen(true)} title={`Ask ${assistantName}`} aria-label={`Ask ${assistantName}`}
+      style={{position:"fixed",bottom:isMobile?18:26,right:isMobile?18:26,zIndex:900,width:isMobile?54:60,height:isMobile?54:60,
+        borderRadius:"50%",border:`2px solid ${B.gold}`,background:B.navy,cursor:"pointer",padding:0,overflow:"hidden",
+        boxShadow:"0 6px 22px rgba(0,0,0,0.28)",display:"flex",alignItems:"center",justifyContent:"center",transition:"transform .15s ease"}}
+      onMouseEnter={e=>e.currentTarget.style.transform="scale(1.07)"}
+      onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
+      {BRAND.mark
+        ? <img src={BRAND.mark} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+        : <span style={{color:B.gold,fontSize:22}}>✦</span>}
+    </button>
+
+    {open&&<Modal wide title={active?`Ask ${assistantName} — ${(active.name||"").replace(" [DEMO]","")}`:`Ask ${assistantName}`} onClose={close}>
+      {active
+        ? <>
+            <FamilyAssistant family={active} data={data} reload={reload} toast={toast} compact/>
+            {!family&&<div style={{marginTop:14,textAlign:"center"}}>
+              <Btn small variant="ghost" onClick={()=>{setPicked(null);setQ("");}}>← Choose a different client</Btn>
+            </div>}
+          </>
+        : <>
+            <div style={{fontSize:12.5,color:B.textSoft,marginBottom:12,lineHeight:1.5}}>
+              {assistantName} answers from one client's records at a time. Which client?
+            </div>
+            {(families||[]).length>6&&<Inp autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder="Search clients…" style={{marginBottom:10}}/>}
+            <div style={{maxHeight:340,overflowY:"auto",display:"flex",flexDirection:"column",gap:7}}>
+              {list.map(f=><button key={f.id} onClick={()=>setPicked(f)}
+                style={{textAlign:"left",background:B.bg,border:`1px solid ${B.borderLight}`,borderLeft:`3px solid ${f.color||B.gold}`,
+                  borderRadius:8,padding:"11px 13px",cursor:"pointer",fontFamily:"inherit"}}
+                onMouseEnter={e=>e.currentTarget.style.background=B.white}
+                onMouseLeave={e=>e.currentTarget.style.background=B.bg}>
+                <div style={{fontSize:14,color:B.navy,fontWeight:600}}>{f.name}</div>
+                {f.advisorName&&<div style={{fontSize:11,color:B.textSoft,marginTop:1}}>{roleLabel("advisor")}: {f.advisorName}</div>}
+              </button>)}
+              {!list.length&&<Empty text="No clients match that search."/>}
+            </div>
+          </>}
+    </Modal>}
+  </>;
+}
+
 // Compose an email to your designated advisor (or anyone else) and send it
 // through the platform. Defaults to the primary advisor on the relationship;
 // the dropdown otherwise only offers contacts flagged as an advisor under
@@ -1522,6 +1610,11 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
   const toggleFCAdvisor=async(c)=>{if(!c.email){toast("Add an email to this contact first — the client emails them here.","error");return;}const{error}=await sb.from("family_contacts").update({is_advisor:!c.isAdvisor}).eq("id",c.id);if(error)toast(error.message,"error");else{toast(!c.isAdvisor?"Marked as an emailable Titan Expert":"Removed as Titan Expert option");reload("family_contacts");}};
 
   const propContactsFor=(pid)=>(data.property_contacts||[]).filter(pc=>pc.propertyId===pid);
+  // Supporting document behind a given figure on a property card (mortgage note,
+  // tax bill, insurance dec page, invoice, flood dec, rental agreement).
+  const docForSection=(pid,section)=>(data.documents||[]).find(d=>d.propertyId===pid&&d.propertySection===section);
+  // The family's scheduled-personal-property endorsement, linked from Valuables.
+  const valuablesPolicyDoc=()=>(data.documents||[]).find(d=>d.familyId===family.id&&d.propertySection==="valuables_schedule");
   const addPropertyContact=async(pid,f)=>{const{error}=await sb.from("property_contacts").insert({property_id:pid,family_id:family.id,name:f.name,role:f.role||null,company:f.company||null,email:f.email||null,phone:f.phone||null,notes:f.notes||null});if(error)toast(error.message,"error");else{toast("Contact added");reload("property_contacts");}};
   const editPropertyContact=async(id,f)=>{const{error}=await sb.from("property_contacts").update({name:f.name,role:f.role||null,company:f.company||null,email:f.email||null,phone:f.phone||null,notes:f.notes||null}).eq("id",id);if(error)toast(error.message,"error");else{toast("Contact updated");reload("property_contacts");}};
   const delPropertyContact=async(id)=>{const{error}=await sb.from("property_contacts").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Contact removed");reload("property_contacts");}};
@@ -1642,7 +1735,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                 <div>
                   <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{c.name}{c.dob&&(()=>{const d=new Date(c.dob);if(isNaN(d))return null;const t=new Date();let a=t.getFullYear()-d.getFullYear();const m=t.getMonth()-d.getMonth();if(m<0||(m===0&&t.getDate()<d.getDate()))a--;return a>=0?<span style={{fontWeight:400,color:B.textSoft,fontSize:11,marginLeft:6}}>· {a} yrs</span>:null;})()}</div>
                   <div style={{fontSize:11,color:B.textSoft,marginTop:2,display:"flex",gap:10}}>
-                    {c.email&&<span>✉ {c.email}</span>}
+                    {c.email&&<span>✉ <EmailLink value={c.email}/></span>}
                     {c.phone&&<span>📞 <PhoneLink value={c.phone}/></span>}
                   </div>
                   {c.company&&<div style={{fontSize:11,color:B.textSoft}}>{c.company}</div>}
@@ -1666,7 +1759,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                   <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{c.name}{c.role&&<span style={{fontWeight:400,color:B.textSoft,fontSize:11,marginLeft:6}}>· {c.role}</span>}</div>
                   <div style={{fontSize:11,color:B.textSoft,marginTop:2,display:"flex",gap:10,flexWrap:"wrap"}}>
                     {c.company&&<span>{c.company}</span>}
-                    {c.email&&<span>✉ {c.email}</span>}
+                    {c.email&&<span>✉ <EmailLink value={c.email}/></span>}
                     {c.phone&&<span>📞 <PhoneLink value={c.phone}/></span>}
                   </div>
                 </div>
@@ -1746,8 +1839,8 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                 </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8}}>
-                {[["Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—"],["Loan Type",p.loanType],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],...(Number(p.secondMortgageBalance)>0?[["2nd Mtg Balance",fmtMoney(p.secondMortgageBalance)],["2nd Mtg Payment",p.secondMortgagePayment?`${fmtMoney(p.secondMortgagePayment)}/mo`:"—"]]:[]),["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—"],["Utilities",p.utilities?`${fmtMoney(p.utilities)}/mo`:"—"],["Insurance Co.",p.insuranceCompany||"—"],["Ins. Premium",p.insurancePremium?`${fmtMoney(p.insurancePremium)}/yr`:"—"],["Flood Insurance",p.floodInsurance?`Yes${p.floodInsuranceCompany?` — ${p.floodInsuranceCompany}`:""}`:("No")]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
-                  <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}</div>
+                {[["Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—","mortgage"],["Loan Type",p.loanType],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],...(Number(p.secondMortgageBalance)>0?[["2nd Mtg Balance",fmtMoney(p.secondMortgageBalance)],["2nd Mtg Payment",p.secondMortgagePayment?`${fmtMoney(p.secondMortgagePayment)}/mo`:"—"]]:[]),["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—","rental"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—","tax"],["Utilities",p.utilities?`${fmtMoney(p.utilities)}/mo`:"—"],["Insurance Co.",p.insuranceCompany||"—","insurance_dec"],["Ins. Premium",p.insurancePremium?`${fmtMoney(p.insurancePremium)}/yr`:"—","insurance_invoice"],["Flood Insurance",p.floodInsurance?`Yes${p.floodInsuranceCompany?` — ${p.floodInsuranceCompany}`:""}`:("No"),"flood_dec"]].map(([l,v,sec])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
+                  <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}<DocLink doc={sec?docForSection(p.id,sec):null} toast={toast}/></div>
                   <div style={{fontSize:12,color:B.text,fontWeight:600}}>{v}</div>
                 </div>)}
               </div>
@@ -1762,7 +1855,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                   : <div style={{display:"flex",flexDirection:"column",gap:6}}>{propContactsFor(p.id).map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,background:B.bg,borderRadius:6,padding:"6px 10px"}}>
                       <div style={{minWidth:0}}>
                         <div style={{fontSize:12,fontWeight:600,color:B.navy}}>{c.name}{c.role&&<span style={{fontWeight:400,color:B.textSoft,marginLeft:6}}>· {c.role}</span>}</div>
-                        <div style={{fontSize:11,color:B.textSoft,display:"flex",gap:10,flexWrap:"wrap",marginTop:1}}>{c.company&&<span>{c.company}</span>}{c.phone&&<span>📞 <PhoneLink value={c.phone}/></span>}{c.email&&<span>✉ {c.email}</span>}</div>
+                        <div style={{fontSize:11,color:B.textSoft,display:"flex",gap:10,flexWrap:"wrap",marginTop:1}}>{c.company&&<span>{c.company}</span>}{c.phone&&<span>📞 <PhoneLink value={c.phone}/></span>}{c.email&&<span>✉ <EmailLink value={c.email}/></span>}</div>
                       </div>
                       {canEdit&&<div style={{display:"flex",gap:6,flexShrink:0}}>
                         <button onClick={()=>setModal({type:"propertyContact",propertyId:p.id,contact:c})} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit">✎</button>
@@ -1807,7 +1900,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                 </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                {[["Starting Balance",fmtMoney(a.startingBalance)],["Current Balance",fmtMoney(a.currentBalance)],["Performance",pct!==null?`${Number(pct)>=0?"+":""}${pct}%`:"—"]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
+                {[["Starting Balance",fmtMoney(a.startingBalance)],["Current Balance",fmtMoney(a.currentBalance)],["Performance",pct!==null?`${Number(pct)>=0?"+":""}${pct}%`:"—"]].map(([l,v,sec])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                   <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}</div>
                   <div style={{fontSize:13,color:B.text,fontWeight:700}}>{v}</div>
                 </div>)}
@@ -1834,7 +1927,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                 <div>
                   <div style={{fontWeight:700,color:B.navy,fontSize:13}}>{v.description}</div>
                   {v.makeModel&&<div style={{fontSize:12,color:B.textSoft}}>{v.makeModel}{v.year?` · ${v.year}`:""}</div>}
-                  {v.insured&&<div style={{fontSize:11,color:"#18a850",fontWeight:600,marginTop:3}}>✓ Insured{v.insuranceCompany?` — ${v.insuranceCompany}`:""}</div>}
+                  {v.insured?<div style={{fontSize:11,color:"#18a850",fontWeight:600,marginTop:3}}>✓ Insured{v.insuranceCompany?` — ${v.insuranceCompany}`:""}<DocLink doc={valuablesPolicyDoc()} toast={toast} label="📄 policy"/></div>:<div style={{fontSize:11,color:"#b4551f",fontWeight:600,marginTop:3}}>⚠ Not scheduled<DocLink doc={valuablesPolicyDoc()} toast={toast} label="📄 policy"/></div>}
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <div style={{fontSize:15,fontWeight:700,color:B.navy}}>{fmtMoney(v.estimatedValue)}</div>
@@ -4003,7 +4096,7 @@ function ProspectContactsView({data,reload,toast,userProfile}){
         <div style={{display:"flex",gap:6,flexShrink:0}}><Btn small variant="ghost" onClick={()=>setModal(selected)}>Edit</Btn><Btn small variant="danger" onClick={()=>del(selected.id)}>Delete</Btn></div>
       </div>
       <div style={{height:2,background:`linear-gradient(90deg,${B.gold},transparent)`,marginBottom:12}}/>
-      {selected.email&&<IRow label="Email" value={selected.email}/>}
+      {selected.email&&<IRow label="Email" value={<EmailLink value={selected.email}/>}/>}
       {selected.phone&&<IRow label="Phone" value={<PhoneLink value={selected.phone}/>}/>}
       {selected.tags&&<IRow label="Tags" value={selected.tags}/>}
       <SectionLabel>Deals ({cDeals.length})</SectionLabel>
@@ -5073,6 +5166,10 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
   const fam=(data.families||[]).find(x=>x.id===family.id)||family;
   const rawAssistantName=(fam.assistantName||"").trim();
   const assistantName=rawAssistantName||"Titan";
+  // Supporting document behind a figure on a property card, and the family's
+  // scheduled-personal-property endorsement linked from Valuables.
+  const docForSection=(pid,section)=>(data.documents||[]).find(d=>d.propertyId===pid&&d.propertySection===section);
+  const valuablesPolicyDoc=()=>(data.documents||[]).find(d=>d.familyId===family.id&&d.propertySection==="valuables_schedule");
   const[namePromptDismissed,setNamePromptDismissed]=useState(false);
   const[welcomeName,setWelcomeName]=useState("");
   const[savingWelcome,setSavingWelcome]=useState(false);
@@ -5266,8 +5363,8 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10}}>
-            {[["Property Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—"],["Loan Balance",fmtMoney(p.loanBalance)],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],...(Number(p.secondMortgageBalance)>0?[["2nd Mtg Balance",fmtMoney(p.secondMortgageBalance)],["2nd Mtg Payment",p.secondMortgagePayment?`${fmtMoney(p.secondMortgagePayment)}/mo`:"—"]]:[]),["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—"],["Insurance",p.insuranceCompany||"—"],["Insurance Expires",p.insuranceExpiration?fmt(p.insuranceExpiration):"—"],["Flood Insurance",p.floodInsurance?"Yes":"No"]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:8,padding:"10px 12px"}}>
-              <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>{l}</div>
+            {[["Property Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—","mortgage"],["Loan Balance",fmtMoney(p.loanBalance),"mortgage"],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],...(Number(p.secondMortgageBalance)>0?[["2nd Mtg Balance",fmtMoney(p.secondMortgageBalance)],["2nd Mtg Payment",p.secondMortgagePayment?`${fmtMoney(p.secondMortgagePayment)}/mo`:"—"]]:[]),["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—","rental"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—","tax"],["Insurance",p.insuranceCompany||"—","insurance_dec"],["Insurance Expires",p.insuranceExpiration?fmt(p.insuranceExpiration):"—"],["Flood Insurance",p.floodInsurance?"Yes":"No","flood_dec"]].map(([l,v,sec])=><div key={l} style={{background:B.bg,borderRadius:8,padding:"10px 12px"}}>
+              <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>{l}<DocLink doc={sec?docForSection(p.id,sec):null} toast={toast}/></div>
               <div style={{fontSize:13,color:B.text,fontWeight:600}}>{v}</div>
             </div>)}
           </div>
@@ -5277,7 +5374,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
               ? <div style={{fontSize:12,color:B.textMute}}>None on file yet.</div>
               : <div style={{display:"flex",flexDirection:"column",gap:6}}>{vendors.map(c=><div key={c.id} style={{background:B.bg,borderRadius:6,padding:"6px 10px"}}>
                   <div style={{fontSize:12,fontWeight:600,color:B.navy}}>{c.name}{c.role&&<span style={{fontWeight:400,color:B.textSoft,marginLeft:6}}>· {c.role}</span>}</div>
-                  <div style={{fontSize:11,color:B.textSoft,display:"flex",gap:10,flexWrap:"wrap",marginTop:1}}>{c.company&&<span>{c.company}</span>}{c.phone&&<span>📞 <PhoneLink value={c.phone}/></span>}{c.email&&<span>✉ {c.email}</span>}</div>
+                  <div style={{fontSize:11,color:B.textSoft,display:"flex",gap:10,flexWrap:"wrap",marginTop:1}}>{c.company&&<span>{c.company}</span>}{c.phone&&<span>📞 <PhoneLink value={c.phone}/></span>}{c.email&&<span>✉ <EmailLink value={c.email}/></span>}</div>
                 </div>)}</div>}
           </div>;})()}
         </div>;
@@ -5311,7 +5408,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
               <div>
                 <div style={{fontWeight:700,color:B.navy,fontSize:14}}>{v.description}</div>
                 {v.makeModel&&<div style={{fontSize:12,color:B.textSoft}}>{v.makeModel}{v.year?` · ${v.year}`:""}</div>}
-                {v.insured&&<div style={{fontSize:11,color:"#18a850",fontWeight:600,marginTop:3}}>✓ Insured{v.insuranceCompany?` — ${v.insuranceCompany}`:""}</div>}
+                {v.insured?<div style={{fontSize:11,color:"#18a850",fontWeight:600,marginTop:3}}>✓ Insured{v.insuranceCompany?` — ${v.insuranceCompany}`:""}<DocLink doc={valuablesPolicyDoc()} toast={toast} label="📄 policy"/></div>:<div style={{fontSize:11,color:"#b4551f",fontWeight:600,marginTop:3}}>⚠ Not scheduled<DocLink doc={valuablesPolicyDoc()} toast={toast} label="📄 policy"/></div>}
               </div>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600}}>{fmtMoney(v.estimatedValue)}</div>
             </div>)}
@@ -6340,13 +6437,13 @@ export default function App(){
     const clientFamily=data.families.find(f=>f.id===userProfile.familyId);
     if(loading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
     if(!clientFamily)return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:B.bg,flexDirection:"column",gap:12,color:B.navy,fontFamily:"'DM Sans',sans-serif"}}><PCMLogo/><div style={{marginTop:20,fontSize:16}}>No family assigned to your account. Contact your Titan Expert.</div><button onClick={logout} style={{marginTop:12,background:"none",border:`1px solid ${B.border}`,borderRadius:8,padding:"8px 16px",cursor:"pointer",fontFamily:"inherit",color:B.textSoft}}>Sign Out</button></div>;
-    return <><ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout} toast={showToast} reload={reload}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
+    return <><ClientDashboard family={clientFamily} data={data} userProfile={userProfile} logout={logout} toast={showToast} reload={reload}/><FloatingAssistant family={clientFamily} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
   }
 
   // Partner role — view-only across their linked family/families; can upload/download documents only
   if(userProfile.role==="partner"){
     if(loading)return <div style={{minHeight:"100vh",background:B.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><Spinner/></div>;
-    return <><PartnerDashboard data={data} userProfile={userProfile} logout={logout} toast={showToast} reload={reload}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
+    return <><PartnerDashboard data={data} userProfile={userProfile} logout={logout} toast={showToast} reload={reload}/><FloatingAssistant families={data.families||[]} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>{toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}</>;
   }
 
 
@@ -6431,6 +6528,7 @@ export default function App(){
         </>}
       </div>
     </div>
+    <FloatingAssistant families={data.families||[]} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>
     {toastState&&<Toast msg={toastState.msg} type={toastState.type}/>}
   </div>;
 }
