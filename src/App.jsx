@@ -1919,7 +1919,10 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
             {canEdit&&<Btn onClick={()=>setModal("valuable")}>+ Add Valuable</Btn>}
           </div>
           {VALUABLE_CATS.map(cat=>{
-            const items=valuables.filter(v=>v.category===cat);
+            // "Other" also absorbs any unrecognised category, so a typo or an
+            // imported value can never hide an asset from this tab while still
+            // counting toward the totals above.
+            const items=valuables.filter(v=>cat==="Other"?!VALUABLE_CATS.includes(v.category)||v.category==="Other":v.category===cat);
             if(!items.length)return null;
             return <div key={cat} style={{marginBottom:20}}>
               <div style={{fontSize:11,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>{cat}</div>
@@ -5063,7 +5066,11 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
   };
   const unscannedCount=docs.filter(needsScan).length;
 
-  const folderCount=cat=>docs.filter(d=>d.category===cat).length;
+  // The "Other" folder also collects any document whose category is not one of
+  // the known folders (legacy or imported values), so no file becomes
+  // unreachable in the folder view.
+  const inFolder=(d,cat)=>cat==="Other"?(!DOC_CATEGORIES.includes(d.category)||d.category==="Other"):d.category===cat;
+  const folderCount=cat=>docs.filter(d=>inFolder(d,cat)).length;
 
   return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
     <style>{`.pcm-folder-card{transition:transform .15s ease, box-shadow .15s ease;}.pcm-folder-card:hover{transform:translateY(-3px);box-shadow:0 8px 22px rgba(9,43,73,0.13);}`}</style>
@@ -5087,7 +5094,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
         </div>)}
       </div>
       :(()=>{
-        const list=docs.filter(d=>d.category===openFolder);
+        const list=docs.filter(d=>inFolder(d,openFolder));
         return list.length===0
           ? <div style={{padding:"60px 0",textAlign:"center",color:B.textMute}}><div style={{fontSize:40,marginBottom:12}}>📁</div>No documents in this folder yet.</div>
           : <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -5400,7 +5407,8 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:8}}>Personal Property & Valuables</div>
         <div style={{fontSize:14,color:B.textSoft,marginBottom:20}}>Total estimated value: <strong style={{color:B.navy}}>{fmtMoney(totalValuables)}</strong></div>
         {valuables.length===0?<Empty text="No valuables on file."/>:VALUABLE_CATS.map(cat=>{
-          const items=valuables.filter(v=>v.category===cat);
+          // "Other" absorbs unrecognised categories so nothing is hidden.
+          const items=valuables.filter(v=>cat==="Other"?!VALUABLE_CATS.includes(v.category)||v.category==="Other":v.category===cat);
           if(!items.length)return null;
           return <div key={cat} style={{marginBottom:20}}>
             <div style={{fontSize:12,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}}>{cat}</div>
@@ -6331,6 +6339,12 @@ export default function App(){
   // screen would flash the previous tenant's colours. Instances without
   // VITE_BRAND_RUNTIME resolve immediately and never wait on a request.
   const[brandReady,setBrandReady]=useState(!RUNTIME_BRAND);
+  const isAdminRole=userProfile?.role==="admin";
+  // Which nav items this role may actually reach. Derived from the same filter
+  // the sidebar uses so the two can't drift apart.
+  const allowedTabIds=NAV_SECTIONS
+    .filter(s=>(s.section!=="ADMIN"&&s.section!=="PROSPECTING")||isAdminRole)
+    .flatMap(s=>s.items.map(i=>i.id));
   // Bumped on every sidebar nav click (even re-clicking the current section) and
   // used as a remount `key` for the active view below. This forces views like
   // FamiliesView to drop any drilled-in state (e.g. an open family dashboard)
@@ -6338,7 +6352,9 @@ export default function App(){
   // family's dashboard should always bounce you back out, same for every item.
   const[navNonce,setNavNonce]=useState(0);
   const isMobile=useIsMobile();
-  const logout=async()=>{await sb.auth.signOut();setAuthed(false);setUserProfile(null);};
+  // Reset the view on the way out so nothing from this session is left on screen
+  // for whoever signs in next.
+  const logout=async()=>{await sb.auth.signOut();setAuthed(false);setUserProfile(null);setTab("dashboard");};
   const showToast=useCallback((msg,type="success")=>{setToastState({msg,type});setTimeout(()=>setToastState(null),3500);},[]);
 
   const profileRef=useRef(null);
@@ -6355,6 +6371,14 @@ export default function App(){
     loadActiveBrandProfile().finally(()=>{if(!cancelled)setBrandReady(true);});
     return()=>{cancelled=true;};
   },[]);
+
+  // Send the user back to the dashboard whenever the current tab isn't one their
+  // role is allowed to open — which is what happens after a sign-out/sign-in,
+  // since this component (and therefore `tab`) is never torn down.
+  useEffect(()=>{
+    if(!userProfile)return;
+    if(!allowedTabIds.includes(tab))setTab("dashboard");
+  },[userProfile,tab,allowedTabIds]);
 
   useEffect(()=>{
     sb.auth.getSession().then(({data:{session}})=>{if(session?.user){setAuthed(true);loadProfile(session.user.id);}setAuthLoading(false);});
@@ -6518,8 +6542,13 @@ export default function App(){
           {tab==="portfolio"   &&<PortfolioView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="cm-notes"    &&<NotesView key={navNonce} data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="cm-tasks"    &&<TasksView key={navNonce} data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
-          {tab==="users"       &&<UserManagementView key={navNonce} userProfile={userProfile} data={data} toast={showToast}/>}
-          {tab==="branding"    &&RUNTIME_BRAND&&<BrandingView key={navNonce} toast={showToast}/>}
+          {/* Admin-only screens are gated on the role here as well as in the
+              sidebar. The sidebar alone isn't sufficient: `tab` is state on a
+              component that never unmounts, so it survives a sign-out and the
+              next user would otherwise land on whatever the previous one had
+              open. */}
+          {tab==="users"       &&isAdminRole&&<UserManagementView key={navNonce} userProfile={userProfile} data={data} toast={showToast}/>}
+          {tab==="branding"    &&isAdminRole&&RUNTIME_BRAND&&<BrandingView key={navNonce} toast={showToast}/>}
           {tab==="resources"   &&<ResourcesView key={navNonce} data={data} userProfile={userProfile} toast={showToast}/>}
           {tab==="p-contacts"  &&<ProspectContactsView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="p-pipeline"  &&<ProspectPipelineView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
