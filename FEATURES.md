@@ -7,7 +7,7 @@ prospect hears it.
 **Status key** — `LIVE` in PCM production · `DEMO` on the pitch instance only ·
 `BUILDING` in progress
 
-Last updated: 28 July 2026 (playbook library shipped)
+Last updated: 28 July 2026 (workflow loop complete end to end)
 
 ---
 
@@ -106,7 +106,11 @@ something done.
 | Steps read in plain language — "60 days before", who acts, to whom | DEMO |
 | Admins edit lead times, actors, recipients and conditions; others read only | DEMO |
 | New playbooks are rows, not code — the firm adds its own | DEMO |
-| Review queue on the dashboard: everything awaiting a person, across the book | BUILDING |
+| Review queue on the dashboard: everything awaiting a person, across the book | DEMO |
+| Obligations tab per client: the commitment plus the playbook that carries it | DEMO |
+| Starting a cycle lays out every step against a real calendar date | DEMO |
+| Approving records who approved it, against the step | DEMO |
+| Cycle closes itself once nothing actionable remains | DEMO |
 
 ### Starter playbooks
 
@@ -116,6 +120,12 @@ something done.
 | Property Insurance Renewal | 8 | 75 days | Market check |
 | Quarterly Estimated Tax | 5 | 30 days | CPA sign-off |
 | Private Fund Capital Call | 5 | 12 days | — |
+
+**The demo moment:** start an ILIT cycle and the platform lays out nine dated
+steps — transfer request to the bank 60 days out, Crummey notices two days after
+the gift lands, the withdrawal window closing exactly 30 days later, and the
+trustee authorised only after that. Start a capital call that arrived late and it
+flags itself *At risk* naming the step that already slipped.
 
 **Two things to say out loud in a pitch:** nothing sends without a named
 approval, and the platform prepares payment instructions but never moves money.
