@@ -143,6 +143,20 @@ const checkRow = t => new TableRow({children:[
     children:[new Paragraph({spacing:{after:0},
       children:[new TextRun({text:t,size:19,color:BODY,font:"Calibri"})]})]})]});
 
+// Fill-in line at the top of each standalone checklist. A ticked list with no
+// household, period or name on it proves nothing after the fact.
+const fillIn = fields => new Table({
+  width:{size:CW,type:WidthType.DXA},
+  columnWidths:fields.map(()=>Math.floor(CW/fields.length)),
+  rows:[new TableRow({children:fields.map(f=>new TableCell({
+    width:{size:Math.floor(CW/fields.length),type:WidthType.DXA},
+    borders:{top:{style:BorderStyle.NONE},left:{style:BorderStyle.NONE},
+             right:{style:BorderStyle.NONE},
+             bottom:{style:BorderStyle.SINGLE,size:4,color:"B9C3CE"}},
+    margins:{top:90,bottom:60,left:0,right:150},
+    children:[new Paragraph({spacing:{after:0},
+      children:[new TextRun({text:f,size:16,color:SOFT,font:"Calibri",allCaps:true,bold:true})]})]}))})]});
+
 const checkTable = items => new Table({
   width:{size:CW,type:WidthType.DXA}, columnWidths:[260, CW-260],
   rows: items.map(checkRow)});
@@ -193,7 +207,17 @@ function buildInternal(){
     }
   });
 
-  buildChecklists(k);
+  // The checklists live in their own document now: they are printed, carried and
+  // ticked, which a reference manual is not. Reprinting them here would add pages
+  // to a document that exists to be read.
+  k.push(new Paragraph({children:[new PageBreak()]}));
+  k.push(H1("Checklists"));
+  k.push(P("The working checklists are issued separately, as TitanOS Operating Checklists — one per page, with a line for the household, the period and who completed it. Print the one you need rather than the manual.",{after:80}));
+  LISTS.forEach(l=>{
+    const n=l.groups.reduce((a,[,items])=>a+items.length,0);
+    const r=refLine(l.refs);
+    k.push(bullet(`${l.title} — ${n} items. ${l.when}${r?" "+r:""}`));
+  });
 
   // Standing rules belong at the end, where someone will find them when arguing.
   k.push(new Paragraph({children:[new PageBreak()]}));
@@ -276,6 +300,53 @@ function buildFirm(){
   return k;
 }
 
+function buildChecklistBook(){
+  const k=[];
+  cover(k,{
+    title:"Operating Checklists",
+    strap:"What must not be missed, at the moment it matters",
+    warn:"Internal — TitanOS and PCM staff.  Not for circulation.",
+    intro:[
+      "Seven checklists, one per page, arranged by the moment they are used. Print the one you need and work down it. Each carries a line for the household, the period and who completed it, because a ticked list with no name on it proves nothing afterwards.",
+      "These are the companion to the Standard Operating Procedures, which explain how each capability works and why. Where an item here needs more than a line of explanation, the referenced section has it.",
+    ],
+  });
+
+  k.push(H1("Contents"));
+  LISTS.forEach((l,i)=>{
+    const n=l.groups.reduce((a,[,items])=>a+items.length,0);
+    k.push(new Paragraph({spacing:{after:26},indent:{left:260,hanging:260},
+      children:[
+        new TextRun({text:`${i+1}   `,size:19,color:GOLD,font:"Calibri",bold:true}),
+        new TextRun({text:l.title,size:20,color:BODY,font:"Calibri"}),
+        new TextRun({text:`   ${n} items`,size:17,color:SOFT,font:"Calibri"})]}));
+  });
+
+  LISTS.forEach((l,i)=>{
+    k.push(new Paragraph({children:[new PageBreak()]}));
+    k.push(H1(`${i+1}.  ${l.title}`));
+    k.push(P(l.when,{size:19,italics:true,color:SOFT,after:40}));
+    const r=refLine(l.refs);
+    if(r) k.push(P(`${r}  Standard Operating Procedures.`,{size:17,color:SOFT,after:70}));
+    k.push(fillIn(l.id==="statement-cycle"
+      ? ["Household","Account","Period","Completed by","Date"]
+      : l.id==="monthly-review"||l.id==="hygiene"
+        ? ["Titan Expert","Month","Completed by","Date"]
+        : ["Household","Completed by","Date"]));
+    k.push(P("",{after:40}));
+    l.groups.forEach(([heading,items])=>{
+      k.push(LABEL(heading));
+      k.push(checkTable(items));
+    });
+  });
+
+  k.push(new Paragraph({spacing:{before:300},alignment:AlignmentType.CENTER,
+    border:{top:{style:BorderStyle.SINGLE,size:6,color:GOLD}},
+    children:[new TextRun({text:"TitanOS  ·  Operating Checklists  ·  Not for circulation",
+      size:17,color:SOFT,font:"Calibri"})]}));
+  return k;
+}
+
 function write(children,file){
   const doc=new Document({
     numbering:{config:[{reference:"b",levels:[{level:0,format:LevelFormat.BULLET,text:"•",
@@ -289,4 +360,8 @@ function write(children,file){
 Promise.all([
   write(buildInternal(),"TitanOS_SOP_Internal.docx"),
   write(buildFirm(),"TitanOS_Platform_Handbook.docx"),
-]).then(()=>console.log(`${CAPS.length} capabilities rendered into both manuals`));
+  write(buildChecklistBook(),"TitanOS_Operating_Checklists.docx"),
+]).then(()=>{
+  const items=LISTS.reduce((a,l)=>a+l.groups.reduce((b,[,i])=>b+i.length,0),0);
+  console.log(`${CAPS.length} capabilities in both manuals; ${LISTS.length} checklists / ${items} items in the checklist book`);
+});
