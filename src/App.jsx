@@ -5866,7 +5866,7 @@ function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
       const{error}=await sb.functions.invoke("run-scheduled-prompts",{body:{forcePromptId:id}});
       if(error)throw new Error(error.message||"Failed to start the run");
       toast("Running now — "+userProfile.email+" will get an email when it's ready");
-      setModal(null);load();
+      closeModal();load();
       setTimeout(load,8000);setTimeout(load,25000);
     }catch(e){toast(e.message||"Could not run now","error");}
     finally{setRunningNow(false);}
@@ -6099,6 +6099,11 @@ const BRAND_COLOR_FIELDS=[
   {key:"color_text_soft",   label:"Text (soft)"},
   {key:"color_text_mute",   label:"Text (muted)"},
 ];
+// Holds a half-finished brand form outside the component. Building a brand means
+// fetching a logo and hex codes from elsewhere, so the user routinely leaves this
+// screen mid-edit; keeping the draft here means the work survives the view being
+// unmounted and remounted. Module-level (not persisted) so it clears on reload.
+const _brandDraft={current:null};
 const BLANK_BRAND={
   label:"",brand_name:"",brand_short:"",tagline:"",contact_email:"",email_domain:"",
   logo_url:"",mark_url:"",notes:"",
@@ -6123,10 +6128,17 @@ function ColorField({label,value,onChange}){
 function BrandingView({toast}){
   const[rows,setRows]=useState([]);
   const[loading,setLoading]=useState(true);
-  const[modal,setModal]=useState(null); // {row, isNew}
+  // Restores an in-progress form if the user left this screen to go look
+  // something up (see _brandDraft).
+  const[modal,setModal]=useState(()=>_brandDraft.current);
   const[saving,setSaving]=useState(false);
   const[busyId,setBusyId]=useState(null);
   const[uploading,setUploading]=useState("");
+  const[restored,setRestored]=useState(!!_brandDraft.current);
+
+  // Mirror the open form into the module-level draft on every keystroke, so
+  // navigating away (or anything that remounts this view) doesn't lose it.
+  useEffect(()=>{_brandDraft.current=modal;},[modal]);
 
   const load=async()=>{
     setLoading(true);
@@ -6135,6 +6147,9 @@ function BrandingView({toast}){
     setLoading(false);
   };
   useEffect(()=>{load();},[]);
+
+  // Discards the form and its saved draft together.
+  const closeModal=()=>{setModal(null);_brandDraft.current=null;setRestored(false);};
 
   // A switch changes colours captured in module-level style objects, so the only
   // way to guarantee every corner of the UI (and the print/export templates)
@@ -6165,7 +6180,7 @@ function BrandingView({toast}){
       // Editing the brand that's currently live? Reload so the change is visible.
       if(!modal.isNew&&r.is_active){window.location.reload();return;}
       toast(modal.isNew?"Brand profile created":"Brand profile saved");
-      setModal(null);load();
+      closeModal();load();
     }catch(e){toast(e.message||"Could not save","error");}
     finally{setSaving(false);}
   };
@@ -6245,7 +6260,11 @@ function BrandingView({toast}){
       </div>)}
     </div>
 
-    {modal&&<Modal wide title={modal.isNew?"New Brand Profile":`Edit — ${modal.row.label}`} onClose={()=>setModal(null)}>
+    {modal&&<Modal wide title={modal.isNew?"New Brand Profile":`Edit — ${modal.row.label}`} onClose={closeModal}>
+      {restored&&<div style={{fontSize:11.5,color:B.navy,background:"rgba(206,182,132,0.16)",border:`1px solid ${B.gold}`,borderRadius:8,padding:"8px 12px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+        <span>Picked up where you left off — your unsaved changes are still here.</span>
+        <button onClick={()=>setRestored(false)} style={{background:"none",border:"none",color:B.textSoft,cursor:"pointer",fontSize:14,lineHeight:1}}>✕</button>
+      </div>}
       <SectionLabel>Identity</SectionLabel>
       <Grid2>
         <Field label="Profile Name (internal)"><Inp value={modal.row.label||""} onChange={e=>set("label",e.target.value)} placeholder="Accurate Advisory Group"/></Field>
@@ -6292,7 +6311,7 @@ function BrandingView({toast}){
       </div>}
 
       <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
-        <Btn variant="ghost" onClick={()=>setModal(null)} disabled={saving}>Cancel</Btn>
+        <Btn variant="ghost" onClick={closeModal} disabled={saving}>Cancel</Btn>
         <Btn onClick={save} disabled={saving}>{saving?"Saving…":modal.isNew?"Create":"Save"}</Btn>
       </div>
     </Modal>}
@@ -6362,7 +6381,16 @@ export default function App(){
 
   const loadProfile=useCallback(async userId=>{
     const{data:d}=await sb.from("user_profiles").select("*").eq("id",userId).single();
-    if(d){const p={id:d.id,email:d.email,role:d.role,fullName:d.full_name,active:d.active,familyId:d.family_id,canRunScheduledPrompts:!!d.can_run_scheduled_prompts};profileRef.current=p;setUserProfile(p);CURRENT_USER_LABEL=(d.full_name||d.email||"").trim();}
+    if(d){
+      const p={id:d.id,email:d.email,role:d.role,fullName:d.full_name,active:d.active,familyId:d.family_id,canRunScheduledPrompts:!!d.can_run_scheduled_prompts};
+      profileRef.current=p;
+      // Supabase re-emits auth events whenever the browser tab regains focus, so
+      // this runs again every time the user comes back from another tab. Keep the
+      // previous object when nothing actually changed — replacing it re-renders
+      // the whole app for no reason, which is what was interrupting open forms.
+      setUserProfile(prev=>prev&&JSON.stringify(prev)===JSON.stringify(p)?prev:p);
+      CURRENT_USER_LABEL=(d.full_name||d.email||"").trim();
+    }
   },[]);
 
   useEffect(()=>{
