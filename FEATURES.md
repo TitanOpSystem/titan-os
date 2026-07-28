@@ -124,12 +124,26 @@ something done.
 
 ### Starter playbooks
 
-| Playbook | Steps | Lead time | Conditional |
-|---|---|---|---|
-| ILIT Premium Funding | 9 | 75 days | Crummey notices |
-| Property Insurance Renewal | 8 | 75 days | Market check |
-| Quarterly Estimated Tax | 5 | 30 days | CPA sign-off |
-| Private Fund Capital Call | 5 | 12 days | — |
+Nine playbooks, 66 steps, across four disciplines. Chosen by consequence of
+failure rather than frequency.
+
+| Playbook | Discipline | Steps | Lead time | Conditional |
+|---|---|---|---|---|
+| ILIT Premium Funding | Insurance | 9 | 75 days | Crummey notices |
+| Property Insurance Renewal | Insurance | 8 | 75 days | Market check |
+| Life Insurance In-Force Review | Insurance | 8 | 90 days | Remediation, trust-owned |
+| GRAT Annuity Payment | Trusts & Estates | 8 | 60 days | In-kind, final term year |
+| Intra-Family Loan Interest | Trusts & Estates | 7 | 45 days | Maturity within a year |
+| Required Minimum Distribution | Tax | 8 | 90 days | CPA sign-off, charitable |
+| Partnership K-1 Collection | Tax | 8 | 75 days | — |
+| Quarterly Estimated Tax | Tax | 5 | 30 days | CPA sign-off |
+| Private Fund Capital Call | Investments | 5 | 12 days | — |
+
+**Why these:** a missed GRAT annuity can unwind the whole structure; unpaid
+intra-family loan interest can be recharacterised as a gift years later; an
+unreviewed universal life policy lapses quietly on an elderly insured; a short
+required distribution carries a penalty; and one late K-1 holds up an entire
+return. None of them announce themselves.
 
 **The demo moment:** start an ILIT cycle and the platform lays out nine dated
 steps — transfer request to the bank 60 days out, Crummey notices two days after

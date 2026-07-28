@@ -6426,10 +6426,17 @@ function ResourcesView({data,userProfile,toast}){
 // ── WORKFLOW ENGINE (shared) ─────────────────────────────────────────────────
 const addDays=(iso,n)=>{const d=new Date(iso+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+(Number(n)||0));return d.toISOString().slice(0,10);};
 const todayISO=()=>new Date().toISOString().slice(0,10);
+// Must stay in step with the obligations_kind_check constraint. A kind the
+// database accepts but this list omits is a kind nobody can select.
 const OBLIGATION_KINDS=[
   {v:"premium",label:"Insurance premium"},{v:"tax",label:"Tax payment"},
   {v:"rmd",label:"Required distribution"},{v:"capital_call",label:"Capital call"},
-  {v:"loan_payment",label:"Loan payment"},{v:"other",label:"Other"},
+  {v:"loan_payment",label:"Loan payment"},
+  {v:"grat_annuity",label:"GRAT annuity"},
+  {v:"note_interest",label:"Intra-family loan interest"},
+  {v:"policy_review",label:"Policy review"},
+  {v:"tax_document",label:"Tax document collection"},
+  {v:"other",label:"Other"},
 ];
 const RECURRENCES=[
   {v:"once",label:"One-off"},{v:"monthly",label:"Monthly"},{v:"quarterly",label:"Quarterly"},

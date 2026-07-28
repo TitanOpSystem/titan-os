@@ -98,6 +98,13 @@ function briefFor(recipient: string, kind: string): string {
         "Produce a short INTERNAL NOTE to the professional named (accountant or colleague) asking them to confirm the figure or sign off.",
         "State what is being confirmed, the amount, the deadline, and precisely what response is needed.",
       ].join(" ");
+    case "carrier":
+      return [
+        "Produce a REQUEST TO THE INSURANCE CARRIER or agent of record.",
+        "Identify the policy by number and insured, state precisely what is being requested, and give a date by which it is needed.",
+        "Where an in-force illustration is requested, ask for it on BOTH current assumptions and guaranteed assumptions — the guaranteed run is the one that shows the real risk, and carriers often send only the current one unless asked.",
+        "Businesslike and brief. Carriers process these in volume, so anything decorative gets in the way.",
+      ].join(" ");
     default:
       return kind === "draft_document"
         ? "Produce a short formal document appropriate to the step, using only the supplied facts."
