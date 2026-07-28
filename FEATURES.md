@@ -101,6 +101,9 @@ something done.
 | Conditions resolved before dates are set, because they change the schedule | LIVE |
 | At-risk flagged on day one when a cycle starts too late to fit its own lead times | LIVE |
 | Every outbound item held for named human approval | LIVE |
+| Every outbound draft copies the family principal, so the client sees what is done in their name | LIVE |
+| The copy is suppressed when the principal is already the addressee | LIVE |
+| Refuses to guess the principal when a family has several members on file — says so instead | LIVE |
 | Skipped steps stay visible, so nothing looks forgotten | LIVE |
 | Template library in Resources: read the exact playbook before it runs | LIVE |
 | Steps read in plain language — "60 days before", who acts, to whom | LIVE |

@@ -575,7 +575,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError",data_source:"dataSource",can_run_scheduled_prompts:"canRunScheduledPrompts",property_section:"propertySection",expiry_date:"expiryDate",doc_type:"docType",mime_type:"mimeType"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",is_primary:"isPrimary",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError",data_source:"dataSource",can_run_scheduled_prompts:"canRunScheduledPrompts",property_section:"propertySection",expiry_date:"expiryDate",doc_type:"docType",mime_type:"mimeType"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -1694,6 +1694,26 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
     const{error}=await sb.from("contacts").update({is_advisor:!c.isAdvisor}).eq("id",c.id);
     if(error)toast(error.message,"error");else{toast(!c.isAdvisor?"Marked as an emailable Titan Expert":"Removed as Titan Expert option");reload("contacts");}
   };
+  // The family principal, copied on every outbound workflow draft. A partial unique
+  // index allows only one per family, so the previous holder is cleared first
+  // rather than letting the database reject the second write.
+  const toggleMemberPrimary=async(c)=>{
+    if(!c.isPrimary&&!c.email){
+      toast("Add an email to this member first — the copy has nowhere to go.","error");return;
+    }
+    const clearing=!!c.isPrimary;
+    const{error:clearErr}=await sb.from("contacts")
+      .update({is_primary:false}).eq("family_id",family.id).eq("is_primary",true);
+    if(clearErr){toast(clearErr.message,"error");return;}
+    if(!clearing){
+      const{error}=await sb.from("contacts").update({is_primary:true}).eq("id",c.id);
+      if(error){toast(error.message,"error");reload("contacts");return;}
+    }
+    toast(clearing
+      ?"No primary contact set — workflow drafts will go out without a copy"
+      :`${c.name} will be copied on workflow correspondence`);
+    reload("contacts");
+  };
   const[editFC,setEditFC]=useState(null);
   const famContacts=(data.family_contacts||[]).filter(fc=>fc.familyId===family.id);
   const addFamilyContact=async(f)=>{const{error}=await sb.from("family_contacts").insert({family_id:family.id,name:f.name,role:f.role||null,company:f.company||null,email:f.email||null,phone:f.phone||null,is_advisor:!!f.isAdvisor,notes:f.notes||null});if(error)toast(error.message,"error");else{toast("Contact added");reload("family_contacts");}};
@@ -1825,7 +1845,9 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
               <GoldLine/>
               {contacts.length===0?<Empty text="No members yet — add the first one"/>:contacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`}}>
                 <div>
-                  <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{c.name}{c.dob&&(()=>{const d=new Date(c.dob);if(isNaN(d))return null;const t=new Date();let a=t.getFullYear()-d.getFullYear();const m=t.getMonth()-d.getMonth();if(m<0||(m===0&&t.getDate()<d.getDate()))a--;return a>=0?<span style={{fontWeight:400,color:B.textSoft,fontSize:11,marginLeft:6}}>· {a} yrs</span>:null;})()}</div>
+                  <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{c.name}{c.dob&&(()=>{const d=new Date(c.dob);if(isNaN(d))return null;const t=new Date();let a=t.getFullYear()-d.getFullYear();const m=t.getMonth()-d.getMonth();if(m<0||(m===0&&t.getDate()<d.getDate()))a--;return a>=0?<span style={{fontWeight:400,color:B.textSoft,fontSize:11,marginLeft:6}}>· {a} yrs</span>:null;})()}
+                    {c.isPrimary&&<span style={{fontSize:9.5,fontWeight:700,letterSpacing:0.4,color:B.navy,background:"rgba(206,182,132,0.3)",border:`1px solid ${B.gold}`,borderRadius:4,padding:"1px 5px",marginLeft:7,verticalAlign:"middle"}}>PRIMARY</span>}
+                  </div>
                   <div style={{fontSize:11,color:B.textSoft,marginTop:2,display:"flex",gap:10}}>
                     {c.email&&<span>✉ <EmailLink value={c.email}/></span>}
                     {c.phone&&<span>📞 <PhoneLink value={c.phone}/></span>}
@@ -1834,10 +1856,18 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <Badge scheme={c.type==="Business"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{c.type}</Badge>
+                  {canEdit&&<button onClick={()=>toggleMemberPrimary(c)}
+                    title={c.isPrimary?"Primary contact — copied on workflow correspondence. Click to unset.":"Make this the primary contact, copied on workflow correspondence"}
+                    style={{background:"none",border:"none",color:c.isPrimary?B.gold:B.textMute,cursor:"pointer",fontSize:13,opacity:c.isPrimary?1:0.55}}>★</button>}
                   {canEdit&&<button onClick={()=>{setEditM(c);setModal("member");}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit member">✎</button>}
                   {canEdit&&<button onClick={()=>delMember(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>}
                 </div>
               </div>)}
+              {/* Workflow drafts copy the principal, so an undesignated family is a
+                  gap worth naming here rather than discovering on a draft. */}
+              {contacts.length>0&&!contacts.some(c=>c.isPrimary)&&<div style={{marginTop:10,fontSize:11,color:B.textSoft,background:B.bg,border:`1px dashed ${B.border}`,borderRadius:8,padding:"8px 10px",lineHeight:1.5}}>
+                No primary contact set. Workflow drafts copy the family principal — use ★ to choose who that is.
+              </div>}
             </div>
             {/* Team Member & Contacts (professional contacts linked to this family) */}
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
@@ -6462,11 +6492,15 @@ const isOutbound=k=>OUTBOUND_KINDS.includes(k);
 
 function DraftReviewModal({step,onClose,onApproved,toast,userProfile}){
   const[to,setTo]=useState(step.draftTo||step.draft_to||"");
+  const[cc,setCc]=useState(step.draftCc||step.draft_cc||"");
   const[subject,setSubject]=useState(step.draftSubject||step.draft_subject||"");
   const[body,setBody]=useState(step.draftBody||step.draft_body||"");
   const[drafting,setDrafting]=useState(false);
   const[busy,setBusy]=useState(false);
   const[attached,setAttached]=useState(null);
+  // Why the copy line is empty, when it is. An unexplained blank field invites the
+  // reviewer to assume the copy is handled.
+  const[ccStatus,setCcStatus]=useState(null);
   const hasDraft=!!String(body||"").trim();
 
   const generate=async()=>{
@@ -6481,6 +6515,7 @@ function DraftReviewModal({step,onClose,onApproved,toast,userProfile}){
       if(error)throw new Error(error.message||"Could not prepare a draft");
       if(data?.error)throw new Error(data.error);
       setTo(data.to||"");setSubject(data.subject||"");setBody(data.body||"");
+      setCc(data.cc||"");setCcStatus(data.ccStatus||null);
       setAttached(data.attached||null);
       toast(data.attached?`Draft prepared — ${data.attached} attached`:"Draft prepared");
     }catch(e){toast(e.message||"Drafting failed","error");}
@@ -6490,7 +6525,7 @@ function DraftReviewModal({step,onClose,onApproved,toast,userProfile}){
   // Saving edits without approving: the reviewer can park a revision and come back.
   const persist=async(extra)=>{
     const{error}=await sb.from("workflow_instance_steps").update({
-      draft_to:to||null,draft_subject:subject||null,draft_body:body||null,
+      draft_to:to||null,draft_cc:cc||null,draft_subject:subject||null,draft_body:body||null,
       updated_at:new Date().toISOString(),...extra,
     }).eq("id",step.id);
     if(error)throw new Error(error.message);
@@ -6534,6 +6569,15 @@ function DraftReviewModal({step,onClose,onApproved,toast,userProfile}){
         <Field label="To"><Inp value={to} onChange={e=>setTo(e.target.value)} placeholder="Recipient"/></Field>
         <Field label="Subject"><Inp value={subject} onChange={e=>setSubject(e.target.value)}/></Field>
       </Grid2>
+      <Field label="Cc — the family's primary contact, copied on outbound correspondence">
+        <Inp value={cc} onChange={e=>setCc(e.target.value)} placeholder="Nobody copied"/>
+      </Field>
+      {ccStatus==="no_primary_on_file"&&<div style={{fontSize:11,color:"#7A5A19",background:"#FBF3E3",border:"1px solid #E4CE9A",borderRadius:8,padding:"8px 11px",marginBottom:12,lineHeight:1.5}}>
+        This family has no primary contact designated, so nothing was copied. Set one with ★ in Members, or type an address above.
+      </div>}
+      {ccStatus==="addressed_directly"&&<div style={{fontSize:11,color:B.textMute,marginBottom:12,lineHeight:1.5}}>
+        The primary contact is the addressee here, so they have not also been copied.
+      </div>}
       <Field label="Draft — edit freely before approving">
         <textarea value={body} onChange={e=>setBody(e.target.value)} rows={16}
           style={{...inp,resize:"vertical",fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace",fontSize:12.5,lineHeight:1.6}}/>
