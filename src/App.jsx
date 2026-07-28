@@ -555,7 +555,19 @@ const REMINDER_OPTIONS=[
   {label:"60 days before",days:60},
 ];
 
-const fmt=iso=>iso?new Date(iso).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
+// Dates are stored as calendar dates ("2026-06-30"), not instants. new Date() parses
+// that form as UTC midnight, so toLocaleDateString rendered it in the browser's zone
+// and every user west of UTC saw the previous day: a premium due 30 June displayed as
+// 29 June, and 1 January as 31 December of the PRIOR YEAR. On a tax deadline or a
+// withdrawal window that is not cosmetic.
+//
+// parseLocalDate (defined above for cash-flow projections) already solved this. It
+// simply was not used here, so every date outside the cash-flow charts was wrong.
+const fmt=iso=>{
+  if(!iso)return"—";
+  const d=parseLocalDate(iso);
+  return isNaN(d.getTime())?"—":d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+};
 const fmtMoney=n=>n!=null&&n!==""?`$${Number(n).toLocaleString()}`:"—";
 // Report-grade currency: always 2 decimals + thousands separators ($1,324,486.40). Avoids ragged decimals from raw toLocaleString().
 const fmtUSD=n=>n!=null&&n!==""?`$${Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`:"—";
@@ -2608,7 +2620,7 @@ function TaskForm({initial,contacts=[],onSave,onClose}){
       </Sel>
     </Field>
     {f.reminderDays>0&&f.dueDate&&<div style={{background:"#e8f0f8",borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12,color:B.navyMid}}>
-      🔔 Titan Expert will be emailed on {new Date(new Date(f.dueDate).setDate(new Date(f.dueDate).getDate()-f.reminderDays)).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+      🔔 Titan Expert will be emailed on {(()=>{const b=parseLocalDate(f.dueDate);if(isNaN(b.getTime()))return new Date(NaN);const r=new Date(b);r.setDate(r.getDate()-f.reminderDays);return r;})().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
     </div>}
     <RecurrenceField f={f} setF={setF}/>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}>
@@ -3674,7 +3686,9 @@ function FamilyForm({initial,onSave,onClose,userProfile,advisors=[]}){
 // ── FAMILIES LIST VIEW ────────────────────────────────────────────────────────
 function printAdvisorReport(adv,data){
   const email=adv.email||"";
-  const fmtD=d=>d?new Date(d).toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"}):"—";
+  // Same calendar-date handling as fmt(); this formatter had the identical bug.
+  const fmtD=d=>{if(!d)return"—";const x=parseLocalDate(d);
+    return isNaN(x.getTime())?"—":x.toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});};
   const esc=s=>String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   const families=(data.families||[]).filter(f=>(f.advisorEmail||"")===email);
   const famIds=new Set(families.map(f=>f.id));
