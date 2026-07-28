@@ -7,7 +7,7 @@ prospect hears it.
 **Status key** — `LIVE` in PCM production · `DEMO` on the pitch instance only ·
 `BUILDING` in progress
 
-Last updated: 28 July 2026
+Last updated: 28 July 2026 (playbook library shipped)
 
 ---
 
@@ -102,7 +102,10 @@ something done.
 | At-risk flagged on day one when a cycle starts too late to fit its own lead times | DEMO |
 | Every outbound item held for named human approval | DEMO |
 | Skipped steps stay visible, so nothing looks forgotten | DEMO |
-| Template library editable by the firm — new playbooks are rows, not code | BUILDING |
+| Template library in Resources: read the exact playbook before it runs | DEMO |
+| Steps read in plain language — "60 days before", who acts, to whom | DEMO |
+| Admins edit lead times, actors, recipients and conditions; others read only | DEMO |
+| New playbooks are rows, not code — the firm adds its own | DEMO |
 | Review queue on the dashboard: everything awaiting a person, across the book | BUILDING |
 
 ### Starter playbooks
