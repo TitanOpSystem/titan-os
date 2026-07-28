@@ -626,6 +626,15 @@ async function openStoredDoc(doc,toast){
   if(error||!data?.signedUrl){toast&&toast(error?.message||"Could not open that document","error");return;}
   window.open(data.signedUrl,"_blank","noopener");
 }
+// Shown in place of DocLink when a section has no document yet: jumps to the
+// Vault with the property and section pre-selected, so attaching a bill is one
+// click from the figure it belongs to rather than a hunt through the Vault.
+function AttachLink({onClick,section}){
+  return <button onClick={e=>{e.stopPropagation();onClick();}} title={`Attach ${sectionLabel(section)}`}
+    style={{background:"none",border:"none",padding:0,marginLeft:5,cursor:"pointer",color:B.textMute,fontSize:10.5,lineHeight:1,verticalAlign:"middle"}}
+    onMouseEnter={e=>e.currentTarget.style.color=B.navy}
+    onMouseLeave={e=>e.currentTarget.style.color=B.textMute}>📎</button>;
+}
 // Renders nothing when there is no supporting document, so the UI never shows a
 // link that leads nowhere.
 function DocLink({doc,toast,label}){
@@ -1502,6 +1511,11 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
   const TABS=["Overview","Properties","Portfolio","Cash Flow","Valuables","Deals","Notes","Tasks","Vault","Ask Titan",...(canSeePrompts?["Prompts"]:[])];
   const assistantName=(((data.families||[]).find(x=>x.id===family.id)||family).assistantName||"").trim()||"Titan";
   const[showWelcome,setShowWelcome]=useState(false);
+  // Carries "attach a document to this property section" from the Properties tab
+  // over to the Vault tab, which owns the upload form.
+  const[attachIntent,setAttachIntent]=useState(null);
+  // Tab ids are the lowercased, de-spaced label (see the TABS map below).
+  const startAttach=(propertyId,section)=>{setAttachIntent({propertyId,section});setActiveTab("vault");};
   useEffect(()=>{
     if(!family?.id)return;
     if(_greetedFamilies.has(family.id))return;   // already greeted this session
@@ -1840,7 +1854,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8}}>
                 {[["Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—","mortgage"],["Loan Type",p.loanType],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],...(Number(p.secondMortgageBalance)>0?[["2nd Mtg Balance",fmtMoney(p.secondMortgageBalance)],["2nd Mtg Payment",p.secondMortgagePayment?`${fmtMoney(p.secondMortgagePayment)}/mo`:"—"]]:[]),["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—","rental"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—","tax"],["Utilities",p.utilities?`${fmtMoney(p.utilities)}/mo`:"—"],["Insurance Co.",p.insuranceCompany||"—","insurance_dec"],["Ins. Premium",p.insurancePremium?`${fmtMoney(p.insurancePremium)}/yr`:"—","insurance_invoice"],["Flood Insurance",p.floodInsurance?`Yes${p.floodInsuranceCompany?` — ${p.floodInsuranceCompany}`:""}`:("No"),"flood_dec"]].map(([l,v,sec])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
-                  <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}<DocLink doc={sec?docForSection(p.id,sec):null} toast={toast}/></div>
+                  <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}{sec&&(docForSection(p.id,sec)?<DocLink doc={docForSection(p.id,sec)} toast={toast}/>:(canEdit?<AttachLink section={sec} onClick={()=>startAttach(p.id,sec)}/>:null))}</div>
                   <div style={{fontSize:12,color:B.text,fontWeight:600}}>{v}</div>
                 </div>)}
               </div>
@@ -2077,7 +2091,8 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
 
       {/* VAULT TAB */}
       {activeTab==="vault"&&<div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
-        <DocumentsView familyId={family.id} readOnly={false} canUpload={true} canDelete={canEdit} canScan={canEdit} canEditMetadata={canEdit} toast={toast} reload={reload}/>
+        <DocumentsView familyId={family.id} readOnly={false} canUpload={true} canDelete={canEdit} canScan={canEdit} canEditMetadata={canEdit} toast={toast} reload={reload}
+          attachIntent={attachIntent} onAttachHandled={()=>setAttachIntent(null)}/>
       </div>}
 
       {activeTab==="asktitan"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
@@ -4793,6 +4808,21 @@ function UserManagementView({userProfile,data={},toast}){
 
 // ── DOCUMENTS VIEW ────────────────────────────────────────────────────────────
 const DOC_CATEGORIES = ["General","Tax","Legal","Insurance","Investment","Real Estate","Estate Planning","Other"];
+// A document may be pinned to one specific section of a property (or to the
+// family's valuables schedule), which is what makes the supporting-document
+// links appear next to the figures on the property and valuables cards.
+// `suggestCategory` pre-selects a sensible Vault folder when a section is chosen
+// so the user isn't asked the same thing twice.
+const DOC_SECTIONS=[
+  {key:"mortgage",          label:"Mortgage / Loan Document", scope:"property", suggestCategory:"Real Estate"},
+  {key:"tax",               label:"Property Tax Bill",        scope:"property", suggestCategory:"Tax"},
+  {key:"insurance_dec",     label:"Insurance Declarations",   scope:"property", suggestCategory:"Insurance"},
+  {key:"insurance_invoice", label:"Insurance Invoice",        scope:"property", suggestCategory:"Insurance"},
+  {key:"flood_dec",         label:"Flood Declarations",       scope:"property", suggestCategory:"Insurance"},
+  {key:"rental",            label:"Rental Agreement",         scope:"property", suggestCategory:"Real Estate"},
+  {key:"valuables_schedule",label:"Valuables Schedule",       scope:"family",   suggestCategory:"Insurance"},
+];
+const sectionLabel=k=>DOC_SECTIONS.find(s=>s.key===k)?.label||k;
 
 // Loads pdf.js from CDN once (no build dependency). Used to extract PDF text
 // directly in the browser — no size, page, or server-timeout limit.
@@ -4868,7 +4898,7 @@ async function extractScannedPdfText(arrayBuffer,onProgress){
   return { text:combined.trim(), pagesScanned:total, totalPages:pdf.numPages, truncated };
 }
 
-function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canEditMetadata,toast,reload}){
+function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canEditMetadata,toast,reload,attachIntent,onAttachHandled}){
   // Backward compat: if readOnly passed, default canUpload=false canDelete=false
   // If canUpload/canDelete passed explicitly, use those
   const allowUpload=canUpload!==undefined?canUpload:!readOnly;
@@ -4886,6 +4916,13 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
   const[category,setCategory]=useState("General");
   const[file,setFile]=useState(null);
   const[uploadPhase,setUploadPhase]=useState("");
+  // Optional link to a property section / valuables schedule.
+  const[linkPropertyId,setLinkPropertyId]=useState("");
+  const[linkSection,setLinkSection]=useState("");
+  const[properties,setProperties]=useState([]);
+  // Set when the chosen section already has a document, so we ask before
+  // displacing it rather than silently swapping what the client sees.
+  const[conflictDoc,setConflictDoc]=useState(null);
 
   const loadDocs=async()=>{
     const q=sb.from("documents").select("*").order("created_at",{ascending:false});
@@ -4898,6 +4935,44 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
     setLoading(false);
   };
   useEffect(()=>{loadDocs();},[familyId]);
+  // Property list for the link picker. Only meaningful within one family.
+  useEffect(()=>{
+    if(!familyId){setProperties([]);return;}
+    sb.from("properties").select("id,name,address,city").eq("family_id",familyId)
+      .then(({data})=>setProperties((data||[]).map(toClient)));
+  },[familyId]);
+
+  // Arriving from the paperclip on a property section: open the upload form with
+  // the property and section already chosen.
+  useEffect(()=>{
+    if(!attachIntent)return;
+    const sec=DOC_SECTIONS.find(x=>x.key===attachIntent.section);
+    setLinkSection(attachIntent.section||"");
+    setLinkPropertyId(sec&&sec.scope==="property"?(attachIntent.propertyId||""):"");
+    if(sec&&sec.suggestCategory)setCategory(sec.suggestCategory);
+    setOpenFolder(null);
+    setModal("upload");
+    if(onAttachHandled)onAttachHandled();
+  },[attachIntent]);
+
+  const propLabel=p=>p.name||[p.address,p.city].filter(Boolean).join(", ")||"Property";
+  // The document currently occupying a given section, ignoring the one being edited.
+  const occupantOf=(section,propertyId,exceptId)=>docs.find(d=>
+    d.propertySection===section&&
+    (section==="valuables_schedule"?true:d.propertyId===propertyId)&&
+    d.id!==exceptId);
+  // Selecting a section implies a Vault folder; only pre-fill it if the user
+  // hasn't deliberately chosen one already.
+  const chooseSection=(key,touchedCategory)=>{
+    setLinkSection(key);
+    const s=DOC_SECTIONS.find(x=>x.key===key);
+    if(s&&s.suggestCategory&&!touchedCategory)setCategory(s.suggestCategory);
+    if(s&&s.scope==="family")setLinkPropertyId("");
+  };
+  const resetForm=()=>{
+    setName("");setDescription("");setCategory("General");setFile(null);
+    setLinkPropertyId("");setLinkSection("");setConflictDoc(null);
+  };
   // Most recent download of a given document, if any (downloads is pre-sorted newest first).
   const lastDownloadFor=docId=>downloads.find(d=>d.documentId===docId)||null;
 
@@ -4942,10 +5017,25 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
       }
       // Save record
       setUploadPhase("Saving…");
-      const{error:dbError}=await sb.from("documents").insert({family_id:familyId||null,name,description:description||null,category,file_path:path,file_size:file.size,file_type:file.type||ext,extracted_text:extractedText,uploaded_by:CURRENT_USER_LABEL||null});
+      // Displacing an existing section document: unlink it rather than delete it.
+      // Prior-year tax bills and expired policies still have real value, so they
+      // stay in the Vault — they just stop being the one shown on the card.
+      const section=linkSection||null;
+      const propId=section&&DOC_SECTIONS.find(s=>s.key===section)?.scope==="property"?(linkPropertyId||null):null;
+      let displaced=null;
+      if(section){
+        const occ=occupantOf(section,propId);
+        if(occ){
+          await sb.from("documents").update({property_section:null}).eq("id",occ.id);
+          displaced=occ.name;
+        }
+      }
+      const{error:dbError}=await sb.from("documents").insert({family_id:familyId||null,name,description:description||null,category,file_path:path,file_size:file.size,file_type:file.type||ext,extracted_text:extractedText,uploaded_by:CURRENT_USER_LABEL||null,property_id:propId,property_section:section});
       if(dbError)throw new Error(dbError.message);
-      toast(extractedText?"Document uploaded and scanned":"Document uploaded");
-      setModal(null);setName("");setDescription("");setCategory("General");setFile(null);
+      toast(displaced
+        ?`Uploaded and linked. "${displaced}" is still in the Vault, no longer linked.`
+        :(section?`Uploaded and linked to ${sectionLabel(section)}`:(extractedText?"Document uploaded and scanned":"Document uploaded")));
+      setModal(null);resetForm();
       loadDocs();
       if(reload)reload("documents"); // refresh global data so the AI assistant snapshot includes this document
     }catch(e){toast(e.message,"error");}
@@ -4981,15 +5071,63 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
     if(reload)reload("documents");
   };
 
-  const openEdit=doc=>{setName(doc.name||"");setDescription(doc.description||"");setCategory(doc.category||"General");setModal({edit:doc});};
+  const openEdit=doc=>{setName(doc.name||"");setDescription(doc.description||"");setCategory(doc.category||"General");setLinkSection(doc.propertySection||"");setLinkPropertyId(doc.propertyId||"");setConflictDoc(null);setModal({edit:doc});};
   const saveEdit=async()=>{
     const doc=modal?.edit;if(!doc||!name.trim())return;
     setUploading(true);
-    const{error}=await sb.from("documents").update({name:name.trim(),description:description||null,category}).eq("id",doc.id);
+    const section=linkSection||null;
+    const propId=section&&DOC_SECTIONS.find(s=>s.key===section)?.scope==="property"?(linkPropertyId||null):null;
+    // Same rule as upload: the document being displaced is unlinked, never
+    // deleted, so history stays in the Vault.
+    let displaced=null;
+    if(section){
+      const occ=occupantOf(section,propId,doc.id);
+      if(occ){
+        await sb.from("documents").update({property_section:null}).eq("id",occ.id);
+        displaced=occ.name;
+      }
+    }
+    const{error}=await sb.from("documents").update({name:name.trim(),description:description||null,category,property_id:propId,property_section:section}).eq("id",doc.id);
     if(error){toast(error.message,"error");setUploading(false);return;}
-    toast("Document updated");
-    setModal(null);setName("");setDescription("");setCategory("General");
+    toast(displaced?`Saved. "${displaced}" is still in the Vault, no longer linked.`:"Document updated");
+    setModal(null);resetForm();
     loadDocs();setUploading(false);
+    if(reload)reload("documents"); // property cards read links from global data
+  };
+
+  // Shared by the upload and edit forms: optionally pin this document to one
+  // section of a property (or the family's valuables schedule) so it surfaces
+  // next to the figure it supports, instead of only living in the Vault.
+  const linkFields=(exceptId)=>{
+    if(!familyId)return null;
+    const sec=DOC_SECTIONS.find(s=>s.key===linkSection);
+    const needsProperty=sec&&sec.scope==="property";
+    const occ=linkSection&&(!needsProperty||linkPropertyId)?occupantOf(linkSection,needsProperty?linkPropertyId:null,exceptId):null;
+    return <>
+      <SectionLabel>Link to a record (optional)</SectionLabel>
+      <Grid2>
+        <Field label="Section">
+          <Sel value={linkSection} onChange={e=>chooseSection(e.target.value,category!=="General")}>
+            <option value="">Not linked — Vault only</option>
+            {DOC_SECTIONS.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
+          </Sel>
+        </Field>
+        {needsProperty&&<Field label="Property">
+          <Sel value={linkPropertyId} onChange={e=>setLinkPropertyId(e.target.value)}>
+            <option value="">Select a property…</option>
+            {properties.map(p=><option key={p.id} value={p.id}>{propLabel(p)}</option>)}
+          </Sel>
+        </Field>}
+      </Grid2>
+      {needsProperty&&linkSection&&!linkPropertyId&&
+        <div style={{fontSize:11.5,color:"#8b1a1a",marginTop:-6,marginBottom:12}}>Choose a property to complete the link.</div>}
+      {occ&&<div style={{fontSize:11.5,color:B.navy,background:"rgba(206,182,132,0.16)",border:`1px solid ${B.gold}`,borderRadius:8,padding:"9px 12px",marginBottom:12,lineHeight:1.5}}>
+        <strong>{sectionLabel(linkSection)}</strong> is already linked to “{occ.name}”. Saving will make this document the linked one — “{occ.name}” stays in the Vault, just unlinked.
+      </div>}
+      {linkSection&&!occ&&<div style={{fontSize:11.5,color:B.textSoft,marginBottom:12,lineHeight:1.5}}>
+        This will appear as the supporting document next to {sectionLabel(linkSection)}.
+      </div>}
+    </>;
   };
 
   const fmtSize=bytes=>{if(!bytes)return"—";if(bytes<1024)return bytes+"B";if(bytes<1024*1024)return(bytes/1024).toFixed(1)+"KB";return(bytes/(1024*1024)).toFixed(1)+"MB";};
@@ -5110,6 +5248,12 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
                       <div style={{minWidth:0}}>
                         <div style={{fontWeight:700,color:B.navy,fontSize:15}}>{doc.name}</div>
                         {doc.description&&<div style={{fontSize:12,color:B.textSoft,marginTop:2}}>{doc.description}</div>}
+                        {/* Makes it obvious which Vault files are the ones being
+                            surfaced on a property or valuables card. */}
+                        {doc.propertySection&&<div style={{fontSize:11,color:B.navy,marginTop:4,display:"inline-flex",alignItems:"center",gap:5,background:"rgba(206,182,132,0.18)",border:`1px solid ${B.gold}`,borderRadius:20,padding:"2px 9px"}}>
+                          🔗 {sectionLabel(doc.propertySection)}
+                          {doc.propertyId&&properties.length>0&&(()=>{const pp=properties.find(x=>x.id===doc.propertyId);return pp?<span style={{color:B.textSoft}}>· {propLabel(pp)}</span>:null;})()}
+                        </div>}
                       </div>
                     </div>
                     <span style={{fontSize:11,color:B.textMute,flexShrink:0}}>{fmtSize(doc.fileSize)}</span>
@@ -5133,10 +5277,11 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
       })()}
     </div>
 
-    {modal==="upload"&&<Modal title="Upload Document" onClose={()=>setModal(null)}>
+    {modal==="upload"&&<Modal title="Upload Document" onClose={()=>{setModal(null);resetForm();}}>
       <Field label="Document Name"><Inp placeholder="Q4 2024 Statement" value={name} onChange={e=>setName(e.target.value)}/></Field>
       <Field label="Category"><Sel value={category} onChange={e=>setCategory(e.target.value)}>{DOC_CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></Field>
       <Field label="Description"><Inp placeholder="Optional description" value={description} onChange={e=>setDescription(e.target.value)}/></Field>
+      {linkFields()}
       <Field label="File">
         <div style={{border:`2px dashed ${file?B.gold:B.border}`,borderRadius:10,padding:"20px",textAlign:"center",cursor:"pointer",background:file?"#fef9f0":B.bg,transition:"all .2s"}} onClick={()=>document.getElementById("file-upload").click()}>
           <input id="file-upload" type="file" style={{display:"none"}} onChange={e=>setFile(e.target.files[0])}/>
@@ -5152,13 +5297,14 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
       </div>
     </Modal>}
 
-    {modal&&modal.edit&&<Modal title="Edit Document" onClose={()=>setModal(null)}>
+    {modal&&modal.edit&&<Modal title="Edit Document" onClose={()=>{setModal(null);resetForm();}}>
       <Field label="Document Name"><Inp placeholder="Q4 2024 Statement" value={name} onChange={e=>setName(e.target.value)}/></Field>
       <Field label="Category"><Sel value={category} onChange={e=>setCategory(e.target.value)}>{DOC_CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></Field>
       <Field label="Description"><Inp placeholder="Optional description" value={description} onChange={e=>setDescription(e.target.value)}/></Field>
+      {linkFields(modal.edit.id)}
       <div style={{fontSize:11,color:B.textMute,marginBottom:14}}>Renaming changes the display title only; the stored file itself is unchanged.</div>
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-        <Btn variant="ghost" onClick={()=>setModal(null)}>Cancel</Btn>
+        <Btn variant="ghost" onClick={()=>{setModal(null);resetForm();}}>Cancel</Btn>
         <Btn onClick={saveEdit} disabled={uploading||!name.trim()}>{uploading?"Saving…":"Save"}</Btn>
       </div>
     </Modal>}
