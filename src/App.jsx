@@ -4443,7 +4443,10 @@ function ReviewQueue({families,toast,userProfile}){
     // filtering is needed — and none should be relied on.
     const{data}=await sb.from("workflow_instance_steps")
       .select("*")
-      .in("status",["ready","awaiting_approval","blocked"])
+      // 'approved' belongs here: approving no longer means sent, so an approved
+      // draft still needs someone to send it. Omitting it would make the step
+      // vanish from the queue while the work was still outstanding.
+      .in("status",["ready","awaiting_approval","approved","blocked"])
       .order("due_on")
       .limit(40);
     setRows(data||[]);
@@ -4491,7 +4494,7 @@ function ReviewQueue({families,toast,userProfile}){
           </span>
           <Btn small variant={outbound?"gold":"ghost"} disabled={busy===s.id}
             onClick={()=>outbound?setReview(s):act(s,"done")}>
-            {busy===s.id?"…":outbound?(s.draft_body?"Review draft":"Prepare draft"):"Mark done"}
+            {busy===s.id?"…":outbound?(s.status==="approved"?"Send":s.draft_body?"Review draft":"Prepare draft"):"Mark done"}
           </Btn>
         </div>;
       })}
@@ -6440,7 +6443,9 @@ const STEP_STATUS_TINT={
   blocked:{bg:"#fde8e8",text:"#8b1a1a"},
 };
 const statusWord=s=>({awaiting_approval:"Needs approval",ready:"Ready",pending:"Upcoming",
-  approved:"Approved",sent:"Sent",done:"Done",skipped:"Not required",blocked:"Blocked"}[s]||s);
+  // Approved is not finished. It is approved and still sitting there unsent, and the
+  // label has to say so or a clear-looking queue will be hiding outstanding work.
+  approved:"Approved — not sent",sent:"Sent",done:"Done",skipped:"Not required",blocked:"Blocked"}[s]||s);
 
 // Builds one cycle from a playbook. Conditional steps whose flag isn't set are
 // written as 'skipped' rather than omitted, so the record shows they were
@@ -6501,7 +6506,13 @@ function DraftReviewModal({step,onClose,onApproved,toast,userProfile}){
   // Why the copy line is empty, when it is. An unexplained blank field invites the
   // reviewer to assume the copy is handled.
   const[ccStatus,setCcStatus]=useState(null);
+  // Recipients the firm has no record of for this client. Held here so the reviewer
+  // must look at them before a second, explicit send.
+  const[unknownTo,setUnknownTo]=useState(null);
+  const[sentInfo,setSentInfo]=useState(null);
   const hasDraft=!!String(body||"").trim();
+  const alreadySent=step.status==="sent"||!!step.sent_message_id;
+  const isApproved=step.status==="approved";
 
   const generate=async()=>{
     setDrafting(true);
@@ -6538,15 +6549,56 @@ function DraftReviewModal({step,onClose,onApproved,toast,userProfile}){
     setBusy(false);
   };
 
-  const approve=async()=>{
-    if(!hasDraft){toast("Prepare or write a draft first","error");return;}
+  // Approving and sending are separate acts, recorded separately. Approve used to
+  // set status 'sent' and a sent_at timestamp while nothing was dispatched, which
+  // left the record asserting a communication that never happened.
+  const approveOnly=async(silent)=>{
+    if(!hasDraft){toast("Prepare or write a draft first","error");return false;}
+    await persist({status:"approved",approved_by:CURRENT_USER_LABEL||userProfile?.email||"—",
+      approved_at:new Date().toISOString()});
+    if(!silent)toast("Approved — recorded against your name. Not sent yet.");
+    return true;
+  };
+
+  // Sends through the platform. `confirm` re-submits past the unknown-recipient
+  // check after the reviewer has looked at the addresses.
+  const doSend=async(confirm)=>{
+    const{data,error}=await sb.functions.invoke("send-workflow-step",
+      {body:{stepId:step.id,confirmUnverifiedRecipients:!!confirm}});
+    // A 409 carrying unknownRecipients is not a failure: it is the platform asking
+    // a question, because a draft recipient partly derives from document text.
+    const payload=data||{};
+    if(payload.needsConfirmation){setUnknownTo(payload.unknownRecipients||[]);return false;}
+    if(payload.error)throw new Error(payload.error);
+    if(error)throw new Error(error.message||"Could not send");
+    setSentInfo(payload);
+    toast(payload.alreadySent?"Already sent — not sent again"
+      :`Sent${payload.attached?.length?` with ${payload.attached.length} attachment${payload.attached.length>1?"s":""}`:""}`);
+    onApproved&&onApproved();
+    return true;
+  };
+
+  const approveAndSend=async()=>{
     setBusy(true);
     try{
-      await persist({status:"sent",approved_by:CURRENT_USER_LABEL||userProfile?.email||"—",
-        approved_at:new Date().toISOString(),sent_at:new Date().toISOString()});
-      toast("Approved — recorded against your name");
-      onApproved&&onApproved();onClose();
+      if(await approveOnly(true)){
+        if(await doSend(false))onClose();
+      }
     }catch(e){toast(e.message,"error");}
+    setBusy(false);
+  };
+
+  const confirmAndSend=async()=>{
+    setBusy(true);
+    try{ if(await doSend(true))onClose(); }
+    catch(e){toast(e.message,"error");}
+    setBusy(false);
+  };
+
+  const approveNoSend=async()=>{
+    setBusy(true);
+    try{ if(await approveOnly(false)){onApproved&&onApproved();onClose();} }
+    catch(e){toast(e.message,"error");}
     setBusy(false);
   };
 
@@ -6587,18 +6639,47 @@ function DraftReviewModal({step,onClose,onApproved,toast,userProfile}){
       </div>}
       <div style={{fontSize:11,color:B.textMute,marginBottom:14,lineHeight:1.5}}>
         Square-bracketed placeholders mark anything the record could not supply — complete those before approving.
-        Approving records your name and time against this step.
+        Approving records your name and time against this step; sending goes out from this client's Titan Expert.
       </div>
+
+      {/* A draft recipient is partly derived from uploaded document text, so an
+          address the firm has no record of is stopped and shown before sending. */}
+      {unknownTo&&unknownTo.length>0&&<div style={{fontSize:12,color:"#8b1a1a",background:"#fdeaea",border:"1px solid #f0b4b4",borderRadius:8,padding:"11px 13px",marginBottom:12,lineHeight:1.55}}>
+        <div style={{fontWeight:700,marginBottom:5}}>Not on file for this client</div>
+        <div style={{marginBottom:7}}>
+          {unknownTo.map(e=><div key={e} style={{fontFamily:"ui-monospace, Menlo, monospace",fontSize:11.5}}>{e}</div>)}
+        </div>
+        Check these carefully. Draft recipients are drawn partly from uploaded documents,
+        so an unexpected address here is worth pausing on. Sending will record that you
+        approved an unrecognised recipient.
+        <div style={{marginTop:9,display:"flex",gap:8}}>
+          <Btn small variant="gold" onClick={confirmAndSend} disabled={busy}>{busy?"Sending…":"I've checked — send anyway"}</Btn>
+          <Btn small variant="ghost" onClick={()=>setUnknownTo(null)} disabled={busy}>Cancel</Btn>
+        </div>
+      </div>}
+
+      {step.send_error&&!alreadySent&&<div style={{fontSize:11.5,color:"#8b1a1a",background:"#fdeaea",border:"1px solid #f0b4b4",borderRadius:8,padding:"9px 12px",marginBottom:12,lineHeight:1.5}}>
+        Last send attempt failed: {step.send_error}
+      </div>}
+
+      {(alreadySent||sentInfo)&&<div style={{fontSize:11.5,color:"#0d5c2b",background:"#e0f5e9",border:"1px solid #a8ddbd",borderRadius:8,padding:"9px 12px",marginBottom:12,lineHeight:1.5}}>
+        Sent{step.sent_from||sentInfo?.from?` from ${step.sent_from||sentInfo.from}`:""}
+        {step.sent_recipients?` · ${step.sent_recipients}`:""}
+        {(step.sent_message_id||sentInfo?.messageId)?<div style={{color:B.textMute,fontSize:10.5,marginTop:3}}>Provider reference {step.sent_message_id||sentInfo.messageId}</div>:null}
+      </div>}
     </>}
 
     <div style={{display:"flex",gap:10,justifyContent:"space-between",flexWrap:"wrap"}}>
       <div style={{display:"flex",gap:8}}>
-        {hasDraft&&<Btn small variant="ghost" onClick={generate} disabled={drafting}>{drafting?"Re-drafting…":"↻ Re-draft"}</Btn>}
+        {hasDraft&&!alreadySent&&<Btn small variant="ghost" onClick={generate} disabled={drafting}>{drafting?"Re-drafting…":"↻ Re-draft"}</Btn>}
       </div>
       <div style={{display:"flex",gap:10}}>
         <Btn variant="ghost" onClick={onClose} disabled={busy}>Close</Btn>
-        {hasDraft&&<Btn variant="ghost" onClick={saveOnly} disabled={busy}>Save without approving</Btn>}
-        {hasDraft&&<Btn variant="gold" onClick={approve} disabled={busy}>{busy?"…":"Approve & mark sent"}</Btn>}
+        {hasDraft&&!alreadySent&&<Btn variant="ghost" onClick={saveOnly} disabled={busy}>Save without approving</Btn>}
+        {hasDraft&&!alreadySent&&!isApproved&&<Btn variant="ghost" onClick={approveNoSend} disabled={busy}>Approve, don't send</Btn>}
+        {hasDraft&&!alreadySent&&!unknownTo&&<Btn variant="gold" onClick={isApproved?confirmAndSend:approveAndSend} disabled={busy}>
+          {busy?"…":isApproved?"Send now":"Approve & send"}
+        </Btn>}
       </div>
     </div>
   </Modal>;
@@ -6785,7 +6866,7 @@ function ObligationsSection({family,data,toast,canEdit,userProfile}){
                     <span style={{fontSize:10,fontWeight:700,borderRadius:20,padding:"3px 9px",background:tint.bg,color:tint.text,whiteSpace:"nowrap"}}>{statusWord(s.status)}</span>
                     {canEdit&&!finished&&<Btn small variant={outbound?"gold":"ghost"}
                       onClick={()=>outbound?setReview(s):advance(s,"done")}>
-                      {outbound?(s.draft_body?"Review draft":"Prepare draft"):"Mark done"}
+                      {outbound?(s.status==="approved"?"Send":s.draft_body?"Review draft":"Prepare draft"):"Mark done"}
                     </Btn>}
                   </div>;
                 })}

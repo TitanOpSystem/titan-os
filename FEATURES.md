@@ -101,6 +101,12 @@ something done.
 | Conditions resolved before dates are set, because they change the schedule | LIVE |
 | At-risk flagged on day one when a cycle starts too late to fit its own lead times | LIVE |
 | Every outbound item held for named human approval | LIVE |
+| Sends from the platform, as the responsible Titan Expert on the firm's own verified domain | LIVE |
+| Attachments pulled from the Vault and sent with the message | LIVE |
+| Approval and sending recorded separately, each attributed; "sent" means the provider accepted it | LIVE |
+| Recipients checked against the client's known contacts; an unrecognised address stops the send | LIVE |
+| Send failures leave the step in the queue rather than looking successful | LIVE |
+| Re-sending is impossible once a provider reference exists | LIVE |
 | Every outbound draft copies the family principal, so the client sees what is done in their name | LIVE |
 | The copy is suppressed when the principal is already the addressee | LIVE |
 | Refuses to guess the principal when a family has several members on file — says so instead | LIVE |
