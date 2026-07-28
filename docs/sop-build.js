@@ -9,6 +9,7 @@ const CAPS = require("./sop-content.js");
 const LISTS = require("./sop-checklists.js");
 const {Document,Packer,Paragraph,TextRun,AlignmentType,Table,TableRow,TableCell,
        WidthType,BorderStyle,ShadingType,LevelFormat,PageBreak} = require("docx");
+const BRAND = require("./brand.js");
 
 // ── Guard rails ──────────────────────────────────────────────────────────────
 const problems = [];
@@ -80,11 +81,9 @@ const table = (cols,rows) => new Table({width:{size:CW,type:WidthType.DXA},
       txtCell(cell&&cell.t!==undefined?cell.t:cell, cols[i].w, cell&&cell.t!==undefined?cell:{}))})))});
 
 function cover(k,{title,strap,warn,intro}){
-  k.push(new Paragraph({spacing:{after:0},alignment:AlignmentType.CENTER,
-    children:[new TextRun({text:"TITANOS",bold:true,size:44,color:NAVY,font:"Georgia"})]}));
-  k.push(new Paragraph({spacing:{after:40},alignment:AlignmentType.CENTER,
-    children:[new TextRun({text:"P R I V A T E   W E A L T H   O P E R A T I N G   S Y S T E M",
-      size:15,color:GOLD,font:"Calibri",bold:true})]}));
+  // The real artwork, not a typeset approximation. The wordmark is two-tone -
+  // navy TITAN, gold OS - which no single-colour text run can reproduce.
+  BRAND.masthead().forEach(p=>k.push(p));
   k.push(new Paragraph({spacing:{before:200,after:0},alignment:AlignmentType.CENTER,
     border:{top:{style:BorderStyle.SINGLE,size:6,color:GOLD}},
     children:[new TextRun({text:title,bold:true,size:31,color:NAVY,font:"Georgia"})]}));

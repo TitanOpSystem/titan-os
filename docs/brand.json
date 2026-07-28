@@ -1,0 +1,36 @@
+{
+  "_comment": [
+    "Single source of brand identity for every generated document.",
+    "",
+    "Before this existed, each generator typeset the wordmark as text — Georgia in",
+    "the Word documents, Times-Bold in the fillable PDF — while the platform itself",
+    "used the real logo artwork. Three renderings of one brand, none of them the",
+    "actual mark. Documents now embed the artwork below.",
+    "",
+    "logo and mark are relative to this file, so the toolchain resolves them without",
+    "assuming where it was run from. Override any value with an environment variable",
+    "of the same name in upper case (BRAND_NAME, BRAND_LOGO, ...) to issue a document",
+    "under a licensed firm's identity instead of ours."
+  ],
+
+  "name": "TitanOS",
+  "tagline": "PRIVATE WEALTH OPERATING SYSTEM",
+
+  "logo": "../public/titanos-logo-full.png",
+  "mark": "../public/titanos-mark.png",
+
+  "logoWidthPt": 132,
+  "logoWidthPtCompact": 104,
+
+  "colors": {
+    "navy": "092B49",
+    "gold": "CEB684",
+    "soft": "5A6E84",
+    "body": "1E293B",
+    "red": "8B1A1A",
+    "warn": "7A5A19",
+    "rule": "D8CDB8",
+    "field": "B9C3CE",
+    "codeBg": "F4F5F7"
+  }
+}

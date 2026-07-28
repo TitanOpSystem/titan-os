@@ -9,19 +9,31 @@ truth with the three Word documents rather than being a fourth place the wording
 can drift.
 """
 
-import json, re, sys
+import json, os, re, sys
 from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import ImageReader
 from reportlab.lib.colors import HexColor
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase.pdfmetrics import stringWidth
 
-NAVY  = HexColor("#092B49")
-GOLD  = HexColor("#CEB684")
-SOFT  = HexColor("#5A6E84")
-BODY  = HexColor("#1E293B")
-RED   = HexColor("#8B1A1A")
-LINE  = HexColor("#D8CDB8")
-FIELD = HexColor("#B9C3CE")
+# One brand source, shared with the Word generators. Colours and the logo used to
+# be restated here, which is how the wordmark ended up in Times-Bold flat navy
+# while the platform used two-tone artwork.
+HERE  = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(HERE, "brand.json")) as _b:
+    BRAND = json.load(_b)
+_C    = BRAND["colors"]
+LOGO  = os.path.abspath(os.path.join(HERE, os.environ.get("BRAND_LOGO", BRAND["logo"])))
+if not os.path.exists(LOGO):
+    sys.exit(f"brand logo not found at {LOGO}; refusing to fall back to typeset text")
+
+NAVY  = HexColor("#" + _C["navy"])
+GOLD = HexColor("#" + _C["gold"])
+SOFT = HexColor("#" + _C["soft"])
+BODY = HexColor("#" + _C["body"])
+RED  = HexColor("#" + _C["red"])
+LINE = HexColor("#" + _C["rule"])
+FIELD = HexColor("#" + _C["field"])
 
 W, H     = letter
 M_L, M_R = 54, 54
@@ -86,13 +98,17 @@ def room(n):
 
 # ── Masthead ────────────────────────────────────────────────────────────────
 y = H - M_T
-c.setFont("Times-Bold", 21); c.setFillColor(NAVY)
-c.drawString(M_L, y, "TITANOS")
-c.setFont("Helvetica-Bold", 6.6); c.setFillColor(GOLD)
-c.drawString(M_L + 104, y + 2, "P R I V A T E   W E A L T H   O P E R A T I N G   S Y S T E M")
+# Real artwork, scaled from its own pixel dimensions so it is never stretched.
+_img = ImageReader(LOGO)
+_px, _py = _img.getSize()
+_lw = BRAND["logoWidthPtCompact"]
+_lh = _lw * (_py / _px)
+c.drawImage(LOGO, M_L, y - _lh + 9, width=_lw, height=_lh, mask="auto")
+c.setFont("Helvetica-Bold", 6.4); c.setFillColor(GOLD)
+c.drawString(M_L, y - _lh + 1, BRAND["tagline"].replace("", " ").strip())
 c.setFont("Helvetica-Bold", 7.4); c.setFillColor(RED)
 c.drawRightString(W - M_R, y + 2, "INTERNAL — NOT FOR CIRCULATION")
-y -= 12
+y -= _lh + 4
 c.setStrokeColor(GOLD); c.setLineWidth(1.4)
 c.line(M_L, y, W - M_R, y)
 y -= 26
