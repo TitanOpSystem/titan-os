@@ -1,0 +1,26 @@
+# Dependencies — installed from package-lock.json, never committed.
+# These were tracked historically, which meant anything building the project on a
+# different platform rewrote the native binaries (esbuild, rollup) in the working
+# tree and staged them for commit. Vercel installs from the lockfile, so the
+# committed copy was never load-bearing.
+node_modules/
+
+# Build output — regenerated on every deploy.
+dist/
+
+# macOS directory metadata. A stray public/.DS_Store was being copied into dist/
+# and broke a build.
+.DS_Store
+
+# Local environment overrides. Real values live in Vercel and Supabase settings,
+# never in the repo.
+.env
+.env.local
+.env.*.local
+
+# Editor and tooling noise
+*.log
+npm-debug.log*
+.vscode/
+.idea/
+*.swp

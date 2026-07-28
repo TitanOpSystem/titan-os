@@ -1,8 +1,8 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 -- WORKFLOWS: recurring obligations carried to completion with human approval
 --
--- Applied to: titanos-demo (2026-07-28)
--- PENDING:    PCM production, and every future tenant at provisioning
+-- Applied to: titanos-demo (2026-07-28), PCM production (2026-07-28)
+-- At provisioning, run this file then 20260728_workflows_starter_templates.sql.
 --
 -- Scheduled Prompts answer "tell me something on a cadence". Workflows are a
 -- different shape: they hold state for months, produce artifacts, and stop to
@@ -97,7 +97,12 @@ create table if not exists public.workflow_instances (
   -- Resolved once, at creation, from the obligation's options. Copied onto the
   -- instance so that later changes to the obligation don't silently rewrite the
   -- history of a cycle already in flight.
-  crummey_required boolean not null default false,
+  --
+  -- Generic on purpose: a step declares `requires: "<flag>"` and that flag is
+  -- looked up here. This started life as a single crummey_required boolean, which
+  -- would have meant a schema change for every new conditional step in every
+  -- future playbook.
+  resolved_options jsonb not null default '{}'::jsonb,
   status text not null default 'active'
     check (status in ('active','at_risk','blocked','completed','cancelled')),
   -- Set when the instance was created too late for its own lead times to fit —
@@ -180,16 +185,9 @@ create policy admin_write on public.workflow_templates for all
   using (is_admin()) with check (is_admin());
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- STARTER TEMPLATE: ILIT Premium Funding
+-- STARTER PLAYBOOKS
 --
--- Ships with the product so every tenant inherits it at provisioning rather than
--- retyping it. A firm may edit its own copy; is_starter only records provenance.
---
--- Anchors set with PCM (2026-07-28):
---   * Transfer request goes out 60 days before the premium due date
---   * The firm prepares and submits the request to the bank under existing
---     authority; no client wires money themselves
---   * Crummey notices are conditional per trust, resolved before dates are set
--- The seed body lives alongside this migration; see the repo history for the
--- exact JSON applied to titanos-demo.
+-- The four playbooks that ship with the product live in
+-- 20260728_workflows_starter_templates.sql, as runnable SQL rather than a pointer
+-- into repo history. Run it after this file.
 -- ─────────────────────────────────────────────────────────────────────────────

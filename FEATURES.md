@@ -7,7 +7,7 @@ prospect hears it.
 **Status key** — `LIVE` in PCM production · `DEMO` on the pitch instance only ·
 `BUILDING` in progress
 
-Last updated: 28 July 2026 (workflow loop complete end to end)
+Last updated: 28 July 2026 (workflows pushed to PCM production)
 
 ---
 
@@ -94,23 +94,24 @@ something done.
 
 | Capability | Status |
 |---|---|
-| Recurring obligations: premiums, estimated tax, RMDs, capital calls, loan payments | DEMO |
-| Four starter playbooks ship with the product | DEMO |
-| Lead times measured back from the due date, per playbook | DEMO |
-| Conditional steps — e.g. Crummey notices only where the trust requires them | DEMO |
-| Conditions resolved before dates are set, because they change the schedule | DEMO |
-| At-risk flagged on day one when a cycle starts too late to fit its own lead times | DEMO |
-| Every outbound item held for named human approval | DEMO |
-| Skipped steps stay visible, so nothing looks forgotten | DEMO |
-| Template library in Resources: read the exact playbook before it runs | DEMO |
-| Steps read in plain language — "60 days before", who acts, to whom | DEMO |
-| Admins edit lead times, actors, recipients and conditions; others read only | DEMO |
-| New playbooks are rows, not code — the firm adds its own | DEMO |
-| Review queue on the dashboard: everything awaiting a person, across the book | DEMO |
-| Obligations tab per client: the commitment plus the playbook that carries it | DEMO |
-| Starting a cycle lays out every step against a real calendar date | DEMO |
-| Approving records who approved it, against the step | DEMO |
-| Cycle closes itself once nothing actionable remains | DEMO |
+| Recurring obligations: premiums, estimated tax, RMDs, capital calls, loan payments | LIVE |
+| Four starter playbooks ship with the product | LIVE |
+| Lead times measured back from the due date, per playbook | LIVE |
+| Conditional steps — e.g. Crummey notices only where the trust requires them | LIVE |
+| Conditions resolved before dates are set, because they change the schedule | LIVE |
+| At-risk flagged on day one when a cycle starts too late to fit its own lead times | LIVE |
+| Every outbound item held for named human approval | LIVE |
+| Skipped steps stay visible, so nothing looks forgotten | LIVE |
+| Template library in Resources: read the exact playbook before it runs | LIVE |
+| Steps read in plain language — "60 days before", who acts, to whom | LIVE |
+| Admins edit lead times, actors, recipients and conditions; others read only | LIVE |
+| New playbooks are rows, not code — the firm adds its own | LIVE |
+| Review queue on the dashboard: everything awaiting a person, across the book | LIVE |
+| Obligations tab per client: the commitment plus the playbook that carries it | LIVE |
+| Starting a cycle lays out every step against a real calendar date | LIVE |
+| Approving records who approved it, against the step | LIVE |
+| Cycle closes itself once nothing actionable remains | LIVE |
+| Playbooks provision from one migration file, identical across tenants | LIVE |
 
 ### Starter playbooks
 
@@ -191,3 +192,8 @@ Unglamorous, and the reason it survives a real deployment.
   documents the way properties and valuables are.
 - **Backup and recovery policy** should be stated explicitly for an enterprise
   buyer.
+Fixed since the last revision, recorded because it is the kind of thing a
+technical buyer will probe: outbound drafts used to take the firm name from a
+server-side setting and fell back to the product name if it was unset. The
+tenant's own deployment now supplies it, so a firm's letters carry the firm's
+name with nothing to configure.

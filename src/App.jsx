@@ -6472,7 +6472,12 @@ function DraftReviewModal({step,onClose,onApproved,toast,userProfile}){
   const generate=async()=>{
     setDrafting(true);
     try{
-      const{data,error}=await sb.functions.invoke("draft-workflow-step",{body:{stepId:step.id}});
+      // Send the firm name with the request. The tenant's identity lives in this
+      // deployment's brand config, so it is authoritative here; the function used
+      // to read it from its own env var and fell back to the product name, which
+      // meant a tenant provisioned without that secret signed letters "TitanOS".
+      const{data,error}=await sb.functions.invoke("draft-workflow-step",{
+        body:{stepId:step.id,brandName:BRAND.name}});
       if(error)throw new Error(error.message||"Could not prepare a draft");
       if(data?.error)throw new Error(data.error);
       setTo(data.to||"");setSubject(data.subject||"");setBody(data.body||"");
