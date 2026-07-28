@@ -27,29 +27,29 @@ const bd = () => ({style:BorderStyle.SINGLE,size:4,color:"D8CDB8"});
 const cellB = {top:bd(),bottom:bd(),left:bd(),right:bd()};
 
 const P = (t,o) => { o=o||{}; return new Paragraph({
-  spacing:{after:o.after==null?110:o.after, before:o.before||0}, alignment:o.align,
+  spacing:{after:o.after==null?70:o.after, before:o.before||0}, alignment:o.align,
   children:[new TextRun({text:t,size:o.size||21,color:o.color||BODY,font:"Calibri",bold:o.bold,italics:o.italics})]}); };
 
-const H1 = t => new Paragraph({spacing:{before:300,after:120},
+const H1 = t => new Paragraph({spacing:{before:190,after:70},keepNext:true,
   border:{bottom:{style:BorderStyle.SINGLE,size:8,color:GOLD}},
   children:[new TextRun({text:t,bold:true,size:25,color:NAVY,font:"Georgia"})]});
 
-const H2 = t => new Paragraph({spacing:{before:180,after:70},
+const H2 = t => new Paragraph({spacing:{before:130,after:45},
   children:[new TextRun({text:t,bold:true,size:19,color:NAVY,font:"Calibri"})]});
 
-const LABEL = t => new Paragraph({spacing:{before:130,after:55},
+const LABEL = t => new Paragraph({spacing:{before:85,after:30},keepNext:true,
   children:[new TextRun({text:t,bold:true,size:15,color:SOFT,font:"Calibri",
     allCaps:true})]});
 
-const numbered = (t,n) => new Paragraph({spacing:{after:60},indent:{left:340,hanging:250},
+const numbered = (t,n) => new Paragraph({spacing:{after:36},indent:{left:340,hanging:250},
   children:[
     new TextRun({text:`${n}.  `,bold:true,size:19,color:GOLD,font:"Calibri"}),
     new TextRun({text:t,size:20,color:BODY,font:"Calibri"})]});
 
-const bullet = (t,color) => new Paragraph({numbering:{reference:"b",level:0},spacing:{after:60},
+const bullet = (t,color) => new Paragraph({numbering:{reference:"b",level:0},spacing:{after:36},
   children:[new TextRun({text:t,size:20,color:color||BODY,font:"Calibri"})]});
 
-const pull = (t,kind) => new Paragraph({spacing:{before:110,after:140},
+const pull = (t,kind) => new Paragraph({spacing:{before:60,after:70},
   shading:{type:ShadingType.CLEAR,fill:kind==="red"?"FDEAEA":kind==="warn"?"FBF3E3":"F4F1EA"},
   border:{left:{style:BorderStyle.SINGLE,size:18,color:kind==="red"?"E09A9A":kind==="warn"?"E4CE9A":GOLD}},
   indent:{left:200,right:120},
@@ -57,11 +57,11 @@ const pull = (t,kind) => new Paragraph({spacing:{before:110,after:140},
     color:kind==="red"?RED:kind==="warn"?WARN:NAVY,font:"Calibri",italics:true})]});
 
 const hdrCell = (t,w) => new TableCell({width:{size:w,type:WidthType.DXA},borders:cellB,
-  shading:{type:ShadingType.CLEAR,fill:NAVY},margins:{top:70,bottom:70,left:110,right:110},
+  shading:{type:ShadingType.CLEAR,fill:NAVY},margins:{top:50,bottom:50,left:100,right:100},
   children:[new Paragraph({children:[new TextRun({text:t,bold:true,size:17,color:"FFFFFF",font:"Calibri"})]})]});
 
 const txtCell = (t,w,o) => { o=o||{}; return new TableCell({width:{size:w,type:WidthType.DXA},borders:cellB,
-  margins:{top:66,bottom:66,left:110,right:110},
+  margins:{top:48,bottom:48,left:100,right:100},
   children:[new Paragraph({spacing:{after:0},alignment:o.align,
     children:[new TextRun({text:String(t),size:o.size||19,color:o.color||BODY,font:"Calibri",bold:o.bold})]})]}); };
 
@@ -80,9 +80,9 @@ function cover(k,{title,strap,warn,intro}){
   k.push(new Paragraph({spacing:{before:200,after:0},alignment:AlignmentType.CENTER,
     border:{top:{style:BorderStyle.SINGLE,size:6,color:GOLD}},
     children:[new TextRun({text:title,bold:true,size:31,color:NAVY,font:"Georgia"})]}));
-  k.push(new Paragraph({spacing:{after:warn?60:170},alignment:AlignmentType.CENTER,
+  k.push(new Paragraph({spacing:{after:warn?40:110},alignment:AlignmentType.CENTER,
     children:[new TextRun({text:strap,size:18,color:SOFT,font:"Calibri"})]}));
-  if(warn) k.push(new Paragraph({spacing:{after:170},alignment:AlignmentType.CENTER,
+  if(warn) k.push(new Paragraph({spacing:{after:110},alignment:AlignmentType.CENTER,
     children:[new TextRun({text:warn,size:18,color:RED,font:"Calibri",bold:true})]}));
   intro.forEach(t=>k.push(P(t,{size:20})));
   k.push(P("Revised 28 July 2026.",{size:18,color:SOFT,italics:true}));
@@ -90,8 +90,8 @@ function cover(k,{title,strap,warn,intro}){
 
 function contents(k,label){
   k.push(H1("Contents"));
-  k.push(P(label,{after:100,size:19,color:SOFT}));
-  CAPS.forEach((c,i)=>k.push(new Paragraph({spacing:{after:40},indent:{left:200,hanging:200},
+  k.push(P(label,{after:60,size:19,color:SOFT}));
+  CAPS.forEach((c,i)=>k.push(new Paragraph({spacing:{after:22},indent:{left:200,hanging:200},
     children:[
       new TextRun({text:`${String(i+1).padStart(2," ")}   `,size:19,color:GOLD,font:"Calibri",bold:true}),
       new TextRun({text:c.title,size:20,color:BODY,font:"Calibri"})]})));
@@ -117,9 +117,8 @@ function buildInternal(){
   contents(k,`${CAPS.length} capability areas.`);
 
   CAPS.forEach((c,i)=>{
-    k.push(new Paragraph({children:[new PageBreak()]}));
     k.push(H1(`${i+1}.  ${c.title}`));
-    if(c.purpose) k.push(P(c.purpose,{size:20,italics:true,color:SOFT,after:130}));
+    if(c.purpose) k.push(P(c.purpose,{size:19,italics:true,color:SOFT,after:80}));
     if(c.roles){ k.push(LABEL("Who can do what")); k.push(rolesTable(c)); }
     k.push(LABEL("Procedure"));
     c.internal.forEach((t,n)=>k.push(numbered(t,n+1)));
@@ -181,9 +180,8 @@ function buildFirm(){
   contents(k,`${CAPS.length} areas of the platform.`);
 
   CAPS.forEach((c,i)=>{
-    k.push(new Paragraph({children:[new PageBreak()]}));
     k.push(H1(`${i+1}.  ${c.title}`));
-    if(c.roles){ k.push(LABEL("Who can reach what")); k.push(rolesTable(c)); k.push(P("",{after:40})); }
+    if(c.roles){ k.push(LABEL("Who can reach what")); k.push(rolesTable(c)); k.push(P("",{after:30})); }
     c.firm.forEach(t=>k.push(bullet(t)));
   });
 
@@ -220,7 +218,7 @@ function write(children,file){
     numbering:{config:[{reference:"b",levels:[{level:0,format:LevelFormat.BULLET,text:"•",
       style:{paragraph:{indent:{left:340,hanging:190}}}}]}]},
     sections:[{properties:{page:{size:{width:12240,height:15840},
-      margin:{top:1000,bottom:900,left:1000,right:1000}}},children}],
+      margin:{top:850,bottom:800,left:950,right:950}}},children}],
   });
   return Packer.toBuffer(doc).then(b=>{fs.writeFileSync(file,b);console.log("wrote",file);});
 }
