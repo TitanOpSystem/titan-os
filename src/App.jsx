@@ -575,12 +575,12 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",is_primary:"isPrimary",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError",data_source:"dataSource",can_run_scheduled_prompts:"canRunScheduledPrompts",property_section:"propertySection",expiry_date:"expiryDate",doc_type:"docType",mime_type:"mimeType"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",account_period:"accountPeriod",as_of:"asOf",balance_as_of:"balanceAsOf",source_document_id:"sourceDocumentId",balance_source_document_id:"balanceSourceDocumentId",entered_by:"enteredBy",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",is_primary:"isPrimary",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError",data_source:"dataSource",can_run_scheduled_prompts:"canRunScheduledPrompts",property_section:"propertySection",expiry_date:"expiryDate",doc_type:"docType",mime_type:"mimeType"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
-const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","cash_flow_payment_log","note_attachments","deadline_acks","family_contacts","property_contacts"];
-const FAMILY_SCOPED=["contacts","properties","deals","notes","tasks","portfolio_accounts","valuables","documents","cash_flow_events","cash_flow_payment_log","deadline_acks","family_contacts","property_contacts"];
+const TABLES=["families","contacts","properties","deals","notes","tasks","portfolio_accounts","account_balances","valuables","documents","cash_flow_events","cash_flow_payment_log","note_attachments","deadline_acks","family_contacts","property_contacts"];
+const FAMILY_SCOPED=["contacts","properties","deals","notes","tasks","portfolio_accounts","account_balances","valuables","documents","cash_flow_events","cash_flow_payment_log","deadline_acks","family_contacts","property_contacts"];
 // Display label of the signed-in user, set at login; used to stamp task completions.
 let CURRENT_USER_LABEL="";
 // Display-only rename: the underlying role value stored in the DB/permissions stays "advisor";
@@ -707,6 +707,210 @@ function AttachLink({onClick,section}){
 }
 // Renders nothing when there is no supporting document, so the UI never shows a
 // link that leads nowhere.
+// ── ACCOUNT BALANCE HISTORY ──────────────────────────────────────────────────
+// A balance is not a number, it is a number as at a date, from a statement. This
+// panel is where that becomes visible: every figure the firm has held for an
+// account, what it came from, and who put it there.
+//
+// Recording a balance writes to account_balances; a database trigger mirrors the
+// newest entry onto the account so net worth figures elsewhere stay correct
+// without this component knowing anything about them.
+function AccountBalancesPanel({account,family,history,documents,reload,toast,canEdit,userProfile}){
+  const[open,setOpen]=useState(false);
+  const[busy,setBusy]=useState(false);
+  const[reading,setReading]=useState(false);
+  // A proposal read from a statement, held here until a person accepts it. The
+  // platform never writes a balance straight from an extraction.
+  const[proposal,setProposal]=useState(null);
+  const[form,setForm]=useState(null);
+  const fileRef=useRef(null);
+
+  const rows=(history||[]).slice().sort((a,b)=>String(b.asOf||"").localeCompare(String(a.asOf||"")));
+  const docById=id=>(documents||[]).find(d=>d.id===id)||null;
+
+  const startManual=()=>{setProposal(null);setForm({asOf:todayISO(),balance:"",documentId:"",note:"",source:"manual"});};
+
+  // Upload → file lands in the Vault against this account → AI proposes figures.
+  const handleFile=async(file)=>{
+    if(!file)return;
+    const ok=["application/pdf","image/png","image/jpeg","image/jpg","image/webp"];
+    if(!ok.includes(file.type)){toast("Please choose a PDF, PNG, JPG or WebP file","error");if(fileRef.current)fileRef.current.value="";return;}
+    if(file.size>15*1024*1024){toast("That file is over 15 MB","error");if(fileRef.current)fileRef.current.value="";return;}
+    setReading(true);
+    try{
+      // Store it first. Even if the read fails the statement is filed, which is
+      // the more important of the two outcomes.
+      const path=`${family.id}/${Date.now()}-${file.name.replace(/[^\w.\-]/g,"_")}`;
+      const{error:upErr}=await sb.storage.from("documents").upload(path,file,{upsert:false});
+      if(upErr)throw new Error(upErr.message);
+      const{data:docRow,error:docErr}=await sb.from("documents").insert({
+        family_id:family.id,name:file.name,category:"Statements",
+        account_id:account.id,file_path:path,file_type:file.type,file_size:file.size,
+        uploaded_by:CURRENT_USER_LABEL||userProfile?.email||null,
+      }).select("id").single();
+      if(docErr)throw new Error(docErr.message);
+
+      const base64=await new Promise((res,rej)=>{const r=new FileReader();
+        r.onload=()=>res(String(r.result).split(",")[1]);
+        r.onerror=()=>rej(new Error("Could not read that file"));r.readAsDataURL(file);});
+      const mediaType=file.type==="image/jpg"?"image/jpeg":file.type;
+      const{data:resp,error}=await sb.functions.invoke("extract-statement-fields",{body:{fileBase64:base64,mediaType,fileName:file.name}});
+      reload("documents");
+
+      if(error||resp?.error){
+        // Filed but unread: say so, and let them type the figure.
+        toast(`Statement filed. Could not read it automatically — enter the balance yourself.`,"error");
+        setForm({asOf:todayISO(),balance:"",documentId:docRow.id,note:"",source:"manual"});
+        return;
+      }
+      const f=resp?.fields||{};
+      setProposal({...f,documentId:docRow.id,usable:!!resp?.usable,fileName:file.name});
+      setForm({
+        asOf:f.periodEnd||todayISO(),
+        balance:f.closingBalance!=null?String(f.closingBalance):"",
+        documentId:docRow.id,
+        period:f.periodLabel||"",
+        note:"",
+        source:resp?.usable?"extracted":"manual",
+      });
+      toast(resp?.usable?"Statement filed and read — check the figures":"Statement filed. Some figures could not be read.");
+    }catch(e){toast(e.message||"Upload failed","error");}
+    finally{setReading(false);if(fileRef.current)fileRef.current.value="";}
+  };
+
+  const save=async()=>{
+    const bal=Number(String(form.balance).replace(/[^0-9.\-]/g,""));
+    if(!form.asOf){toast("An as-of date is required — a balance without one cannot be placed in time","error");return;}
+    if(!Number.isFinite(bal)){toast("Enter a balance","error");return;}
+    setBusy(true);
+    try{
+      // Upsert on (account_id, as_of): a corrected statement for a period replaces
+      // the earlier figure instead of sitting beside it.
+      const{error}=await sb.from("account_balances").upsert({
+        account_id:account.id,family_id:family.id,as_of:form.asOf,balance:bal,
+        source_document_id:form.documentId||null,source:form.source||"manual",
+        entered_by:CURRENT_USER_LABEL||userProfile?.email||null,
+        note:form.note||null,
+      },{onConflict:"account_id,as_of"});
+      if(error)throw new Error(error.message);
+      // Record the period label on the document, so the Vault reads sensibly.
+      if(form.documentId&&form.period){
+        await sb.from("documents").update({account_period:form.period}).eq("id",form.documentId);
+      }
+      toast("Balance recorded");
+      setForm(null);setProposal(null);
+      reload("account_balances");reload("portfolio_accounts");reload("documents");
+    }catch(e){toast(e.message,"error");}
+    setBusy(false);
+  };
+
+  const removeEntry=async(row)=>{
+    setBusy(true);
+    try{
+      const{error}=await sb.from("account_balances").delete().eq("id",row.id);
+      if(error)throw new Error(error.message);
+      toast("Entry removed. The account now reflects the next most recent figure.");
+      reload("account_balances");reload("portfolio_accounts");
+    }catch(e){toast(e.message,"error");}
+    setBusy(false);
+  };
+
+  return <div style={{marginTop:12,borderTop:`1px solid ${B.borderLight}`,paddingTop:10}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{background:"none",border:"none",padding:0,cursor:"pointer",
+        fontSize:11.5,fontWeight:700,color:B.navy,letterSpacing:"0.04em",textTransform:"uppercase",fontFamily:"inherit"}}>
+        {open?"▾":"▸"} Balance history{rows.length?` · ${rows.length}`:""}
+      </button>
+      {canEdit&&<div style={{display:"flex",gap:7}}>
+        <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" style={{display:"none"}}
+          onChange={e=>handleFile(e.target.files&&e.target.files[0])}/>
+        <Btn small variant="ghost" onClick={()=>fileRef.current&&fileRef.current.click()} disabled={reading||busy}>
+          {reading?"Reading…":"↑ Statement"}
+        </Btn>
+        <Btn small variant="ghost" onClick={startManual} disabled={busy}>+ Balance</Btn>
+      </div>}
+    </div>
+
+    {/* What the statement appeared to say, next to what is on file. The Expert
+        decides; nothing has been written to the balance record yet. */}
+    {form&&<div style={{marginTop:10,background:B.bg,border:`1px solid ${B.border}`,borderRadius:10,padding:"12px 14px"}}>
+      {proposal&&<div style={{fontSize:11,color:B.textSoft,marginBottom:9,lineHeight:1.5}}>
+        Read from <strong>{proposal.fileName}</strong>
+        {proposal.confidence?<span style={{marginLeft:6,fontSize:9.5,fontWeight:700,letterSpacing:0.4,padding:"1px 5px",borderRadius:4,
+          background:proposal.confidence==="high"?"#e0f5e9":proposal.confidence==="medium"?"#FBF3E3":"#fdeaea",
+          color:proposal.confidence==="high"?"#0d5c2b":proposal.confidence==="medium"?"#7A5A19":"#8b1a1a"}}>
+          {String(proposal.confidence).toUpperCase()} CONFIDENCE</span>:null}
+        {proposal.institution?<div style={{marginTop:4}}>Statement names {proposal.institution}{proposal.accountMask?` · ${proposal.accountMask}`:""}</div>:null}
+        {proposal.notes?<div style={{marginTop:4,color:"#7A5A19"}}>{proposal.notes}</div>:null}
+        {!proposal.usable?<div style={{marginTop:4,color:"#8b1a1a"}}>Not everything could be read — complete the fields below.</div>:null}
+      </div>}
+      <Grid2>
+        <Field label="Balance"><Inp value={form.balance} onChange={e=>setForm(f=>({...f,balance:e.target.value}))} placeholder="0.00"/></Field>
+        <Field label="As at"><Inp type="date" value={form.asOf} onChange={e=>setForm(f=>({...f,asOf:e.target.value}))}/></Field>
+      </Grid2>
+      {form.documentId&&<Field label="Statement period as the firm labels it">
+        <Inp value={form.period||""} onChange={e=>setForm(f=>({...f,period:e.target.value}))} placeholder="2026-Q2"/>
+      </Field>}
+      <Field label="Note (optional)">
+        <Inp value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="Anything a reader should know about this figure"/>
+      </Field>
+      {(()=>{
+        const bal=Number(String(form.balance).replace(/[^0-9.\-]/g,""));
+        const cur=Number(account.currentBalance)||0;
+        if(!Number.isFinite(bal)||!cur||bal===cur)return null;
+        const diff=bal-cur;
+        return <div style={{fontSize:11.5,color:B.textSoft,marginBottom:10,lineHeight:1.5}}>
+          On file now: <strong>{fmtMoney(cur)}</strong>{account.balanceAsOf?` as at ${fmt(account.balanceAsOf)}`:""} ·
+          this entry is <strong style={{color:diff>=0?"#18a850":"#d43030"}}>{diff>=0?"+":"−"}{fmtMoney(Math.abs(diff))}</strong> against it
+        </div>;
+      })()}
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <Btn small variant="ghost" onClick={()=>{setForm(null);setProposal(null);}} disabled={busy}>Cancel</Btn>
+        <Btn small variant="gold" onClick={save} disabled={busy}>{busy?"Saving…":"Record balance"}</Btn>
+      </div>
+    </div>}
+
+    {open&&<div style={{marginTop:10}}>
+      {rows.length===0
+        ? <div style={{fontSize:11.5,color:B.textMute,lineHeight:1.5}}>
+            No dated balances yet. The figure shown above came from the account record rather than a statement — record one to give it a date and a source.
+          </div>
+        : rows.map((r,i)=>{
+            const prev=rows[i+1];
+            const diff=prev?(Number(r.balance)||0)-(Number(prev.balance)||0):null;
+            const doc=docById(r.sourceDocumentId);
+            return <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,
+              padding:"7px 0",borderBottom:`1px solid ${B.borderLight}`}}>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:12.5,color:B.text,fontWeight:600}}>
+                  {fmtMoney(r.balance)}
+                  {diff!==null&&<span style={{marginLeft:7,fontSize:11,fontWeight:700,color:diff>=0?"#18a850":"#d43030"}}>
+                    {diff>=0?"+":"−"}{fmtMoney(Math.abs(diff))}</span>}
+                </div>
+                <div style={{fontSize:11,color:B.textSoft,marginTop:2}}>
+                  as at {fmt(r.asOf)}
+                  {doc?<> · <DocLink doc={doc} toast={toast} label={doc.accountPeriod||doc.name}/></>
+                       :<span style={{color:B.textMute}}> · no statement on file</span>}
+                </div>
+                {r.note?<div style={{fontSize:10.5,color:B.textMute,marginTop:2}}>{r.note}</div>:null}
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
+                <span title={r.source==="extracted"?"Read from a statement and confirmed by a person":r.source==="opening"?"Opening figure":"Entered by hand"}
+                  style={{fontSize:9,fontWeight:700,letterSpacing:0.4,padding:"1px 5px",borderRadius:4,
+                    background:r.source==="extracted"?"#e8f0f8":r.source==="opening"?"#f1f1ee":"#eef0f4",
+                    color:r.source==="extracted"?"#293d5c":"#4a5568"}}>
+                  {r.source==="extracted"?"READ":r.source==="opening"?"OPENING":"MANUAL"}
+                </span>
+                {r.enteredBy?<span style={{fontSize:10,color:B.textMute}}>{r.enteredBy}</span>:null}
+                {canEdit&&<button onClick={()=>removeEntry(r)} disabled={busy} title="Remove this entry"
+                  style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:12}}>✕</button>}
+              </div>
+            </div>;
+          })}
+    </div>}
+  </div>;
+}
+
 function DocLink({doc,toast,label}){
   if(!doc)return null;
   return <button onClick={e=>{e.stopPropagation();openStoredDoc(doc,toast);}} title={`Open: ${doc.name}`}
@@ -2016,6 +2220,15 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                   <div style={{textAlign:"right"}}>
                     <div style={{fontSize:16,fontWeight:700,color:B.navy}}>{fmtMoney(a.currentBalance)}</div>
                     {pct!==null&&<div style={{fontSize:12,fontWeight:700,color:Number(pct)>=0?"#18a850":"#d43030"}}>{Number(pct)>=0?"+":""}{pct}% ({Number(gain)>=0?"+":"-"}{fmtMoney(Math.abs(gain))})</div>}
+                    {/* A figure with no date behind it is the thing this replaces.
+                        Say plainly which it is rather than leaving it ambiguous. */}
+                    {a.balanceAsOf
+                      ? <div style={{fontSize:10.5,color:B.textSoft,marginTop:2}}>
+                          as at {fmt(a.balanceAsOf)}
+                          {(()=>{const d=(data.documents||[]).find(x=>x.id===a.balanceSourceDocumentId);
+                            return d?<> · <DocLink doc={d} toast={toast} label={d.accountPeriod||"statement"}/></>:null;})()}
+                        </div>
+                      : <div style={{fontSize:10.5,color:B.textMute,marginTop:2}}>no date on this figure</div>}
                   </div>
                   {canEdit&&<Btn small variant="ghost" onClick={()=>setModal({type:"editAccount",account:a})}>Edit</Btn>}
                   {canEdit&&<Btn small variant="danger" onClick={()=>delAccount(a.id)}>✕</Btn>}
@@ -2027,6 +2240,23 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                   <div style={{fontSize:13,color:B.text,fontWeight:700}}>{v}</div>
                 </div>)}
               </div>
+              <AccountBalancesPanel account={a} family={family}
+                history={(data.account_balances||[]).filter(b=>b.accountId===a.id)}
+                documents={(data.documents||[]).filter(d=>d.familyId===family.id)}
+                reload={reload} toast={toast} canEdit={canEdit} userProfile={userProfile}/>
+              {/* Statements filed against this account, including any not tied to a
+                  balance entry. Otherwise a filed statement could be invisible here. */}
+              {(()=>{
+                const stmts=(data.documents||[]).filter(d=>d.accountId===a.id);
+                if(!stmts.length)return null;
+                return <div style={{marginTop:8,fontSize:11,color:B.textSoft}}>
+                  <span style={{fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",fontSize:9.5,color:B.textMute}}>Statements</span>
+                  <div style={{marginTop:4,display:"flex",flexWrap:"wrap",gap:10}}>
+                    {stmts.slice().sort((x,y)=>String(y.createdAt||"").localeCompare(String(x.createdAt||""))).map(d=>
+                      <DocLink key={d.id} doc={d} toast={toast} label={d.accountPeriod||d.name}/>)}
+                  </div>
+                </div>;
+              })()}
             </div>;
           })}
         </div>}

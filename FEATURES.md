@@ -55,6 +55,11 @@ Most platforms give you a folder. This links a document to the figure it support
 | AI reads uploaded documents — embedded text, and OCR for scans | LIVE |
 | Documents linked to a specific property section: mortgage, tax bill, insurance declarations, insurance invoice, flood, rental agreement | LIVE |
 | Valuables linked to the schedule that covers them | LIVE |
+| Account balances are dated and traceable to the statement they came from | LIVE |
+| Balance history per account, with the change between periods | LIVE |
+| Upload a statement and the AI proposes the closing balance for a person to confirm | LIVE |
+| A corrected statement replaces that period's figure rather than sitting beside it | LIVE |
+| Statements live in the Vault, so they are AI-readable and their downloads are logged | LIVE |
 | Attach from the figure itself — a paperclip beside Property Taxes opens a pre-filled upload | LIVE |
 | Replacing a document keeps the old one in the Vault, unlinked, for history | LIVE |
 | Download audit log — who opened which document, and when | LIVE |
