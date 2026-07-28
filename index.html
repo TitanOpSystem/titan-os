@@ -42,11 +42,29 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
+      // The service worker has been removed deliberately. Offline access is close
+      // to worthless for a live financial dashboard, while a cached app shell
+      // pinned users to an older build and hid newly shipped features — which
+      // happened twice. This unregisters any worker a browser still holds and
+      // clears its caches, so every visitor converges on the current build.
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .catch(err => console.log('SW failed:', err));
-        });
+        navigator.serviceWorker.getRegistrations()
+          .then(function (regs) {
+            var had = regs.length > 0;
+            return Promise.all(regs.map(function (r) { return r.unregister(); }))
+              .then(function () {
+                if (window.caches) {
+                  return caches.keys().then(function (keys) {
+                    return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+                  });
+                }
+              })
+              .then(function () {
+                // One reload is needed to escape a shell the old worker served.
+                if (had) window.location.reload();
+              });
+          })
+          .catch(function () { /* nothing to clean up */ });
       }
     </script>
   </body>
