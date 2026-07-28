@@ -6,6 +6,7 @@
 
 const fs = require("fs");
 const CAPS = require("./sop-content.js");
+const LISTS = require("./sop-checklists.js");
 const {Document,Packer,Paragraph,TextRun,AlignmentType,Table,TableRow,TableCell,
        WidthType,BorderStyle,ShadingType,LevelFormat,PageBreak} = require("docx");
 
@@ -19,6 +20,13 @@ CAPS.forEach((c, i) => {
 });
 const ids = CAPS.map(c => c.id);
 if (new Set(ids).size !== ids.length) problems.push("duplicate capability ids");
+LISTS.forEach(l => {
+  if (!l.id || !l.title) problems.push(`checklist ${l.id||"?"}: missing id or title`);
+  if (!Array.isArray(l.groups) || !l.groups.length) problems.push(`${l.id}: no groups`);
+  (l.refs||[]).forEach(r => {
+    if (!CAPS.some(c => c.id === r)) problems.push(`${l.id}: refers to unknown capability "${r}"`);
+  });
+});
 if (problems.length) { console.error("CONTENT PROBLEMS:\n  " + problems.join("\n  ")); process.exit(1); }
 
 const NAVY="092B49", GOLD="CEB684", SOFT="5A6E84", BODY="1E293B", RED="8B1A1A", WARN="7A5A19";
@@ -102,6 +110,59 @@ function rolesTable(c){
     c.roles.map(([r,d])=>[{t:r,bold:true},d]));
 }
 
+// Section numbers are looked up, never written down, so a reordered manual cannot
+// leave a checklist pointing at the wrong chapter.
+const sectionNo = id => {
+  const i = CAPS.findIndex(c => c.id === id);
+  if (i < 0) throw new Error(`unknown capability id: ${id}`);
+  return i + 1;
+};
+const refLine = refs => {
+  if (!refs || !refs.length) return null;
+  const ns = refs.map(sectionNo).sort((a,b)=>a-b);
+  if (ns.length === 1) return `See section ${ns[0]}.`;
+  const last = ns.pop();
+  return `See sections ${ns.join(", ")} and ${last}.`;
+};
+
+// A bordered empty cell rather than a ballot-box character: the glyph is not in
+// every font and would silently become a blank or a box-with-cross depending on
+// what the reader has installed. A cell is a cell everywhere, and prints.
+const tick = () => new TableCell({
+  width:{size:260,type:WidthType.DXA},
+  borders:{top:bd(),bottom:bd(),left:bd(),right:bd()},
+  margins:{top:40,bottom:40,left:40,right:40},
+  children:[new Paragraph({spacing:{after:0},children:[new TextRun({text:"",size:18})]})]});
+
+const checkRow = t => new TableRow({children:[
+  tick(),
+  new TableCell({width:{size:CW-260,type:WidthType.DXA},
+    borders:{top:{style:BorderStyle.NONE},bottom:{style:BorderStyle.NONE},
+             left:{style:BorderStyle.NONE},right:{style:BorderStyle.NONE}},
+    margins:{top:40,bottom:40,left:130,right:60},
+    children:[new Paragraph({spacing:{after:0},
+      children:[new TextRun({text:t,size:19,color:BODY,font:"Calibri"})]})]})]});
+
+const checkTable = items => new Table({
+  width:{size:CW,type:WidthType.DXA}, columnWidths:[260, CW-260],
+  rows: items.map(checkRow)});
+
+function buildChecklists(k){
+  k.push(new Paragraph({children:[new PageBreak()]}));
+  k.push(H1("Checklists"));
+  k.push(P("Organised by the moment they are used rather than by capability, because that is when a checklist is reached for. Each points back to the sections that explain the detail.",{after:90}));
+  LISTS.forEach(l => {
+    k.push(H2(l.title));
+    k.push(P(l.when,{size:18,italics:true,color:SOFT,after:30}));
+    const r = refLine(l.refs);
+    if (r) k.push(P(r,{size:17,color:SOFT,after:60}));
+    l.groups.forEach(([heading, items]) => {
+      k.push(LABEL(heading));
+      k.push(checkTable(items));
+    });
+  });
+}
+
 // ── INTERNAL SOP ─────────────────────────────────────────────────────────────
 function buildInternal(){
   const k=[];
@@ -114,7 +175,7 @@ function buildInternal(){
       "Where a procedure says the platform refuses to do something, that refusal is deliberate and enforced. It is not a bug to be worked around, and the reason is given so you can explain it to a client or a compliance officer.",
     ],
   });
-  contents(k,`${CAPS.length} capability areas.`);
+  contents(k,`${CAPS.length} capability areas, followed by ${LISTS.length} working checklists, the standing rules and the known limitations.`);
 
   CAPS.forEach((c,i)=>{
     k.push(H1(`${i+1}.  ${c.title}`));
@@ -131,6 +192,8 @@ function buildInternal(){
       c.traps.forEach(t=>k.push(pull(t,"warn")));
     }
   });
+
+  buildChecklists(k);
 
   // Standing rules belong at the end, where someone will find them when arguing.
   k.push(new Paragraph({children:[new PageBreak()]}));
