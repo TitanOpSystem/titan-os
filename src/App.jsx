@@ -1586,7 +1586,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
   // Scheduled Prompts is visible to every Titan Expert/Admin, and to a Partner
   // only when an admin has flipped their can_run_scheduled_prompts toggle on.
   const canSeePrompts=userProfile?.role==="advisor"||userProfile?.role==="admin"||(userProfile?.role==="partner"&&userProfile?.canRunScheduledPrompts);
-  const TABS=["Overview","Properties","Portfolio","Cash Flow","Valuables","Deals","Notes","Tasks","Vault","Ask Titan",...(canSeePrompts?["Prompts"]:[])];
+  const TABS=["Overview","Properties","Portfolio","Cash Flow","Obligations","Valuables","Deals","Notes","Tasks","Vault","Ask Titan",...(canSeePrompts?["Prompts"]:[])];
   const assistantName=(((data.families||[]).find(x=>x.id===family.id)||family).assistantName||"").trim()||"Titan";
   const[showWelcome,setShowWelcome]=useState(false);
   // Carries "attach a document to this property section" from the Properties tab
@@ -2003,6 +2003,11 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
 
         {/* CASH FLOW TAB */}
         {activeTab==="cashflow"&&<CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} reload={reload} toast={toast} readOnly={!canEdit}/>}
+
+        {/* OBLIGATIONS TAB */}
+        {activeTab==="obligations"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
+          <ObligationsSection family={family} data={data} toast={toast} canEdit={canEdit} userProfile={userProfile}/>
+        </div>}
 
         {/* VALUABLES TAB */}
         {activeTab==="valuables"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
@@ -4393,6 +4398,79 @@ function collectDeadlines({tasks=[],properties=[],deals=[],contacts=[],families=
   return items;
 }
 
+// ── REVIEW QUEUE ─────────────────────────────────────────────────────────────
+// The first thing an Expert should see: every workflow step anywhere in their book
+// that is waiting on a person. Renders nothing when the queue is empty, so a clear
+// desk looks like a clear desk rather than an empty panel.
+function ReviewQueue({families,toast,userProfile}){
+  const[rows,setRows]=useState([]);
+  const[busy,setBusy]=useState(null);
+  const famName=id=>(families.find(f=>f.id===id)?.name||"").replace(" [DEMO]","");
+
+  const load=async()=>{
+    // RLS already limits this to the caller's own families, so no client-side
+    // filtering is needed — and none should be relied on.
+    const{data}=await sb.from("workflow_instance_steps")
+      .select("*")
+      .in("status",["ready","awaiting_approval","blocked"])
+      .order("due_on")
+      .limit(40);
+    setRows(data||[]);
+  };
+  useEffect(()=>{load();},[]);
+
+  const act=async(st,to)=>{
+    setBusy(st.id);
+    const patch={status:to,updated_at:new Date().toISOString()};
+    if(to==="sent"){patch.approved_by=CURRENT_USER_LABEL||userProfile?.email||"—";patch.approved_at=new Date().toISOString();patch.sent_at=new Date().toISOString();}
+    const{error}=await sb.from("workflow_instance_steps").update(patch).eq("id",st.id);
+    if(error)toast(error.message,"error");else{toast(to==="sent"?"Approved and sent":"Marked done");}
+    setBusy(null);load();
+  };
+
+  if(!rows.length)return null;
+  const today=todayISO();
+
+  return <div style={{background:B.bgCard,borderRadius:12,padding:"20px 24px",border:`1px solid ${B.gold}`,borderTop:`3px solid ${B.gold}`,boxShadow:B.shadow,marginBottom:20}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,flexWrap:"wrap"}}>
+      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,color:B.navy,fontWeight:600}}>
+        Awaiting your review
+      </div>
+      <div style={{fontSize:11.5,color:B.textSoft}}>{rows.length} item{rows.length===1?"":"s"} across the book</div>
+    </div>
+    <GoldLine/>
+    <div style={{marginTop:4}}>
+      {rows.map(s=>{
+        const late=s.due_on&&s.due_on<today;
+        const outbound=["draft_email","draft_letter","draft_document"].includes(s.kind);
+        return <div key={s.id} style={{display:"flex",gap:12,alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${B.borderLight}`,flexWrap:"wrap"}}>
+          <div style={{minWidth:78,fontSize:11,fontWeight:late?700:400,color:late?"#8b1a1a":B.textSoft}}>
+            {fmt(s.due_on)}{late?" ⚠":""}
+          </div>
+          <div style={{flex:1,minWidth:180}}>
+            <div style={{fontSize:13,color:B.text,fontWeight:600}}>{s.title}</div>
+            <div style={{fontSize:11,color:B.textSoft,marginTop:2}}>
+              {famName(s.family_id)} · {kindLabel(s.kind)}{s.recipient?` · to ${s.recipient}`:""}
+            </div>
+          </div>
+          <span style={{fontSize:10,fontWeight:700,borderRadius:20,padding:"3px 9px",
+            background:(STEP_STATUS_TINT[s.status]||STEP_STATUS_TINT.pending).bg,
+            color:(STEP_STATUS_TINT[s.status]||STEP_STATUS_TINT.pending).text,whiteSpace:"nowrap"}}>
+            {statusWord(s.status)}
+          </span>
+          <Btn small variant={outbound?"gold":"ghost"} disabled={busy===s.id}
+            onClick={()=>act(s,outbound?"sent":"done")}>
+            {busy===s.id?"…":outbound?"Approve & send":"Mark done"}
+          </Btn>
+        </div>;
+      })}
+    </div>
+    <div style={{fontSize:11,color:B.textMute,marginTop:10,lineHeight:1.5}}>
+      Approving records your name against the step. Nothing here has been sent yet.
+    </div>
+  </div>;
+}
+
 function Dashboard({data,userProfile,reload,toast}){
   const isMobile=useIsMobile();
   const{families:_families,contacts:_contacts,properties:_properties,deals:_deals,notes:_notes,tasks:_tasks,portfolio_accounts:_accts=[]}=data;
@@ -4468,6 +4546,7 @@ function Dashboard({data,userProfile,reload,toast}){
         <div style={{fontSize:11,color:B.textSoft,marginTop:5}}>{s.sub}</div>
       </div>)}
     </div>
+    <ReviewQueue families={families} toast={toast} userProfile={userProfile}/>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:18,marginBottom:18}}>
       {isAdmin&&<div style={{background:B.bgCard,borderRadius:12,padding:24,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Pipeline by Stage</div>
@@ -6305,6 +6384,320 @@ function ResourcesView({data,userProfile,toast}){
 
     <ScheduledPromptsSection userProfile={userProfile} families={families} toast={toast}/>
     <WorkflowTemplatesSection userProfile={userProfile} toast={toast}/>
+  </div>;
+}
+
+// ── WORKFLOW ENGINE (shared) ─────────────────────────────────────────────────
+const addDays=(iso,n)=>{const d=new Date(iso+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+(Number(n)||0));return d.toISOString().slice(0,10);};
+const todayISO=()=>new Date().toISOString().slice(0,10);
+const OBLIGATION_KINDS=[
+  {v:"premium",label:"Insurance premium"},{v:"tax",label:"Tax payment"},
+  {v:"rmd",label:"Required distribution"},{v:"capital_call",label:"Capital call"},
+  {v:"loan_payment",label:"Loan payment"},{v:"other",label:"Other"},
+];
+const RECURRENCES=[
+  {v:"once",label:"One-off"},{v:"monthly",label:"Monthly"},{v:"quarterly",label:"Quarterly"},
+  {v:"semiannually",label:"Twice yearly"},{v:"annually",label:"Annually"},
+];
+const STEP_STATUS_TINT={
+  pending:{bg:"#eef0f4",text:"#4a5568"}, ready:{bg:"#e8f0f8",text:"#293d5c"},
+  awaiting_approval:{bg:"rgba(206,182,132,0.28)",text:"#7a5a19"},
+  approved:{bg:"#e0f0e6",text:"#1d5c34"}, sent:{bg:"#e0f5e9",text:"#0d5c2b"},
+  done:{bg:"#e0f5e9",text:"#0d5c2b"}, skipped:{bg:"#f1f1ee",text:"#8a8a80"},
+  blocked:{bg:"#fde8e8",text:"#8b1a1a"},
+};
+const statusWord=s=>({awaiting_approval:"Needs approval",ready:"Ready",pending:"Upcoming",
+  approved:"Approved",sent:"Sent",done:"Done",skipped:"Not required",blocked:"Blocked"}[s]||s);
+
+// Builds one cycle from a playbook. Conditional steps whose flag isn't set are
+// written as 'skipped' rather than omitted, so the record shows they were
+// considered. If the cycle is being started too late for its own lead times, it
+// is flagged at_risk immediately with the step that has already slipped named —
+// the failure mode this is meant to prevent is discovering that in week six.
+async function generateWorkflowCycle({template,obligation,dueDate,familyId}){
+  const opts=obligation.options||{};
+  const defs=(Array.isArray(template.steps)?template.steps:[])
+    .slice().sort((a,b)=>(Number(a.offset_days)||0)-(Number(b.offset_days)||0));
+  const today=todayISO();
+
+  const rows=defs.map((s,i)=>{
+    const applies=!s.requires||opts[s.requires]===true;
+    const due=addDays(dueDate,s.offset_days);
+    return {
+      step_key:s.key||`step_${i}`, seq:i, title:s.title||`Step ${i+1}`,
+      actor:s.actor||"expert", kind:s.kind||"confirm", recipient:s.recipient||null,
+      due_on:due, notes:s.note||null,
+      status:!applies?"skipped":(due<=today?(s.actor==="expert"?"awaiting_approval":"ready"):"pending"),
+    };
+  });
+
+  const slipped=rows.filter(r=>r.status!=="skipped"&&r.due_on<today);
+  const risk=slipped.length
+    ? `Started late: "${slipped[0].title}" was due ${slipped[0].due_on}.`
+    : null;
+
+  const{data:inst,error}=await sb.from("workflow_instances").insert({
+    template_id:template.id, obligation_id:obligation.id, family_id:familyId,
+    cycle_label:`${new Date(dueDate+"T00:00:00Z").getUTCFullYear()} ${obligation.name}`,
+    due_date:dueDate, resolved_options:opts,
+    status:risk?"at_risk":"active", risk_note:risk,
+  }).select().single();
+  if(error)throw new Error(error.message);
+
+  const{error:sErr}=await sb.from("workflow_instance_steps")
+    .insert(rows.map(r=>({...r,instance_id:inst.id,family_id:familyId})));
+  if(sErr)throw new Error(sErr.message);
+  return inst;
+}
+
+// ── OBLIGATIONS + LIVE CYCLES (per family) ───────────────────────────────────
+const BLANK_OBLIGATION={
+  name:"",kind:"premium",amount:"",due_date:"",recurrence:"annually",
+  reference_number:"",counterparty:"",grace_date:"",template_key:"",
+  destination_account_id:"",source_account_id:"",notes:"",options:{},
+};
+
+function ObligationsSection({family,data,toast,canEdit,userProfile}){
+  const[obs,setObs]=useState([]);
+  const[templates,setTemplates]=useState([]);
+  const[instances,setInstances]=useState([]);
+  const[steps,setSteps]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[modal,setModal]=useState(null);
+  const[saving,setSaving]=useState(false);
+  const[openInst,setOpenInst]=useState(null);
+  const accounts=(data.portfolio_accounts||[]).filter(a=>a.familyId===family.id);
+
+  const load=async()=>{
+    const[o,t,i]=await Promise.all([
+      sb.from("obligations").select("*").eq("family_id",family.id).order("due_date"),
+      sb.from("workflow_templates").select("*").eq("active",true).order("name"),
+      sb.from("workflow_instances").select("*").eq("family_id",family.id).order("due_date",{ascending:false}),
+    ]);
+    setObs(o.data||[]);setTemplates(t.data||[]);setInstances(i.data||[]);
+    const ids=(i.data||[]).map(x=>x.id);
+    if(ids.length){
+      const{data:st}=await sb.from("workflow_instance_steps").select("*").in("instance_id",ids).order("seq");
+      setSteps(st||[]);
+    } else setSteps([]);
+    setLoading(false);
+  };
+  useEffect(()=>{load();},[family.id]);
+
+  const tplFor=key=>templates.find(t=>t.key===key);
+  // Flags a playbook can ask about, so the form only offers relevant questions.
+  const flagsFor=key=>{
+    const t=tplFor(key);
+    if(!t)return [];
+    return [...new Set((Array.isArray(t.steps)?t.steps:[]).map(s=>s.requires).filter(Boolean))];
+  };
+
+  const save=async()=>{
+    const f=modal.row;
+    if(!f.name.trim()||!f.due_date){toast("Name and due date are required","error");return;}
+    setSaving(true);
+    const payload={
+      family_id:family.id,name:f.name.trim(),kind:f.kind,
+      amount:f.amount===""?null:Number(f.amount),
+      due_date:f.due_date,recurrence:f.recurrence,
+      reference_number:f.reference_number||null,counterparty:f.counterparty||null,
+      grace_date:f.grace_date||null,template_key:f.template_key||null,
+      destination_account_id:f.destination_account_id||null,
+      source_account_id:f.source_account_id||null,
+      notes:f.notes||null,options:f.options||{},updated_at:new Date().toISOString(),
+    };
+    const q=modal.isNew
+      ? sb.from("obligations").insert(payload)
+      : sb.from("obligations").update(payload).eq("id",f.id);
+    const{error}=await q;
+    if(error)toast(error.message,"error");
+    else{toast(modal.isNew?"Obligation added":"Obligation saved");setModal(null);load();}
+    setSaving(false);
+  };
+
+  const startCycle=async ob=>{
+    const t=tplFor(ob.template_key);
+    if(!t){toast("Choose a playbook on this obligation first","error");return;}
+    if(instances.some(i=>i.obligation_id===ob.id&&i.due_date===ob.due_date)){
+      toast("This cycle already exists","error");return;}
+    try{
+      const inst=await generateWorkflowCycle({template:t,obligation:ob,dueDate:ob.due_date,familyId:family.id});
+      toast(inst.status==="at_risk"?"Cycle started — flagged at risk":"Cycle started");
+      setOpenInst(inst.id);load();
+    }catch(e){toast(e.message||"Could not start the cycle","error");}
+  };
+
+  // Approving records WHO approved it, which is the point of the gate.
+  const advance=async(st,to)=>{
+    const patch={status:to,updated_at:new Date().toISOString()};
+    if(to==="sent"||to==="approved"){patch.approved_by=CURRENT_USER_LABEL||userProfile?.email||"—";patch.approved_at=new Date().toISOString();}
+    if(to==="sent")patch.sent_at=new Date().toISOString();
+    const{error}=await sb.from("workflow_instance_steps").update(patch).eq("id",st.id);
+    if(error){toast(error.message,"error");return;}
+    // Close the cycle once nothing actionable remains.
+    const remaining=steps.filter(x=>x.instance_id===st.instance_id&&x.id!==st.id
+      &&!["done","sent","skipped"].includes(x.status));
+    if(!remaining.length&&["done","sent"].includes(to)){
+      await sb.from("workflow_instances").update({status:"completed",completed_at:new Date().toISOString()}).eq("id",st.instance_id);
+      toast("Cycle complete");
+    }
+    load();
+  };
+
+  if(loading)return <div style={{padding:30}}><Spinner/></div>;
+
+  return <div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:12,flexWrap:"wrap",marginBottom:6}}>
+      <div>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600}}>Obligations</div>
+        <div style={{fontSize:12,color:B.textSoft,marginTop:2,maxWidth:640,lineHeight:1.5}}>
+          Recurring commitments and the playbook that carries each one. Starting a cycle lays out every
+          step with its date; outbound steps wait for your approval.
+        </div>
+      </div>
+      {canEdit&&<Btn onClick={()=>setModal({row:{...BLANK_OBLIGATION},isNew:true})}>+ New Obligation</Btn>}
+    </div>
+    <GoldLine/>
+
+    {!obs.length&&<Empty text="No obligations on file for this client yet."/>}
+
+    <div style={{display:"flex",flexDirection:"column",gap:14,marginTop:14}}>
+      {obs.map(ob=>{
+        const t=tplFor(ob.template_key);
+        const cycles=instances.filter(i=>i.obligation_id===ob.id);
+        return <div key={ob.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderLeft:`4px solid ${B.navy}`,borderRadius:12,padding:"16px 18px",boxShadow:B.shadow}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+            <div style={{minWidth:0}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,color:B.navy,fontWeight:600}}>{ob.name}</div>
+              <div style={{fontSize:11.5,color:B.textSoft,marginTop:3}}>
+                {OBLIGATION_KINDS.find(k=>k.v===ob.kind)?.label||ob.kind}
+                {ob.counterparty?` · ${ob.counterparty}`:""}
+                {ob.reference_number?` · ${ob.reference_number}`:""}
+              </div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600}}>{ob.amount?fmtMoney(ob.amount):"—"}</div>
+              <div style={{fontSize:11,color:B.textSoft}}>due {fmt(ob.due_date)} · {RECURRENCES.find(r=>r.v===ob.recurrence)?.label}</div>
+            </div>
+          </div>
+
+          <div style={{fontSize:11.5,color:B.textSoft,marginTop:10,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+            {t
+              ? <span style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:20,padding:"3px 10px"}}>▦ {t.name}</span>
+              : <span style={{color:"#8b1a1a"}}>No playbook selected</span>}
+            {Object.entries(ob.options||{}).filter(([,v])=>v===true).map(([k])=>
+              <span key={k} style={{background:"rgba(206,182,132,0.20)",border:`1px solid ${B.gold}`,borderRadius:20,padding:"3px 10px",color:"#7a5a19"}}>{k.replace(/_/g," ")}</span>)}
+          </div>
+
+          <div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:12}}>
+            {canEdit&&<Btn small variant="ghost" onClick={()=>setModal({row:{...ob,amount:ob.amount??"",options:ob.options||{}},isNew:false})}>Edit</Btn>}
+            {canEdit&&t&&<Btn small variant="gold" onClick={()=>startCycle(ob)}>▶ Start cycle</Btn>}
+          </div>
+
+          {cycles.map(inst=>{
+            const mine=steps.filter(s=>s.instance_id===inst.id);
+            const open=openInst===inst.id;
+            const doneCount=mine.filter(s=>["done","sent","skipped"].includes(s.status)).length;
+            return <div key={inst.id} style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${B.borderLight}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <div style={{fontSize:12.5,color:B.text,fontWeight:600}}>
+                  {inst.cycle_label}
+                  <span style={{marginLeft:8,fontSize:10.5,fontWeight:600,borderRadius:20,padding:"2px 9px",
+                    background:inst.status==="at_risk"?"#fde8e8":inst.status==="completed"?"#e0f5e9":"#e8f0f8",
+                    color:inst.status==="at_risk"?"#8b1a1a":inst.status==="completed"?"#0d5c2b":"#293d5c"}}>
+                    {inst.status==="at_risk"?"At risk":inst.status==="completed"?"Complete":"In progress"}
+                  </span>
+                  <span style={{marginLeft:8,fontSize:11,color:B.textMute}}>{doneCount}/{mine.length} steps</span>
+                </div>
+                <Btn small variant="ghost" onClick={()=>setOpenInst(open?null:inst.id)}>{open?"Hide":"View timeline"}</Btn>
+              </div>
+              {inst.risk_note&&<div style={{fontSize:11.5,color:"#8b1a1a",marginTop:5}}>{inst.risk_note}</div>}
+
+              {open&&<div style={{marginTop:10}}>
+                {mine.map(s=>{
+                  const tint=STEP_STATUS_TINT[s.status]||STEP_STATUS_TINT.pending;
+                  const outbound=["draft_email","draft_letter","draft_document"].includes(s.kind);
+                  const finished=["done","sent","skipped"].includes(s.status);
+                  return <div key={s.id} style={{display:"flex",gap:11,alignItems:"flex-start",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`}}>
+                    <div style={{minWidth:74,fontSize:11,color:B.textSoft,paddingTop:3}}>{fmt(s.due_on)}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12.5,color:B.text,fontWeight:600}}>{s.title}</div>
+                      <div style={{fontSize:11,color:B.textSoft,marginTop:2}}>
+                        {actorLabel(s.actor)} · {kindLabel(s.kind)}{s.recipient?` · to ${s.recipient}`:""}
+                        {s.approved_by?` · approved by ${s.approved_by}`:""}
+                      </div>
+                    </div>
+                    <span style={{fontSize:10,fontWeight:700,borderRadius:20,padding:"3px 9px",background:tint.bg,color:tint.text,whiteSpace:"nowrap"}}>{statusWord(s.status)}</span>
+                    {canEdit&&!finished&&<Btn small variant={outbound?"gold":"ghost"}
+                      onClick={()=>advance(s,outbound?"sent":"done")}>
+                      {outbound?"Approve & send":"Mark done"}
+                    </Btn>}
+                  </div>;
+                })}
+              </div>}
+            </div>;
+          })}
+        </div>;
+      })}
+    </div>
+
+    {modal&&<Modal wide title={modal.isNew?"New Obligation":`Edit — ${modal.row.name}`} onClose={()=>setModal(null)}>
+      <Grid2>
+        <Field label="Name"><Inp value={modal.row.name} onChange={e=>setModal(m=>({...m,row:{...m.row,name:e.target.value}}))} placeholder="ILIT premium — Pacific Life"/></Field>
+        <Field label="Type"><Sel value={modal.row.kind} onChange={e=>setModal(m=>({...m,row:{...m.row,kind:e.target.value}}))}>{OBLIGATION_KINDS.map(k=><option key={k.v} value={k.v}>{k.label}</option>)}</Sel></Field>
+        <Field label="Amount"><MoneyInput value={modal.row.amount} onChange={v=>setModal(m=>({...m,row:{...m.row,amount:v}}))} placeholder="48,000"/></Field>
+        <Field label="Due date"><Inp type="date" value={modal.row.due_date||""} onChange={e=>setModal(m=>({...m,row:{...m.row,due_date:e.target.value}}))}/></Field>
+        <Field label="Recurrence"><Sel value={modal.row.recurrence} onChange={e=>setModal(m=>({...m,row:{...m.row,recurrence:e.target.value}}))}>{RECURRENCES.map(r=><option key={r.v} value={r.v}>{r.label}</option>)}</Sel></Field>
+        <Field label="Grace date (if later)"><Inp type="date" value={modal.row.grace_date||""} onChange={e=>setModal(m=>({...m,row:{...m.row,grace_date:e.target.value}}))}/></Field>
+        <Field label="Counterparty"><Inp value={modal.row.counterparty||""} onChange={e=>setModal(m=>({...m,row:{...m.row,counterparty:e.target.value}}))} placeholder="Pacific Life"/></Field>
+        <Field label="Reference (policy no., EIN, fund)"><Inp value={modal.row.reference_number||""} onChange={e=>setModal(m=>({...m,row:{...m.row,reference_number:e.target.value}}))}/></Field>
+      </Grid2>
+
+      <SectionLabel>Funding</SectionLabel>
+      <Grid2>
+        <Field label="Money comes from">
+          <Sel value={modal.row.source_account_id||""} onChange={e=>setModal(m=>({...m,row:{...m.row,source_account_id:e.target.value}}))}>
+            <option value="">— not tracked —</option>
+            {accounts.map(a=><option key={a.id} value={a.id}>{a.institution} · {a.accountType}</option>)}
+          </Sel>
+        </Field>
+        <Field label="Money goes to">
+          <Sel value={modal.row.destination_account_id||""} onChange={e=>setModal(m=>({...m,row:{...m.row,destination_account_id:e.target.value}}))}>
+            <option value="">— not tracked —</option>
+            {accounts.map(a=><option key={a.id} value={a.id}>{a.institution} · {a.accountType}</option>)}
+          </Sel>
+        </Field>
+      </Grid2>
+
+      <SectionLabel>Playbook</SectionLabel>
+      <Field label="Which workflow carries this">
+        <Sel value={modal.row.template_key||""} onChange={e=>setModal(m=>({...m,row:{...m.row,template_key:e.target.value}}))}>
+          <option value="">— none, track the date only —</option>
+          {templates.map(t=><option key={t.key} value={t.key}>{t.name}</option>)}
+        </Sel>
+      </Field>
+      {/* Conditional questions are asked HERE, before any cycle exists, because
+          the answer changes every downstream date. */}
+      {flagsFor(modal.row.template_key).map(flag=>
+        <label key={flag} style={{display:"flex",gap:9,alignItems:"flex-start",background:B.bg,border:`1px solid ${B.border}`,borderRadius:8,padding:"10px 13px",marginBottom:10,cursor:"pointer"}}>
+          <input type="checkbox" checked={!!(modal.row.options||{})[flag]}
+            onChange={e=>setModal(m=>({...m,row:{...m.row,options:{...(m.row.options||{}),[flag]:e.target.checked}}}))}
+            style={{marginTop:2}}/>
+          <span style={{fontSize:12.5,color:B.text}}>
+            <strong style={{textTransform:"capitalize"}}>{flag.replace(/_/g," ")}</strong>
+            <span style={{display:"block",fontSize:11,color:B.textSoft,marginTop:2}}>
+              Answered before a cycle starts, because it changes the schedule. Steps that depend on it are skipped when unticked, and stay visible as "not required".
+            </span>
+          </span>
+        </label>)}
+
+      <Field label="Notes"><textarea value={modal.row.notes||""} onChange={e=>setModal(m=>({...m,row:{...m.row,notes:e.target.value}}))} rows={2} style={{...inp,resize:"vertical",fontFamily:"inherit"}}/></Field>
+
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <Btn variant="ghost" onClick={()=>setModal(null)} disabled={saving}>Cancel</Btn>
+        <Btn onClick={save} disabled={saving}>{saving?"Saving…":modal.isNew?"Add obligation":"Save"}</Btn>
+      </div>
+    </Modal>}
   </div>;
 }
 
