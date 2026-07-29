@@ -261,6 +261,46 @@ async function loadBrandDocuments(){
   }
 }
 
+// ── THE FIRM'S STANDARD FEE ──────────────────────────────────────────────────
+// Pre-fills the fee on the Client Services Agreement and the ACH authorisation.
+// Held on the brand record because it is the firm's commercial term, not the
+// platform's: it used to be hardcoded as PCM's 5,000.00 / 60,000.00, which every
+// tenant inherited as the suggested figure on a document about to be signed.
+//
+// Like the document templates, and for the same reason, this is NOT gated on
+// RUNTIME_BRAND — a deployment that brands itself from build-time env vars still
+// keeps its commercial terms in the database, and gating the read would have made
+// the value unreachable on exactly that deployment.
+//
+// null means the firm has not set one. The field is then left blank for the Expert
+// to complete, which is visible and harmless. There is deliberately no fallback.
+const FIRM_DEFAULTS={loaded:false,monthlyFee:null,onboardingFee:null};
+
+async function loadFirmDefaults(){
+  try{
+    const{data,error}=await sb.from("brand_profiles")
+      .select("default_monthly_fee, default_onboarding_fee").eq("is_active",true).maybeSingle();
+    if(error)throw error;
+    const num=v=>{ if(v==null)return null; const n=Number(v); return Number.isFinite(n)?n:null; };
+    FIRM_DEFAULTS.monthlyFee=num(data?.default_monthly_fee);
+    FIRM_DEFAULTS.onboardingFee=num(data?.default_onboarding_fee);
+  }catch(_e){
+    // No brand row, no column, or no access: behave as "not set" rather than
+    // guessing a number onto a contract.
+    FIRM_DEFAULTS.monthlyFee=null;
+    FIRM_DEFAULTS.onboardingFee=null;
+  }finally{
+    FIRM_DEFAULTS.loaded=true;
+  }
+}
+
+// Two documents, two conventions: the agreement prints the amount bare, the ACH
+// form prints it with a currency symbol. Formatting sits here rather than in the
+// stored value so the number stays a number.
+const feePlain=n=>n==null?"":Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const feeCurrency=n=>n==null?"":`$${feePlain(n)}`;
+const feeAnnualPlain=n=>n==null?"":feePlain(Number(n)*12);
+
 // The bucket is private, so bytes come through a short-lived signed URL rather
 // than a public path. 60s is ample for a click-to-generate and leaves nothing
 // durable to share around.
@@ -6227,12 +6267,17 @@ async function readPdfFieldNames(bytes){
 // Services Agreement with no client, no fee and no date. Silence is the worst
 // possible outcome for a document someone is about to sign, so a missing field
 // is now a hard error naming exactly what was missing.
-async function fillPdfTemplate(bytes,fieldValues,checkboxValues={}){
+async function fillPdfTemplate(bytes,fieldValues,checkboxValues={},opts={}){
   const pdfDoc=await PDFDocument.load(bytes);
   const form=pdfDoc.getForm();
   const missing=[];
+  // `optional` names may legitimately be absent from an older template. They are
+  // still attempted, so a newer template gets them filled, but their absence is
+  // not an error.
+  const optional=new Set(opts.optional||[]);
   Object.entries(fieldValues).forEach(([name,value])=>{
-    try{ form.getTextField(name).setText(value||""); }catch(e){ missing.push(name); }
+    try{ form.getTextField(name).setText(value||""); }
+    catch(e){ if(!optional.has(name)) missing.push(name); }
   });
   Object.entries(checkboxValues).forEach(([name,checked])=>{
     try{ const f=form.getCheckBox(name); if(checked)f.check(); else f.uncheck(); }catch(e){ missing.push(name); }
@@ -6293,9 +6338,16 @@ const DOC_CONFIGS={
     docKey:"agreement",
     fields:[
       {key:"client_name",   label:"Client / Family Name", pdfField:"client_name",    default:(f)=>f.name||""},
-      {key:"monthly_fee",   label:"Monthly Fee",          pdfField:"monthly_fee",    default:()=>"5,000.00",
+      {key:"monthly_fee",   label:"Monthly Fee",          pdfField:"monthly_fee",    default:()=>feePlain(FIRM_DEFAULTS.monthlyFee),
         derives:{key:"annual_fee",compute:(v)=>{ const n=parseFloat(String(v).replace(/[^0-9.]/g,""))||0; return (n*12).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }}},
-      {key:"annual_fee",    label:"Annual Fee",           pdfField:"annual_fee",     default:()=>"60,000.00"},
+      {key:"annual_fee",    label:"Annual Fee",           pdfField:"annual_fee",     default:()=>feeAnnualPlain(FIRM_DEFAULTS.monthlyFee)},
+      // One-time, and kept out of the annual figure on purpose: folding it in
+      // would make the annual number differ from twelve times the monthly one
+      // with nothing on the page saying why, and would overstate year two.
+      // optionalPdfField because templates uploaded before this field existed
+      // must keep working rather than having their tile disabled.
+      {key:"onboarding_fee",label:"Onboarding Fee (one-time)", pdfField:"onboarding_fee", optionalPdfField:true,
+        default:()=>feePlain(FIRM_DEFAULTS.onboardingFee)},
       {key:"effective_date",label:"Effective Date",       pdfField:"effective_date", type:"date", default:()=>new Date().toISOString().slice(0,10)},
       {key:"client_address",label:"Client Address",       pdfField:"client_address", default:(f,c)=>c?.address||""},
       {key:"governing_state",label:"Governing State",     pdfField:"governing_state",placeholder:"e.g. Florida", default:(f,c)=>guessState(c?.address)},
@@ -6319,7 +6371,7 @@ const DOC_CONFIGS={
       {key:"email",              label:"Email",                 pdfField:"email",                default:(f,c)=>c?.email||""},
       {key:"bank_name",          label:"Bank Name",             pdfField:"bank_name",            default:(f,c,u,a)=>a?.institution||""},
       {key:"account_type",       label:"Account Type",          pdfField:null, type:"select", options:["Checking","Savings"], default:(f,c,u,a)=>a?.accountType==="Savings"?"Savings":"Checking"},
-      {key:"monthly_fee",        label:"Monthly Fee",           pdfField:"monthly_fee",          default:()=>"$5,000.00"},
+      {key:"monthly_fee",        label:"Monthly Fee",           pdfField:"monthly_fee",          default:()=>feeCurrency(FIRM_DEFAULTS.monthlyFee)},
       {key:"billing_date",       label:"Billing Date",          pdfField:"billing_date",         placeholder:"e.g. 1st", default:()=>"1st"},
     ],
   },
@@ -6372,10 +6424,15 @@ const DOC_CONFIGS={
 // carries pcm_signature / pcm_printed_name / pcm_title, which the platform never
 // touches because they are signed by hand. Requiring every field present in one
 // firm's template would reject another firm's perfectly good one.
+// Fields marked `optionalPdfField` are excluded. A template predating the field
+// must keep working: requiring it would have failed validation on every template
+// already uploaded and disabled the tile, turning an additive change into an
+// outage. So the platform fills it when the template has it and stays quiet when
+// it does not.
 function requiredFieldsFor(docId){
   const c=DOC_CONFIGS[docId];
   if(!c)return[];
-  const text=c.fields.filter(f=>f.pdfField).map(f=>f.pdfField);
+  const text=c.fields.filter(f=>f.pdfField&&!f.optionalPdfField).map(f=>f.pdfField);
   const boxes=c.fields.filter(f=>f.type==="checkbox").map(f=>f.key);
   // FillClientDocModal derives these two from the account_type select rather
   // than from a checkbox field, so they aren't discoverable from `fields`.
@@ -6431,7 +6488,8 @@ function FillClientDocModal({docId,family,contact,userProfile,bankAccount,onClos
       // if the fields don't line up — both surface to the toast below rather than
       // producing a document that is quietly wrong.
       const bytes=await fetchTemplateBytes(config.docKey);
-      const url=await fillPdfTemplate(bytes,pdfValues,checkboxValues);
+      const optional=(config.fields||[]).filter(f=>f.optionalPdfField&&f.pdfField).map(f=>f.pdfField);
+      const url=await fillPdfTemplate(bytes,pdfValues,checkboxValues,{optional});
       window.open(url,"_blank","noopener,noreferrer");
       toast("Document generated and opened in a new tab");
       onClose();
@@ -6788,7 +6846,10 @@ function ResourcesView({data,userProfile,toast}){
   const[docsError,setDocsError]=useState(BRAND_DOCS.error);
   useEffect(()=>{
     let cancelled=false;
-    loadBrandDocuments().then(()=>{
+    // The fee must be loaded before a modal can open, since it supplies that
+    // modal's initial values — a default computed from an unloaded value would
+    // silently render an empty fee on a document that should carry one.
+    Promise.all([loadBrandDocuments(),loadFirmDefaults()]).then(()=>{
       if(cancelled)return;
       setDocs({...BRAND_DOCS.byKey});
       setDocsReady(true);
