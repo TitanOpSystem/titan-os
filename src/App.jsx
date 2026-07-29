@@ -1440,6 +1440,47 @@ function buildFamilySnapshot(family,data){
     return out;
   });
 
+  // ── PEOPLE AND SERVICE PROVIDERS ───────────────────────────────────────────
+  // The family's own people and the firms that work for them live in three
+  // separate tables, all of which were already being fetched and family-scoped —
+  // and none of which reached the assistant. So "who are my service providers?"
+  // got answered from whatever names happened to be embedded in property and
+  // account fields (the insurance carrier, the banker) while every actual
+  // contact record was invisible: the trust counsel, the CPA, the art advisor,
+  // and every per-property vendor.
+  //
+  // The three are kept distinct rather than flattened. contacts are the family
+  // themselves, and a model handed one undifferentiated list will sooner or later
+  // introduce a family member as a vendor.
+  const trimOrNull=v=>{ const s=String(v==null?"":v).trim(); return s||null; };
+  const propertyNameById=id=>{
+    if(!id)return null;
+    const p=(data.properties||[]).find(x=>x.id===id);
+    return p?trimOrNull(p.name)||trimOrNull(p.address):null;
+  };
+  const mapProvider=(c,extra)=>({
+    name:trimOrNull(c.name), role:trimOrNull(c.role), company:trimOrNull(c.company),
+    email:trimOrNull(c.email), phone:trimOrNull(c.phone), notes:trimOrNull(c.notes),
+    ...extra,
+  });
+
+  // contacts — the household's own members, not providers.
+  const familyMembers=(data.contacts||[]).filter(c=>c.familyId===fid).map(c=>({
+    name:trimOrNull(c.name), email:trimOrNull(c.email), phone:trimOrNull(c.phone),
+    isPrimaryContact:!!c.isPrimary,
+  }));
+
+  // family_contacts — the professional team retained across the household rather
+  // than tied to one asset. isAdvisor marks whoever leads that discipline.
+  const householdProviders=(data.family_contacts||[]).filter(c=>c.familyId===fid)
+    .map(c=>mapProvider(c,{ scope:"household", isLeadForDiscipline:!!c.isAdvisor }));
+
+  // property_contacts — vendors attached to a single property.
+  const propertyProviders=(data.property_contacts||[]).filter(c=>c.familyId===fid)
+    .map(c=>mapProvider(c,{ scope:"property", attachedToProperty:propertyNameById(c.propertyId) }));
+
+  const serviceProviders=[...householdProviders,...propertyProviders];
+
   const totalRE=properties.reduce((s,p)=>s+(p.currentValue||p.purchasePrice||0),0);
   const totalDebt=properties.reduce((s,p)=>s+p.loanBalance+p.secondMortgageBalance,0)
     +portfolioAccounts.filter(a=>a.type==="Line of Credit").reduce((s,a)=>s+a.currentBalance,0);
@@ -1451,13 +1492,19 @@ function buildFamilySnapshot(family,data){
   const notTracked=[];
   const anyInsExp=properties.some(p=>p.insuranceExpirationDate||p.floodInsuranceExpirationDate);
   if(!anyInsExp) notTracked.push("insurance policy expiration / renewal dates (only carrier and annual premium are stored)");
+  // Said explicitly, because the alternative is the model assembling a plausible
+  // answer out of insurance carriers and banker names and presenting it as the
+  // provider list — which is how this gap stayed invisible.
+  if(!serviceProviders.length) notTracked.push("service providers / vendors (no contact records are on file for this family; insurance carriers and banker names appearing elsewhere are not the same thing)");
 
   return {
     today:today.toISOString().slice(0,10),
     family:{ name:family.name||null },
     totals:{ netWorth, realEstate:totalRE, totalDebt, portfolio:totalPortfolio, valuables:totalValuables },
-    counts:{ properties:properties.length, portfolioAccounts:portfolioAccounts.length, valuables:valuables.length, openTasks:tasks.length, documents:documents.length },
+    counts:{ properties:properties.length, portfolioAccounts:portfolioAccounts.length, valuables:valuables.length, openTasks:tasks.length, documents:documents.length,
+             familyMembers:familyMembers.length, serviceProviders:serviceProviders.length },
     properties, portfolioAccounts, valuables, tasks, cashFlowEvents, documents,
+    familyMembers, serviceProviders,
     notTracked,
   };
 }
