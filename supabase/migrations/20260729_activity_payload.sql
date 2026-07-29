@@ -115,7 +115,19 @@ begin
                                  'note',  s.notes,
                                  -- Proof, not a tick. Drives the wording the
                                  -- renderer is allowed to use for this step.
-                                 'evidenced', (s.produced_document_id is not null or s.sent_message_id is not null)
+                                 --
+                                 -- sent_at counts as evidence alongside the two
+                                 -- foreign keys. Requiring sent_message_id alone
+                                 -- was too strict and understated the work: a step
+                                 -- advanced to "sent" records an outbound send even
+                                 -- where no message row was linked, and on the demo
+                                 -- household that produced "0 of 9 steps evidenced"
+                                 -- for a cycle that demonstrably sent a transfer
+                                 -- request. Understating is a smaller sin than
+                                 -- overstating but it is still a wrong number.
+                                 'evidenced', (s.produced_document_id is not null
+                                               or s.sent_message_id is not null
+                                               or s.sent_at is not null)
                                ) order by s.seq), '[]'::jsonb)
                         from workflow_instance_steps s where s.instance_id = i.id),
              'step_count',   (select count(*) from workflow_instance_steps s where s.instance_id = i.id),
