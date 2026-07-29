@@ -19,6 +19,15 @@
   "logo": "../public/titanos-logo-full.png",
   "mark": "../public/titanos-mark.png",
 
+  "_logoKnockout": [
+    "Reversed-out wordmark for dark backgrounds: TITAN becomes white, OS stays gold.",
+    "The primary logo is navy-on-transparent, so placing it on a navy cover renders",
+    "an invisible wordmark next to a floating gold 'OS'. Generated from the primary",
+    "artwork by recolouring only the blue-dominant pixels, so the gold is untouched",
+    "and the two files can never disagree about the mark's shape."
+  ],
+  "logoKnockout": "../public/titanos-logo-knockout.png",
+
   "logoWidthPt": 132,
   "logoWidthPtCompact": 104,
 

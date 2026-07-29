@@ -23,11 +23,29 @@ const TAGLINE = env("BRAND_TAGLINE", cfg.tagline);
 const LOGO    = path.resolve(HERE, env("BRAND_LOGO", cfg.logo));
 const MARK    = path.resolve(HERE, env("BRAND_MARK", cfg.mark));
 
+// Reversed-out wordmark, for covers and closers set on navy. The primary logo is
+// navy-on-transparent, so a dark slide using it renders an invisible TITAN beside
+// a floating gold OS — which looks like a bug in the artwork rather than a
+// deliberate choice. Optional: only documents with dark pages need it.
+const LOGO_KNOCKOUT = cfg.logoKnockout
+  ? path.resolve(HERE, env("BRAND_LOGO_KNOCKOUT", cfg.logoKnockout))
+  : null;
+
 if (!fs.existsSync(LOGO)) {
   throw new Error(
     `Brand logo not found at ${LOGO}\n` +
     `Set BRAND_LOGO or fix "logo" in docs/brand.json. Refusing to fall back to ` +
     `typeset text, which would look almost right and be wrong.`);
+}
+
+// Fail at load, not halfway through a build, and never silently substitute the
+// navy logo onto a dark background.
+if (LOGO_KNOCKOUT && !fs.existsSync(LOGO_KNOCKOUT)) {
+  throw new Error(
+    `Brand knockout logo not found at ${LOGO_KNOCKOUT}\n` +
+    `Fix "logoKnockout" in docs/brand.json, or remove the key if this brand has ` +
+    `no dark-background variant. Refusing to fall back to the navy logo, which ` +
+    `would be invisible on a dark page.`);
 }
 
 const C = cfg.colors;
@@ -73,7 +91,13 @@ function masthead({ compact = false, align = AlignmentType.CENTER } = {}) {
 }
 
 module.exports = {
-  NAME, TAGLINE, LOGO, MARK, colors: C, cfg,
+  NAME, TAGLINE, LOGO, MARK, LOGO_KNOCKOUT, colors: C, cfg,
   logoDimensions, masthead,
   logoBuffer: () => fs.readFileSync(LOGO),
+  // Callers on dark backgrounds ask for this explicitly rather than getting a
+  // silent swap, so it is obvious at the call site which artwork is in play.
+  knockoutBuffer: () => {
+    if (!LOGO_KNOCKOUT) throw new Error("This brand has no logoKnockout in brand.json");
+    return fs.readFileSync(LOGO_KNOCKOUT);
+  },
 };
