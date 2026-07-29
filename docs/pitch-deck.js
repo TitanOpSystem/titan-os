@@ -219,6 +219,103 @@ const W = 13.3, H = 7.5;
   );
 }
 
+// ── What this is, and who it is for ─────────────────────────────────────────
+// The room is senior advisers. Four headings they asked for, with bullets under
+// each — but the first pass laid them out at even weight and it read like a
+// well-organised memo rather than a pitch. Nothing dominated. So: one large claim
+// carries the slide, every bullet is cut to a single line, and size contrast does
+// the work. The screens that follow carry the detail; this page only has to make
+// them want to see them.
+{
+  const s = pres.addSlide();
+  s.background = { color: NAVY };
+  const PANEL = "0E3557";              // a step up from the background, not a stripe
+
+  const kicker = (text, y) => s.addText(text, {
+    x: 0.72, y, w: 11.9, h: 0.28, margin: 0,
+    fontFace: SANS, fontSize: 12, bold: true, color: GOLD, charSpacing: 2.6,
+  });
+
+  // bullet: true rather than a character code — the code rendered as nothing at
+  // all in the first pass, and an invisible bullet is worse than a plain one.
+  // Note when reviewing a LibreOffice-rendered preview: the bullets ARE in the
+  // file (buChar in the slide XML) and PowerPoint draws them. LibreOffice omits
+  // them because pptxgenjs emits no buFont. Do not "fix" what the preview hides.
+  const bullets = (items, o) => s.addText(
+    items.map(([lead, rest], i) => ([
+      { text: lead, options: { bold: true, color: WHITE, bullet: true } },
+      { text: rest, options: { color: ICE, breakLine: i !== items.length - 1 } },
+    ])).flat(),
+    { margin: 0, valign: "top", fontFace: SANS, fontSize: o.size || 12.5,
+      lineSpacingMultiple: 1.16, paraSpaceAfter: 7, ...o }
+  );
+
+  // ── What is TitanOS ──────────────────────────────────────────────────────
+  kicker("WHAT IS TITANOS", 0.46);
+  s.addText("A family office that runs under your name.", {
+    x: 0.72, y: 0.8, w: 11.9, h: 0.72, margin: 0,
+    fontFace: SERIF, fontSize: 37, bold: true, color: WHITE,
+  });
+  bullets([
+    ["Holds the whole household. ", "Property, portfolio, valuables, documents, obligations, correspondence."],
+    ["Does the recurring work. ", "Reads the statements, drafts the letters, tracks the dates."],
+    ["Sends nothing without your approval. ", "Every approval and send recorded against a name."],
+  ], { x: 0.72, y: 1.68, w: 11.9, h: 1.2, size: 13 });
+
+  // ── Who it benefits ──────────────────────────────────────────────────────
+  kicker("WHO IT BENEFITS", 3.16);
+
+  const COLS = [
+    {
+      x: 0.72,
+      label: "YOUR CLIENTS",
+      lines: [
+        ["One balance sheet, current. ", "Not last quarter's spreadsheet."],
+        ["Every number traces to its document. ", "One click, not a reconstruction."],
+        ["Obligations that flag themselves. ", "Premiums, capital calls, renewals."],
+        ["Answers from their own records. ", "Including what nobody asked about."],
+      ],
+    },
+    {
+      x: 6.94,
+      label: "YOUR BOOK",
+      lines: [
+        ["Capacity back. ", "It reads, drafts and files. You advise."],
+        ["A deeper hold on the household. ", "The full picture lives with you."],
+        ["Nine UHNW playbooks, running. ", "ILITs, GRATs, capital calls, RMDs, K-1s."],
+        ["Work you can show. ", "An audit trail without keeping one."],
+      ],
+    },
+  ];
+
+  COLS.forEach(col => {
+    s.addShape(pres.ShapeType.roundRect, {
+      x: col.x, y: 3.6, w: 5.64, h: 2.44,
+      fill: { color: PANEL }, line: { color: PANEL }, rectRadius: 0.08,
+    });
+    s.addText(col.label, {
+      x: col.x + 0.34, y: 3.82, w: 5, h: 0.32, margin: 0,
+      fontFace: SANS, fontSize: 17, bold: true, color: GOLD, charSpacing: 1.9,
+    });
+    bullets(col.lines, { x: col.x + 0.34, y: 4.28, w: 4.96, h: 1.9, size: 12 });
+  });
+
+  s.addText(
+    "Your logo. Your letterhead. Your sending domain. Your own database. Nothing shared with another firm.",
+    { x: 0.72, y: 6.66, w: 11.9, h: 0.32, margin: 0,
+      fontFace: SANS, fontSize: 12.5, bold: true, color: GOLD, charSpacing: 0.4 });
+
+  s.addNotes(
+    "Say the headline and stop. Let it sit. Most of these advisers already tell clients they run a " +
+    "family office; this is the part that makes it true, and it does it under their name rather than ours.\n\n" +
+    "Take the two columns in order and do not rush the second. The client column sells the room; the " +
+    "book column is what gets it bought — capacity back, and a deeper hold on the household. If anyone " +
+    "is doing the maths on fees, the second column is the answer.\n\n" +
+    "The line along the bottom kills the white-label objection before it is raised: their logo, their " +
+    "domain sends the mail, their own database holds the data. Say it plainly, then go to the screens."
+  );
+}
+
 // ── Content slides ──────────────────────────────────────────────────────────
 // 7.45" leaves a 0.39" gutter to the card at x=8.34. At 7.6" the gutter was 0.24",
 // which read as the screenshot crowding the text.
@@ -348,5 +445,5 @@ const OUT = process.argv[2] ||
   path.join(process.cwd(), `${brand.NAME}_Product_Walkthrough.pptx`);
 pres.writeFile({ fileName: OUT }).then(() => {
   console.log("wrote", OUT);
-  console.log("slides:", SLIDES.length + 2);
+  console.log("slides:", pres.slides ? pres.slides.length : SLIDES.length + 3);
 });
