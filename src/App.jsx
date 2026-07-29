@@ -1375,6 +1375,48 @@ function FamilyReport({family,data,onClose}){
   </Modal>;
 }
 
+// The expense categories, and the ONLY place they are listed.
+//
+// Must stay in step with cash_flow_events_category_chk. A value the database accepts
+// but this list omits is a category nobody can select; a value here the database
+// rejects is an error at save time. The constraint is what makes a category total
+// trustworthy — free text would fragment "landscaping" across four spellings and
+// produce four partial answers to one question.
+const EXPENSE_CATEGORIES=[
+  ["landscaping","Landscaping & grounds"],
+  ["housekeeping","Housekeeping"],
+  ["pool_spa","Pool & spa"],
+  ["security","Security"],
+  ["maintenance","Maintenance & repairs"],
+  ["utilities","Utilities"],
+  ["property_management","Property management"],
+  ["insurance","Insurance"],
+  ["taxes","Taxes"],
+  ["household_payroll","Household payroll"],
+  ["professional_fees","Professional fees"],
+  ["healthcare","Healthcare"],
+  ["education","Education"],
+  ["travel","Travel"],
+  ["charitable","Charitable"],
+  ["subscriptions","Subscriptions & dues"],
+  ["vehicle","Vehicles"],
+  ["debt_service","Debt service"],
+  ["other","Other"],
+];
+const EXPENSE_CATEGORY_LABEL=Object.fromEntries(EXPENSE_CATEGORIES);
+
+// Occurrences per year for each frequency the app supports.
+//
+// `once` is deliberately absent rather than mapped to 1: a single payment is not an
+// annual run rate, and treating it as one would inflate a category total for a year
+// in which it will not recur. annualise() returns null for it, and the caller must
+// present that as a one-off instead of adding it in.
+const FREQ_PER_YEAR={weekly:52,biweekly:26,monthly:12,quarterly:4,semiannually:2,annually:1,yearly:1};
+const annualise=(amount,frequency)=>{
+  const per=FREQ_PER_YEAR[String(frequency||"").toLowerCase()];
+  return per?Math.round(amount*per):null;
+};
+
 // ── FAMILY DASHBOARD ──────────────────────────────────────────────────────────
 // ── AI HELP CENTER ────────────────────────────────────────────────────────────
 // Builds a compact, family-scoped snapshot of everything on the dashboard, then
@@ -1450,7 +1492,22 @@ function buildFamilySnapshot(family,data){
       };
     }
     return{
-      name:e.name||e.label||e.title||null, type:e.eventType||null, amount:num(e.amount),
+      // `description` is the human label — "Housekeeper + grounds", "Pool service".
+      //
+      // This used to read `e.name||e.label||e.title`, and a cash-flow event has none
+      // of those fields: the client shape carries eventType and description. So every
+      // expense reached the assistant as {name: null, type: "Household Payroll"} and
+      // the only text that identifies what the money was actually for was dropped
+      // entirely. That single line is why "How much do I spend on landscaping?" could
+      // not be answered for any household — the model never saw the word.
+      description:e.description||null, type:e.eventType||null,
+      category:e.category||null,
+      notes:e.notes||null,
+      amount:num(e.amount),
+      // Annualised in code rather than left to the model. Multiplying by a frequency
+      // is exactly the arithmetic an LLM does confidently and occasionally wrongly,
+      // and the error is invisible in the answer.
+      annualisedAmount:annualise(num(e.amount),e.frequency),
       startDate:e.startDate||null, endDate:e.endDate||null, taxTreatment:e.taxTreatment||null,
       direction:e.direction||"income", frequency:e.frequency||null,
       pcmResponsibleForPayment:e.direction==="expense"?!!e.pcmResponsible:undefined,
@@ -1462,6 +1519,37 @@ function buildFamilySnapshot(family,data){
       paymentRegister,
     };
   });
+
+  // Spend by category, totalled here rather than by the model.
+  //
+  // This is the difference between answering "How much do I spend on landscaping?"
+  // and appearing to. The model is good at finding the relevant rows and bad at
+  // reliably multiplying nine of them by their frequencies — and when it slips, the
+  // answer still reads perfectly. So the arithmetic is done in code and the model is
+  // handed the total.
+  //
+  // Three properties this rollup has to preserve:
+  //   * one-off costs are listed but NOT added to the annual figure, because a single
+  //     payment is not a run rate
+  //   * uncategorised spend is its own line, never folded into a category
+  //   * `lines` is included so the model can say how many items make up a total, and
+  //     a client can ask to see them
+  const expenseByCategory=(()=>{
+    const acc={};
+    cashFlowEvents.filter(e=>e.direction==="expense").forEach(e=>{
+      const key=e.category||"uncategorised";
+      const a=acc[key]||(acc[key]={category:key,
+        label:EXPENSE_CATEGORY_LABEL[key]||"Uncategorised",
+        annualised:0, lines:0, oneOffTotal:0, oneOffCount:0, items:[]});
+      a.lines++;
+      if(e.annualisedAmount==null){ a.oneOffTotal+=e.amount; a.oneOffCount++; }
+      else a.annualised+=e.annualisedAmount;
+      a.items.push({description:e.description,amount:e.amount,frequency:e.frequency,
+        annualisedAmount:e.annualisedAmount});
+    });
+    return Object.values(acc).sort((x,y)=>y.annualised-x.annualised);
+  })();
+  const uncategorisedExpenses=expenseByCategory.find(c=>c.category==="uncategorised")||null;
 
   // Include document CONTENTS (extracted at upload) so the assistant can answer
   // from inside files. Bounded by a per-document cap and a global budget so the
@@ -1538,6 +1626,46 @@ function buildFamilySnapshot(family,data){
   // provider list — which is how this gap stayed invisible.
   if(!serviceProviders.length) notTracked.push("service providers / vendors (no contact records are on file for this family; insurance carriers and banker names appearing elsewhere are not the same thing)");
 
+  // Say plainly when a spend total is incomplete. Without this the assistant would
+  // quote a category figure that silently excludes uncategorised lines, and it would
+  // look authoritative.
+  if(uncategorisedExpenses) notTracked.push(
+    `${uncategorisedExpenses.lines} expense line(s) have no category, so they are NOT included in any category total. `+
+    `They are listed under expenseByCategory as "uncategorised". If a category total is quoted and this entry exists, `+
+    `say that some spend is uncategorised rather than presenting the total as complete.`);
+
+  // A vendor on file with no matching spend, and vice versa. Both are common and both
+  // produce a confidently wrong answer if the assistant fills the gap by inference —
+  // which is exactly what "How much do I spend on landscaping?" invites when there is a
+  // landscaper on file and no landscaping line.
+  {
+    const catsWithSpend=new Set(expenseByCategory.map(c=>c.category));
+    // Only the vendor roles that map cleanly onto a category. A deliberately short
+    // list: guessing that "Handyman" means maintenance is the sort of inference this
+    // whole block exists to prevent.
+    const ROLE_TO_CATEGORY=[
+      [/landscap|grounds|lawn|garden/i,"landscaping"],
+      [/housekeep|cleaner|cleaning|housemaid/i,"housekeeping"],
+      [/pool|spa service/i,"pool_spa"],
+      [/security/i,"security"],
+      [/property manager|property management/i,"property_management"],
+    ];
+    const missing=[];
+    serviceProviders.forEach(p=>{
+      const hay=`${p.role||""} ${p.company||""}`;
+      ROLE_TO_CATEGORY.forEach(([re,cat])=>{
+        if(re.test(hay)&&!catsWithSpend.has(cat)
+           &&!missing.some(m=>m.category===cat)){
+          missing.push({category:cat,provider:p.company||p.name||p.role});
+        }
+      });
+    });
+    missing.forEach(m=>notTracked.push(
+      `a ${EXPENSE_CATEGORY_LABEL[m.category]||m.category} provider is on file (${m.provider}) but NO expense is `+
+      `categorised as ${EXPENSE_CATEGORY_LABEL[m.category]||m.category}. Say the vendor exists and the cost is not `+
+      `recorded. Do not estimate it, and do not attribute part of another line to it.`));
+  }
+
   return {
     today:today.toISOString().slice(0,10),
     family:{ name:family.name||null },
@@ -1546,6 +1674,9 @@ function buildFamilySnapshot(family,data){
              familyMembers:familyMembers.length, serviceProviders:serviceProviders.length },
     properties, portfolioAccounts, valuables, tasks, cashFlowEvents, documents,
     familyMembers, serviceProviders,
+    // Pre-totalled spend by category. Use these figures directly; do not re-derive
+    // them from cashFlowEvents.
+    expenseByCategory,
     notTracked,
   };
 }
@@ -2939,7 +3070,7 @@ function AccountForm({initial,onSave,onClose}){
 
 // ── CASH FLOW EVENT FORM ──────────────────────────────────────────────────────
 function CashFlowEventForm({initial,onSave,onClose}){
-  const blank={direction:"income",eventType:"Salary",description:"",amount:"",frequency:"once",startDate:new Date().toISOString().slice(0,10),endDate:"",taxTreatment:"ordinary",notes:"",pcmResponsible:false};
+  const blank={direction:"income",eventType:"Salary",description:"",amount:"",frequency:"once",startDate:new Date().toISOString().slice(0,10),endDate:"",taxTreatment:"ordinary",notes:"",pcmResponsible:false,category:""};
   const[f,setF]=useState(()=>{
     if(!initial)return blank;
     return{...blank,...initial,direction:initial.direction||"income"};
@@ -2953,6 +3084,10 @@ function CashFlowEventForm({initial,onSave,onClose}){
       // If the eventType doesn't fit the new direction, switch to a default
       if(dir==="expense"&&!CF_EXPENSE_CATEGORIES.includes(p.eventType))next.eventType="Rent/Mortgage";
       if(dir==="income"&&!CF_EVENT_TYPES.includes(p.eventType))next.eventType="Salary";
+      // cash_flow_events_category_expense_chk forbids a category on income, so
+      // flipping the direction has to clear it or the save fails on a constraint
+      // the user never saw.
+      if(dir==="income")next.category="";
       return next;
     });
   };
@@ -2968,9 +3103,28 @@ function CashFlowEventForm({initial,onSave,onClose}){
       </div>
     </Field>
     <Grid2>
-      <Field label={isExpense?"Category":"Event Type"}><Sel value={f.eventType} onChange={set("eventType")}>{typeOptions.map(t=><option key={t}>{t}</option>)}</Sel></Field>
+      {/* This field is event_type. It used to be labelled "Category" for expenses,
+          which is how the confusion started: it has no database constraint, the seed
+          data bypassed the picklist entirely ("Mortgage Payment", "Property Tax
+          Reserve" — none of them in CF_EXPENSE_CATEGORIES), and so it cannot be
+          totalled reliably. It is a label. "Spend category" below is the field that
+          groups. */}
+      <Field label={isExpense?"Type":"Event Type"}><Sel value={f.eventType} onChange={set("eventType")}>{typeOptions.map(t=><option key={t}>{t}</option>)}</Sel></Field>
       <Field label="Frequency"><Sel value={f.frequency} onChange={set("frequency")}>{CF_FREQUENCIES.map(fr=><option key={fr.value} value={fr.value}>{fr.label}</option>)}</Sel></Field>
     </Grid2>
+    {/* The grouping key, constrained in the database so a total can be trusted.
+        Left blank the line is reported as uncategorised rather than guessed at —
+        which is why there is no default value here. */}
+    {isExpense&&<Field label="Spend category — what this money is for">
+      <Sel value={f.category||""} onChange={set("category")}>
+        <option value="">Not categorised</option>
+        {EXPENSE_CATEGORIES.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+      </Sel>
+      <div style={{fontSize:10.5,color:B.textMute,marginTop:4}}>
+        Used to answer questions like “how much do we spend on landscaping?”. Uncategorised
+        lines are excluded from category totals and reported as uncategorised.
+      </div>
+    </Field>}
     <Field label="Description"><Inp placeholder={isExpense?"e.g., Monthly grocery budget":"e.g., Acme Corp Q4 Bonus"} value={f.description||""} onChange={set("description")}/></Field>
     {isExpense?
       <>
@@ -3442,11 +3596,11 @@ function CashFlowView({family,events,paymentLog=[],properties,reload,toast,readO
   const addEvent=async(f)=>{
     // New events go to the end of the list
     const maxSort=Math.max(0,...events.map(e=>Number(e.sortOrder)||0));
-    const{error}=await sb.from("cash_flow_events").insert({family_id:family.id,direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null,sort_order:maxSort+10,pcm_responsible:f.direction==="expense"?!!f.pcmResponsible:false});
+    const{error}=await sb.from("cash_flow_events").insert({family_id:family.id,direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null,sort_order:maxSort+10,pcm_responsible:f.direction==="expense"?!!f.pcmResponsible:false,category:f.direction==="expense"?(f.category||null):null});
     if(error)toast(error.message,"error");else{toast("Event added");reload("cash_flow_events");}
   };
   const editEvent=async(id,f)=>{
-    const{error}=await sb.from("cash_flow_events").update({direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null,pcm_responsible:f.direction==="expense"?!!f.pcmResponsible:false}).eq("id",id);
+    const{error}=await sb.from("cash_flow_events").update({direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null,pcm_responsible:f.direction==="expense"?!!f.pcmResponsible:false,category:f.direction==="expense"?(f.category||null):null}).eq("id",id);
     if(error)toast(error.message,"error");else{toast("Event updated");reload("cash_flow_events");}
   };
   const delEvent=async(id)=>{
