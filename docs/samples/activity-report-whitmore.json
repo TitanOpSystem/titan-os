@@ -1,0 +1,154 @@
+{
+  "brand": {
+    "name": "Accurate Advisory Group",
+    "tagline": "GUIDANCE FOR A LIFETIME",
+    "primary": "#253978",
+    "accent": "#b6c1de",
+    "logo": "../public/accurate-logo.png"
+  },
+  "meta": {
+    "household": "Whitmore Family Office",
+    "period": "Twelve months to 31 July 2026",
+    "opening": "This report sets out what was done on your behalf over the period: the commitments we discharged, the exposures we identified and closed, and the records behind every figure in your reporting. Where something remains open, it is listed.",
+    "scope_note": "This report covers work recorded in the platform between 1 August 2025 and 31 July 2026. Each item is drawn from a dated record — an approval, a sent message, a filed statement or a logged exception. Meetings, calls and correspondence handled outside the platform are not included, so this is an account of recorded work rather than of the whole relationship."
+  },
+  "summary": {
+    "obligations_closed": 1,
+    "exposures_raised": 4,
+    "exposures_closed": 2,
+    "approvals": 4,
+    "statements": 16
+  },
+  "obligation": {
+    "claim": "The 2025 ILIT premium was funded in the correct sequence, and the gift-tax exclusion preserved.",
+    "steps": [
+      {
+        "title": "Premium invoice received and read",
+        "due": "1 Sep",
+        "done": "1 Sep",
+        "note": "Invoice matched the policy schedule."
+      },
+      {
+        "title": "Verify amount, capacity and balances",
+        "due": "9 Sep",
+        "done": "8 Sep",
+        "note": "Trust cash sufficient; no transfer needed from the operating account."
+      },
+      {
+        "title": "Prepare transfer request for the bank",
+        "due": "16 Sep",
+        "done": "15 Sep",
+        "note": "Approved by Dana Whitfield and sent to Northern Trust."
+      },
+      {
+        "title": "Confirm funds received in trust account",
+        "due": "26 Sep",
+        "done": "25 Sep",
+        "note": "Confirmed by the trustee."
+      },
+      {
+        "title": "Issue Crummey notices to beneficiaries",
+        "due": "28 Sep",
+        "done": "26 Sep",
+        "note": "Three beneficiaries; all notices issued the same day."
+      },
+      {
+        "title": "Withdrawal window closed",
+        "due": "26 Oct",
+        "done": "27 Oct",
+        "note": "Thirty days from issue. No withdrawal rights exercised."
+      },
+      {
+        "title": "Trustee authorises premium payment",
+        "due": "3 Nov",
+        "done": "3 Nov",
+        "note": "Authorised only after the window had closed."
+      },
+      {
+        "title": "Premium paid and receipt filed",
+        "due": "15 Nov",
+        "done": "14 Nov",
+        "note": "Receipt filed against the policy."
+      },
+      {
+        "title": "Log payment and queue next cycle",
+        "due": "22 Nov",
+        "done": "22 Nov",
+        "note": "2026 cycle created."
+      }
+    ],
+    "footnote": "Nine steps, all completed. Four required your adviser's approval before proceeding; three produced correspondence sent on your behalf. The order matters: the trustee was not asked to authorise payment until the thirty-day withdrawal window had closed."
+  },
+  "exposures": {
+    "claim": "Four exposures were identified during the period. Two are closed; two remain open and are listed in section 04.",
+    "items": [
+      {
+        "raised": "14 May",
+        "title": "Star Island flood declarations expired",
+        "source": "Adviser",
+        "outcome": "Closed 21 May — current declarations obtained from the carrier and filed against the property. Cover had been continuous."
+      },
+      {
+        "raised": "15 Jul",
+        "title": "Dynasty trust distribution approaching without trustee instruction",
+        "source": "Adviser",
+        "outcome": "Open — Q3 distribution due 19 August, no written instruction on file."
+      },
+      {
+        "raised": "27 Jul",
+        "title": "Capital call notice unread for seven days",
+        "source": "Platform",
+        "outcome": "Closed 28 Jul — cycle restarted and the transfer request drafted ahead of the 2 August due date."
+      },
+      {
+        "raised": "28 Jul",
+        "title": "1967 Ferrari 275 GTB carries no insurance",
+        "source": "Platform",
+        "outcome": "Open, urgent — listed in valuables at $3,100,000 with no policy on file. Raised while answering an unrelated question."
+      }
+    ]
+  },
+  "provenance": {
+    "claim": "Every balance in your reporting carries the date it was true and the statement it came from.",
+    "accounts": [
+      {
+        "institution": "J.P. Morgan Private Bank",
+        "quarters": "4 of 4",
+        "latest_as_of": "30 Jun 2026",
+        "balance": "$26,840,000",
+        "source": "Statement on file"
+      },
+      {
+        "institution": "Northern Trust",
+        "quarters": "4 of 4",
+        "latest_as_of": "30 Jun 2026",
+        "balance": "$9,310,000",
+        "source": "Statement on file"
+      },
+      {
+        "institution": "Goldman Sachs",
+        "quarters": "4 of 4",
+        "latest_as_of": "30 Jun 2026",
+        "balance": "$4,620,000",
+        "source": "Statement on file"
+      },
+      {
+        "institution": "First Republic",
+        "quarters": "4 of 4",
+        "latest_as_of": "30 Jun 2026",
+        "balance": "$2,100,000",
+        "source": "Statement on file"
+      }
+    ]
+  },
+  "in_flight": {
+    "claim": "Open at the close of the period.",
+    "items": [
+      "1967 Ferrari 275 GTB — no insurance policy on file. Raised 28 July, urgent, unresolved.",
+      "Dynasty trust Q3 distribution — due 19 August, awaiting written trustee instruction.",
+      "2026 capital call, Meridian Growth IV — $750,000 due 2 August. Notice read late; transfer request drafted and awaiting approval.",
+      "2026 ILIT premium, Pacific Life — $185,000 due 15 November. Cycle open, first step due 1 September.",
+      "Three household tasks open, none yet overdue."
+    ]
+  }
+}
