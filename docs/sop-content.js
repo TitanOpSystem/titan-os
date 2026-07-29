@@ -343,4 +343,33 @@ module.exports = [
       "Your environment is yours alone: a separate database, a separate document store, your own assistant. Nothing is shared with another firm.",
     ],
   },
+
+  {
+    id: "doc-templates",
+    title: "The firm's own document templates",
+    purpose:
+      "The fillable documents on the Resources tab are the firm's own paperwork, not the platform's. Two of them name a legal entity in their body text, so they cannot be shared between firms at any price.",
+    internal: [
+      "Seven templates per firm: client services agreement, auto-debit (ACH) authorisation, data completeness checklist, wire instructions, personal financial statement, lifestyle expense worksheet, and the Titan Expert user guide.",
+      "Upload them under Resources → Document Templates, as an administrator. Choose 'Project default' for a firm with a single identity; choose a named brand only on an instance that switches brands.",
+      "Each upload is read for its form-field names and checked against the fields the platform fills. Anything missing is listed against the card and the Resources tile stays disabled until it is present.",
+      "There is no shared fallback. A firm with no template on file gets a disabled tile, never another firm's document.",
+      "The agreement and the ACH authorisation must be the firm's own, reviewed by their counsel. Do not re-letterhead someone else's — the contracting party and the receiving bank are named in the prose, not just the header.",
+    ],
+    checks: [
+      "All seven cards read Ready before the firm sees the Resources tab.",
+      "The agreement names the firm as the contracting party, and the ACH form names the firm's own bank.",
+    ],
+    traps: [
+      "A template whose form fields have been renamed will still upload. It is the field check that catches it — without that the document generates, reports success, and comes out blank. A blank agreement looks like a formatting glitch rather than a failure, which is why the platform refuses rather than producing one.",
+      "Replacing a template does not alter documents already generated from the previous one. Those are finished artefacts and are left alone deliberately.",
+      "A template attached to one brand is invisible to every other brand, including when that other brand is the live one. If a tile is unexpectedly disabled, check which brand the template was filed under before re-uploading it.",
+    ],
+    firm: [
+      "The fillable documents on the Resources tab are your firm's own paperwork, uploaded once by an administrator. Your letterhead, your wording, your bank details.",
+      "The client services agreement and the auto-debit authorisation name your firm as the contracting party in their text, so these must be your own versions, reviewed by your counsel.",
+      "Until a document is loaded its tile stays disabled. The platform will not substitute another firm's paperwork to fill the gap, and will not generate a document it cannot complete correctly.",
+      "Each template is checked on upload against the fields the platform fills in for you — the client's name, the fee, the effective date. If a field is missing you are told which, rather than discovering it on a document already in front of a client.",
+    ],
+  },
 ];
