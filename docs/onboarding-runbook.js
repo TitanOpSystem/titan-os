@@ -254,13 +254,28 @@ add(table(
 add(pull("The build fails deliberately if any brand token is left unresolved, rather than shipping literal placeholder text into a page title or a link preview. A failed build here is the guard working."));
 
 // ── 9 ────────────────────────────────────────────────────────────────────────
-add(H1("9.  Connect the firm's subdomain"));
+add(H1("9.  Load the firm's own document templates"));
+add(P("The six fillable documents on the Resources tab, plus the Titan Expert user guide, are the firm's own paperwork. They are not shipped with the platform and there is no shared default. Until they are uploaded, those tiles are disabled."));
+add(pull("This step is not cosmetic. The Client Services Agreement names the contracting party in its body text, and the ACH authorization names the bank that will be debited. A template borrowed from another firm produces a contract with the wrong legal entity and a debit authority pointing at the wrong account.", RED));
+add(P("Sign in as an administrator and open Branding \u2192 Document Templates. Choose the scope \u2014 a specific brand profile, or \u201cProject default\u201d for a deployment that brands itself through build-time env vars \u2014 then upload one PDF per row:"));
+add(bullet("Client Services Agreement \u2014 the firm's own, lawyer-reviewed"));
+add(bullet("Auto-Debit (ACH) Authorization \u2014 naming the firm's bank"));
+add(bullet("Client Data Completeness Checklist"));
+add(bullet("Wire Instructions"));
+add(bullet("Personal Financial Statement"));
+add(bullet("Lifestyle Expense Worksheet"));
+add(bullet("Titan Expert User Guide \u2014 reference only, no form fields"));
+add(P("Each upload is a fillable PDF whose AcroForm field names must match what the platform writes. The field names are read on upload and any that are missing are listed against the card; the Resources tile stays disabled until they are all present. This matters because the filler sets fields by name \u2014 a template with renamed fields would otherwise generate a document that reported success and came out blank."));
+add(P("The required field names per document are derived in the code from DOC_CONFIGS (see requiredFieldsFor in src/App.jsx), so the upload screen and the Resources tab can never disagree about what a template needs."));
+add(pull("Templates are stored in the private brand-documents bucket and fetched through 60-second signed URLs, so one tenant cannot read another's letterhead by guessing a path.", WARN));
+
+add(H1("10.  Connect the firm's subdomain"));
 add(bullet("The firm adds one CNAME record pointing their chosen subdomain (for example portal.clientfirm.com) at the Vercel deployment."));
 add(bullet("Certificates are issued and renewed automatically once the record resolves."));
 add(bullet("Confirm the deployed page title and share image show the firm's brand, not TitanOS defaults. Fetch the page and read the title tag; do not judge by the logo alone."));
 
 // ── 10 ───────────────────────────────────────────────────────────────────────
-add(H1("10.  Create users and roles"));
+add(H1("11.  Create users and roles"));
 add(table(
   [{t:"Role",w:1900},{t:"Sees",w:4200},{t:"Can change",w:4140}],
   [
@@ -273,7 +288,7 @@ add(bullet("Roles are enforced in the database, not only in the menu. A Partner 
 add(bullet("Set each family's advisor_email to the responsible Expert. This drives both the workflow CC and the From address on outbound mail, so an error here has real consequences."));
 
 // ── 11 ───────────────────────────────────────────────────────────────────────
-add(H1("11.  Load families and designate primaries"));
+add(H1("12.  Load families and designate primaries"));
 add(P("Every outbound workflow draft copies the family principal. Where several members have an email and none is marked primary, the platform copies nobody and says so on the draft — it does not guess, because putting client correspondence in front of the wrong family member is worse than no copy at all.",{after:110}));
 add(P("Designate the principal with the star in the Members card, then confirm none are missing:",{after:110}));
 add(code([
@@ -287,7 +302,7 @@ add(code([
 add(P("Also add the firm's real counterparties — bankers, trustees, carriers, CPAs — to each family's contacts. Two reasons: drafts can then address them properly, and the send-time recipient check recognises them. An address the firm has no record of stops the send and asks for explicit confirmation.",{after:110}));
 
 // ── 12 ───────────────────────────────────────────────────────────────────────
-add(H1("12.  Pre-flight checks and sign-off"));
+add(H1("13.  Pre-flight checks and sign-off"));
 add(P("Run these against the new tenant before handing it over. Each one has caught a real problem.",{after:110}));
 add(code([
  "-- Schema completeness",

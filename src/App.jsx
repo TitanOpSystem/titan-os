@@ -2,16 +2,23 @@
 // BUILD 2026-05-05 · Cash Flow (income+expenses+reorder) · MoneyInput commas · smart chart axis · client read-only · mobile
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { PCM_LOGO, PCM_MARK } from "./logo.js";
 import { PDFDocument } from "pdf-lib";
-import { PCM_AGREEMENT_TEMPLATE_B64 } from "./pcmAgreementTemplate.js";
-import { PCM_ACH_TEMPLATE_B64 } from "./pcmAchTemplate.js";
-import { PCM_CHECKLIST_TEMPLATE_B64 } from "./pcmChecklistTemplate.js";
-import { PCM_WIRE_TEMPLATE_B64 } from "./pcmWireTemplate.js";
-import { PCM_PFS_TEMPLATE_B64 } from "./pcmPfsTemplate.js";
-import { PCM_LIFESTYLE_TEMPLATE_B64 } from "./pcmLifestyleTemplate.js";
-// PCM tree emblem (transparent PNG) — used as the icon on document cards in place of file-type emoji.
 // PCM Platform v5.0 — build 20260429
+//
+// Nothing PCM-specific is imported here any more, and that is deliberate.
+//
+// This file used to import six base64-encoded PDF templates (pcm*Template.js,
+// ~3.4MB) plus PCM_LOGO/PCM_MARK from logo.js (~528KB). Because they were
+// bundled rather than looked up, every white-label tenant shipped and served
+// PCM's paperwork: a licensed firm generating a Client Services Agreement got a
+// contract naming PCM Family Office as the counterparty, and an ACH form
+// authorising debits to PCM's account. The logo constants were worse than
+// unnecessary — they were imported and never referenced, so PCM's mark sat
+// inside every tenant's JS bundle for no reason at all.
+//
+// Document templates are now per-tenant data resolved at runtime from
+// brand_documents (see BRAND_DOCS below). A tenant with no template on file gets
+// a blocked tile, never another firm's contract.
 
 // Backend + brand are env-overridable so the exact same codebase can be
 // deployed as a white-label instance (e.g. TitanOS demo) from a second Vercel
@@ -208,6 +215,63 @@ async function loadActiveBrandProfile(){
     if(error||!data)return;
     applyBrandProfile(data);
   }catch(_e){/* keep build-time branding */}
+}
+
+// ── PER-TENANT DOCUMENT TEMPLATES ────────────────────────────────────────────
+// The fillable client documents on the Resources tab are the tenant firm's own
+// paperwork — their letterhead, and in the agreement and ACH forms their legal
+// entity named as the counterparty. They are therefore data, held in the
+// brand_documents table and the private `brand-documents` Storage bucket, and
+// resolved per brand by the active_brand_documents() function.
+//
+// Unlike loadActiveBrandProfile this is NOT gated on RUNTIME_BRAND: a tenant
+// that brands itself purely through build-time env vars still stores its
+// templates here, as the project default (brand_profile_id IS NULL).
+//
+// `loaded` is tracked separately from emptiness so the UI can distinguish "still
+// fetching" from "this firm has supplied nothing", and never implies the latter
+// while the former is true.
+const BRAND_DOCS={loaded:false,error:null,byKey:{}};
+
+async function loadBrandDocuments(){
+  try{
+    const{data,error}=await sb.rpc("active_brand_documents");
+    if(error)throw error;
+    const byKey={};
+    (data||[]).forEach(r=>{
+      byKey[r.doc_key]={
+        storagePath:r.storage_path,
+        filename:r.original_filename||"",
+        fieldNames:r.field_names||[],
+        missingFields:r.missing_fields||[],
+        uploadedAt:r.uploaded_at,
+        isProjectDefault:!!r.is_project_default,
+      };
+    });
+    BRAND_DOCS.byKey=byKey;
+    BRAND_DOCS.error=null;
+  }catch(e){
+    // Record the failure rather than swallowing it. An empty template set and a
+    // failed lookup look identical from the outside but mean different things:
+    // one is "upload your documents", the other is "something is broken".
+    BRAND_DOCS.byKey={};
+    BRAND_DOCS.error=e?.message||"Couldn't load document templates";
+  }finally{
+    BRAND_DOCS.loaded=true;
+  }
+}
+
+// The bucket is private, so bytes come through a short-lived signed URL rather
+// than a public path. 60s is ample for a click-to-generate and leaves nothing
+// durable to share around.
+async function fetchTemplateBytes(docKey){
+  const rec=BRAND_DOCS.byKey[docKey];
+  if(!rec)throw new Error(`No template is on file for this document. An administrator needs to upload it under Branding.`);
+  const{data,error}=await sb.storage.from("brand-documents").createSignedUrl(rec.storagePath,60);
+  if(error||!data?.signedUrl)throw new Error("Couldn't open the template — "+(error?.message||"no signed URL returned"));
+  const res=await fetch(data.signedUrl);
+  if(!res.ok)throw new Error(`Couldn't download the template (HTTP ${res.status}).`);
+  return new Uint8Array(await res.arrayBuffer());
 }
 
 const STAGES=["Lead","Qualified","Proposal","Negotiation","Closed Won","Closed Lost"];
@@ -6100,27 +6164,38 @@ function PartnerDashboard({data,userProfile,logout,toast,reload}){
 }
 
 // ── RESOURCES (advisor tools + client document generation) ─────────────────
-// Decodes a base64 PDF template and returns raw bytes for pdf-lib to load.
-function b64ToBytes(b64){
-  const bin=atob(b64);
-  const bytes=new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
-  return bytes;
+// Reads the AcroForm field names present in a PDF. Used both to validate a
+// template at upload time and to check one before filling it.
+async function readPdfFieldNames(bytes){
+  const pdfDoc=await PDFDocument.load(bytes);
+  return pdfDoc.getForm().getFields().map(f=>f.getName());
 }
 
-// Loads a fillable PDF template, sets text/checkbox field values by name, and
-// returns a blob: URL for the filled copy. Unknown field names are skipped
-// silently so this stays resilient if a template's fields are tweaked later.
-async function fillPdfTemplate(templateB64,fieldValues,checkboxValues={}){
-  const bytes=b64ToBytes(templateB64);
+// Fills a template and returns a blob: URL for the filled copy.
+//
+// This used to swallow unknown field names — "so this stays resilient if a
+// template's fields are tweaked later". That resilience was the bug. pdf-lib
+// throws when a field doesn't exist, so a template whose fields had been renamed
+// produced a document that reported success and came out blank: a Client
+// Services Agreement with no client, no fee and no date. Silence is the worst
+// possible outcome for a document someone is about to sign, so a missing field
+// is now a hard error naming exactly what was missing.
+async function fillPdfTemplate(bytes,fieldValues,checkboxValues={}){
   const pdfDoc=await PDFDocument.load(bytes);
   const form=pdfDoc.getForm();
+  const missing=[];
   Object.entries(fieldValues).forEach(([name,value])=>{
-    try{ form.getTextField(name).setText(value||""); }catch(e){/* field not in this template — skip */}
+    try{ form.getTextField(name).setText(value||""); }catch(e){ missing.push(name); }
   });
   Object.entries(checkboxValues).forEach(([name,checked])=>{
-    try{ const f=form.getCheckBox(name); if(checked)f.check(); else f.uncheck(); }catch(e){}
+    try{ const f=form.getCheckBox(name); if(checked)f.check(); else f.uncheck(); }catch(e){ missing.push(name); }
   });
+  if(missing.length){
+    throw new Error(
+      `This template is missing ${missing.length} form field${missing.length>1?"s":""} the platform needs to fill: `+
+      `${missing.join(", ")}. The document would have been generated blank, so nothing was produced. `+
+      `Re-upload the template under Branding with these field names.`);
+  }
   form.updateFieldAppearances();
   const outBytes=await pdfDoc.save();
   const blob=new Blob([outBytes],{type:"application/pdf"});
@@ -6162,7 +6237,7 @@ const DOC_CONFIGS={
   agreement:{
     label:"Client Services Agreement",icon:"doc",
     desc:"$5,000/mo advisory agreement · 6-month minimum",
-    template:PCM_AGREEMENT_TEMPLATE_B64,
+    docKey:"agreement",
     fields:[
       {key:"client_name",   label:"Client / Family Name", pdfField:"client_name",    default:(f)=>f.name||""},
       {key:"monthly_fee",   label:"Monthly Fee",          pdfField:"monthly_fee",    default:()=>"5,000.00",
@@ -6182,7 +6257,7 @@ const DOC_CONFIGS={
   ach:{
     label:"Auto-Debit (ACH) Authorization",icon:"bank",
     desc:"Recurring monthly fee authorization",
-    template:PCM_ACH_TEMPLATE_B64,
+    docKey:"ach",
     fields:[
       {key:"client_name",         label:"Client / Family Name",  pdfField:"client_name",          default:(f)=>f.name||""},
       {key:"account_holder_name",label:"Account Holder Name",   pdfField:"account_holder_name",  default:(f,c)=>c?.name||f.name||""},
@@ -6198,7 +6273,7 @@ const DOC_CONFIGS={
   checklist:{
     label:"Client Data Completeness Checklist",icon:"check",
     desc:"Audit checklist for onboarding & reviews",
-    template:PCM_CHECKLIST_TEMPLATE_B64,
+    docKey:"checklist",
     fields:[
       {key:"family_client",label:"Family / Client Name", pdfField:"family_client", default:(f)=>f.name||""},
       {key:"advisor_name", label:"Titan Expert",       pdfField:"advisor_name",  default:(f,c,u)=>f.advisorName||u?.fullName||u?.email||""},
@@ -6208,7 +6283,7 @@ const DOC_CONFIGS={
   wire:{
     label:"Wire Transfer Instructions",icon:"transfer",
     desc:"Fillable remittance form for outgoing/incoming wires",
-    template:PCM_WIRE_TEMPLATE_B64,
+    docKey:"wire",
     note:"Pre-fills the client as sender, using whatever bank is on file for them — the most common case. If your client is the beneficiary instead, fill in that section directly in the opened PDF. Account and routing numbers are never stored in the platform, so those stay blank here on purpose.",
     fields:[
       {key:"sender_name",   label:"Sender Name",     pdfField:"sender_name_1",   default:(f,c)=>c?.name||f.name||""},
@@ -6220,7 +6295,7 @@ const DOC_CONFIGS={
   pfs:{
     label:"Personal Financial Statement",icon:"doc",
     desc:"Fillable assets, liabilities, income & expense statement",
-    template:PCM_PFS_TEMPLATE_B64,
+    docKey:"pfs",
     fields:[
       {key:"prepared_for",label:"Prepared For",   pdfField:"Text1",              default:(f)=>f.name||""},
       {key:"as_of",       label:"Statement Date", pdfField:"as of mmddyyyy1",    type:"date", default:()=>new Date().toISOString().slice(0,10)},
@@ -6229,16 +6304,38 @@ const DOC_CONFIGS={
   lifestyle:{
     label:"Lifestyle Expense Worksheet",icon:"chart",
     desc:"Fillable monthly/annual expense worksheet for clients",
-    template:PCM_LIFESTYLE_TEMPLATE_B64,
+    docKey:"lifestyle",
     fields:[
       {key:"as_of",label:"As Of Date", pdfField:"Date", type:"date", default:()=>new Date().toISOString().slice(0,10)},
     ],
   },
 };
 
-// Static reference material — not tied to a specific family.
+// Every form field the platform writes into a given template, derived from the
+// config above so there is exactly one source of truth. Used to validate a
+// template on upload and to decide whether generation can proceed.
+//
+// Deliberately narrower than "all fields in the PDF": PCM's agreement also
+// carries pcm_signature / pcm_printed_name / pcm_title, which the platform never
+// touches because they are signed by hand. Requiring every field present in one
+// firm's template would reject another firm's perfectly good one.
+function requiredFieldsFor(docId){
+  const c=DOC_CONFIGS[docId];
+  if(!c)return[];
+  const text=c.fields.filter(f=>f.pdfField).map(f=>f.pdfField);
+  const boxes=c.fields.filter(f=>f.type==="checkbox").map(f=>f.key);
+  // FillClientDocModal derives these two from the account_type select rather
+  // than from a checkbox field, so they aren't discoverable from `fields`.
+  const derived=docId==="ach"?["acct_checking","acct_savings"]:[];
+  return[...text,...boxes,...derived];
+}
+
+// Static reference material — not tied to a specific family. The guide itself is
+// the firm's own document (it carries their branding and their process), so it
+// is stored per tenant like the fillable templates rather than served from a
+// fixed path under /public.
 const RESOURCE_LINKS=[
-  {label:"Titan Expert User Guide",icon:"book",desc:"Full platform walkthrough for Titan Experts",url:"/resources/PCM_Advisor_User_Guide.pdf"},
+  {label:"Titan Expert User Guide",icon:"book",desc:"Full platform walkthrough for Titan Experts",docKey:"user_guide"},
 ];
 
 function FillClientDocModal({docId,family,contact,userProfile,bankAccount,onClose,toast}){
@@ -6276,7 +6373,12 @@ function FillClientDocModal({docId,family,contact,userProfile,bankAccount,onClos
         checkboxValues.acct_checking=values.account_type==="Checking";
         checkboxValues.acct_savings=values.account_type==="Savings";
       }
-      const url=await fillPdfTemplate(config.template,pdfValues,checkboxValues);
+      // The template belongs to whichever firm this deployment is skinned as.
+      // fetchTemplateBytes throws if none is on file, and fillPdfTemplate throws
+      // if the fields don't line up — both surface to the toast below rather than
+      // producing a document that is quietly wrong.
+      const bytes=await fetchTemplateBytes(config.docKey);
+      const url=await fillPdfTemplate(bytes,pdfValues,checkboxValues);
       window.open(url,"_blank","noopener,noreferrer");
       toast("Document generated and opened in a new tab");
       onClose();
@@ -6625,6 +6727,31 @@ function ResourcesView({data,userProfile,toast}){
     || [...familyAccounts].sort((a,b)=>(Number(b.currentBalance)||0)-(Number(a.currentBalance)||0))[0]
     || null;
 
+  // Which templates this firm has on file. BRAND_DOCS is loaded once at sign-in;
+  // re-read it here so a fresh upload shows up on the next visit to this tab
+  // without a full reload.
+  const[docs,setDocs]=useState(BRAND_DOCS.byKey);
+  const[docsReady,setDocsReady]=useState(BRAND_DOCS.loaded);
+  const[docsError,setDocsError]=useState(BRAND_DOCS.error);
+  useEffect(()=>{
+    let cancelled=false;
+    loadBrandDocuments().then(()=>{
+      if(cancelled)return;
+      setDocs({...BRAND_DOCS.byKey});
+      setDocsReady(true);
+      setDocsError(BRAND_DOCS.error);
+    });
+    return()=>{cancelled=true;};
+  },[]);
+
+  const missingCount=Object.values(DOC_CONFIGS).filter(d=>!docs[d.docKey]).length;
+  const docsMsg=!docsReady?null
+    :docsError?`Couldn't check which document templates are on file — ${docsError}`
+    :missingCount>0
+      ? `${missingCount} of ${Object.keys(DOC_CONFIGS).length} document templates haven't been uploaded for your firm yet. `+
+        `Those tiles stay disabled: these documents carry your letterhead and, for the agreement and ACH form, name your firm as the counterparty, so the platform won't substitute anyone else's. An administrator can add them under Branding → Document templates.`
+      : null;
+
   return <div style={{padding:isMobile?16:28,overflowY:"auto",height:"100%"}}>
     <SectionLabel>Client Documents</SectionLabel>
     <div style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,padding:20,marginBottom:28}}>
@@ -6635,29 +6762,61 @@ function ResourcesView({data,userProfile,toast}){
         </Sel>
       </Field>
       {family
-        ? <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(240px,1fr))",gap:14,marginTop:10}}>
-            {Object.entries(DOC_CONFIGS).map(([id,d])=><button key={id} onClick={()=>setActiveDoc(id)}
-              style={{textAlign:"left",background:B.white,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,borderRadius:12,padding:18,cursor:"pointer",boxShadow:B.shadow,fontFamily:"inherit",display:"flex",alignItems:"center",gap:14}}>
-              <ResIconBadge name={d.icon}/>
-              <div style={{minWidth:0}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:B.navy,fontWeight:600,marginBottom:3}}>{d.label}</div>
-                <div style={{fontSize:11.5,color:B.textSoft}}>{d.desc}</div>
-              </div>
-            </button>)}
-          </div>
+        ? <>
+            {docsMsg&&<div style={{fontSize:12,color:"#8a5c00",background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"10px 12px",margin:"10px 0 0",lineHeight:1.55}}>{docsMsg}</div>}
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(240px,1fr))",gap:14,marginTop:10}}>
+            {Object.entries(DOC_CONFIGS).map(([id,d])=>{
+              // A document is available only if this firm has supplied the
+              // template. There is no shared default to fall back on: serving
+              // another firm's agreement is what this whole change exists to
+              // prevent, so an absent template disables the tile.
+              const rec=docs[d.docKey];
+              const short=rec?(requiredFieldsFor(id).filter(f=>!rec.fieldNames.includes(f))):[];
+              const blocked=!rec||short.length>0;
+              const why=!docsReady?"Checking for your firm's template…"
+                :!rec?"Your firm hasn't uploaded this template yet."
+                :`Template is missing ${short.length} required field${short.length>1?"s":""}.`;
+              return <button key={id} disabled={blocked}
+                title={blocked?why:undefined}
+                onClick={()=>{ if(!blocked)setActiveDoc(id); }}
+                style={{textAlign:"left",background:blocked?B.bg:B.white,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${blocked?B.border:B.gold}`,borderRadius:12,padding:18,cursor:blocked?"not-allowed":"pointer",boxShadow:blocked?"none":B.shadow,fontFamily:"inherit",display:"flex",alignItems:"center",gap:14,opacity:blocked?0.72:1}}>
+                <ResIconBadge name={d.icon}/>
+                <div style={{minWidth:0}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:B.navy,fontWeight:600,marginBottom:3}}>{d.label}</div>
+                  <div style={{fontSize:11.5,color:blocked?"#8a5c00":B.textSoft}}>{blocked?why:d.desc}</div>
+                </div>
+              </button>;
+            })}
+            </div>
+          </>
         : <Empty text="Select a family above to generate a document for them."/>}
     </div>
 
     <SectionLabel>Tools & Documents</SectionLabel>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(240px,1fr))",gap:14}}>
-      {RESOURCE_LINKS.map(r=><button key={r.label} onClick={()=>window.open(r.url,"_blank","noopener,noreferrer")}
-        style={{textAlign:"left",background:B.white,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,borderRadius:12,padding:18,cursor:"pointer",boxShadow:B.shadow,fontFamily:"inherit",display:"flex",alignItems:"center",gap:14}}>
-        <ResIconBadge name={r.icon}/>
-        <div style={{minWidth:0}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:B.navy,fontWeight:600,marginBottom:3}}>{r.label}</div>
-          <div style={{fontSize:11.5,color:B.textSoft}}>{r.desc}</div>
-        </div>
-      </button>)}
+      {RESOURCE_LINKS.map(r=>{
+        const blocked=!docs[r.docKey];
+        const why=!docsReady?"Checking for your firm's copy…":"Your firm hasn't uploaded this guide yet.";
+        return <button key={r.label} disabled={blocked}
+          title={blocked?why:undefined}
+          onClick={async()=>{
+            if(blocked)return;
+            // Signed URL rather than a static /public path, so one tenant can't
+            // read another's guide by guessing the filename.
+            try{
+              const{data,error}=await sb.storage.from("brand-documents").createSignedUrl(docs[r.docKey].storagePath,60);
+              if(error||!data?.signedUrl)throw new Error(error?.message||"no signed URL returned");
+              window.open(data.signedUrl,"_blank","noopener,noreferrer");
+            }catch(e){ toast("Couldn't open the guide — "+(e.message||"unknown error"),"error"); }
+          }}
+          style={{textAlign:"left",background:blocked?B.bg:B.white,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${blocked?B.border:B.gold}`,borderRadius:12,padding:18,cursor:blocked?"not-allowed":"pointer",boxShadow:blocked?"none":B.shadow,fontFamily:"inherit",display:"flex",alignItems:"center",gap:14,opacity:blocked?0.72:1}}>
+          <ResIconBadge name={r.icon}/>
+          <div style={{minWidth:0}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:B.navy,fontWeight:600,marginBottom:3}}>{r.label}</div>
+            <div style={{fontSize:11.5,color:blocked?"#8a5c00":B.textSoft}}>{blocked?why:r.desc}</div>
+          </div>
+        </button>;
+      })}
     </div>
 
     {activeDoc&&family&&<FillClientDocModal docId={activeDoc} family={family} contact={primaryContact} userProfile={userProfile} bankAccount={bankAccount} onClose={()=>setActiveDoc(null)} toast={toast}/>}
@@ -7422,6 +7581,159 @@ function ColorField({label,value,onChange}){
   </div>;
 }
 
+// The seven templates a firm supplies, derived from DOC_CONFIGS so this list and
+// the Resources tab can never disagree about what exists or what a template needs.
+const BRAND_DOC_KEYS=[
+  ...Object.entries(DOC_CONFIGS).map(([id,d])=>({
+    key:d.docKey,label:d.label,required:requiredFieldsFor(id),
+    // The two documents whose body text names a legal entity, rather than merely
+    // carrying a letterhead. Called out in the UI because getting these wrong is
+    // a contractual problem, not a cosmetic one.
+    legal:id==="agreement"||id==="ach",
+  })),
+  {key:"user_guide",label:"Titan Expert User Guide",required:[],legal:false},
+];
+
+// Per-tenant document templates. Attached either to one brand profile or to the
+// project as a whole, for a deployment that brands itself through build-time env
+// vars and has no brand profiles at all (PCM production).
+function BrandDocumentsSection({brands,toast}){
+  const isMobile=useIsMobile();
+  const[scope,setScope]=useState("");           // "" = project default
+  const[rows,setRows]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[busy,setBusy]=useState("");
+
+  const load=useCallback(async()=>{
+    setLoading(true);
+    const{data,error}=await sb.from("brand_documents").select("*");
+    if(error)toast("Couldn't load document templates — "+error.message,"error");
+    setRows(data||[]);
+    setLoading(false);
+  },[toast]);
+  useEffect(()=>{load();},[load]);
+
+  const forScope=rows.filter(r=>scope?r.brand_profile_id===scope:r.brand_profile_id===null);
+  const find=key=>forScope.find(r=>r.doc_key===key);
+
+  const upload=async(file,spec)=>{
+    if(!file)return;
+    if(file.type!=="application/pdf"&&!/\.pdf$/i.test(file.name)){
+      toast("Templates must be PDFs","error");return;
+    }
+    if(file.size>15*1024*1024){toast("PDF must be under 15 MB","error");return;}
+    setBusy(spec.key);
+    try{
+      const bytes=new Uint8Array(await file.arrayBuffer());
+
+      // Read the form fields before storing anything. fillPdfTemplate writes by
+      // field name, so a template whose fields are named differently produces a
+      // blank document. Recording what's missing here means the Resources tile
+      // stays disabled with a specific reason instead of failing at generate time.
+      let present=[];
+      try{ present=await readPdfFieldNames(bytes); }
+      catch(e){ throw new Error("Couldn't read this PDF's form fields — "+(e.message||"it may not be a valid PDF")); }
+      const missing=spec.required.filter(f=>!present.includes(f));
+
+      const path=`${scope||"project-default"}/${spec.key}.pdf`;
+      const{error:upErr}=await sb.storage.from("brand-documents")
+        .upload(path,file,{upsert:true,contentType:"application/pdf"});
+      if(upErr)throw new Error(upErr.message);
+
+      const{data:me}=await sb.auth.getUser();
+      const payload={
+        brand_profile_id:scope||null,doc_key:spec.key,storage_path:path,
+        original_filename:file.name,byte_size:file.size,
+        field_names:present,missing_fields:missing,
+        uploaded_by:me?.user?.id||null,uploaded_at:new Date().toISOString(),
+      };
+      const existing=find(spec.key);
+      const{error:dbErr}=existing
+        ? await sb.from("brand_documents").update(payload).eq("id",existing.id)
+        : await sb.from("brand_documents").insert(payload);
+      if(dbErr)throw new Error(dbErr.message);
+
+      await load();
+      if(missing.length)
+        toast(`Stored, but this template is missing ${missing.length} required field${missing.length>1?"s":""}: ${missing.join(", ")}. The tile stays disabled until they're present.`,"error");
+      else toast("Template uploaded");
+    }catch(e){toast(e.message||"Upload failed","error");}
+    finally{setBusy("");}
+  };
+
+  const remove=async spec=>{
+    const row=find(spec.key);
+    if(!row)return;
+    if(!window.confirm(`Remove the ${spec.label} template? The tile will be disabled until a replacement is uploaded.`))return;
+    setBusy(spec.key);
+    try{
+      await sb.storage.from("brand-documents").remove([row.storage_path]);
+      const{error}=await sb.from("brand_documents").delete().eq("id",row.id);
+      if(error)throw new Error(error.message);
+      await load();
+      toast("Template removed");
+    }catch(e){toast(e.message||"Couldn't remove","error");}
+    finally{setBusy("");}
+  };
+
+  return <div style={{marginTop:34}}>
+    <SectionLabel>Document Templates</SectionLabel>
+    <div style={{fontSize:13,color:B.textSoft,maxWidth:760,lineHeight:1.55,marginBottom:8}}>
+      The fillable documents on the Resources tab are the firm's own paperwork, so each firm supplies its own.
+      Nothing is shared between brands and there is no default: a document with no template here is disabled
+      on the Resources tab rather than falling back to another firm's.
+    </div>
+    <div style={{fontSize:12,color:"#8a5c00",background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"10px 12px",marginBottom:14,lineHeight:1.55,maxWidth:760}}>
+      The Client Services Agreement and ACH Authorization name a legal entity in their body text, not just on the
+      letterhead — the agreement defines the contracting party and the ACH form authorises debits to a named bank.
+      Upload the firm's own lawyer-reviewed versions; don't re-letterhead someone else's.
+    </div>
+
+    <div style={{maxWidth:420,marginBottom:16}}>
+      <Field label="Templates for">
+        <Sel value={scope} onChange={e=>setScope(e.target.value)}>
+          <option value="">Project default — every brand without its own</option>
+          {brands.map(b=><option key={b.id} value={b.id}>{b.label}{b.is_active?" (live)":""}</option>)}
+        </Sel>
+      </Field>
+    </div>
+
+    {loading?<Spinner/>:<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(330px,1fr))",gap:14}}>
+      {BRAND_DOC_KEYS.map(spec=>{
+        const row=find(spec.key);
+        // Recomputed from the field names found at upload rather than read back
+        // from missing_fields, so this agrees with the Resources tile even if the
+        // required-field list changes after a template was stored. The stored
+        // column is a record of what was true at upload time, not the authority.
+        const missing=row?spec.required.filter(f=>!(row.field_names||[]).includes(f)):[];
+        const ok=row&&missing.length===0;
+        return <div key={spec.key} style={{background:B.white,border:`1px solid ${ok?B.borderLight:B.border}`,borderTop:`3px solid ${ok?"#18a850":(row?"#c9a227":B.border)}`,borderRadius:12,padding:"14px 16px",boxShadow:B.shadow}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:B.navy,fontWeight:600,lineHeight:1.25}}>{spec.label}</div>
+            {spec.legal&&<Badge scheme={{bg:"#fdecec",text:"#8B1A1A",dot:"#8B1A1A"}}>Legal</Badge>}
+          </div>
+          <div style={{fontSize:11.5,color:ok?"#0d5c2b":(row?"#8a5c00":B.textMute),marginBottom:8,lineHeight:1.45}}>
+            {!row?"Not uploaded — tile disabled on Resources."
+              :missing.length?`Missing ${missing.length} required field${missing.length>1?"s":""}: ${missing.join(", ")}`
+              :`Ready · ${row.original_filename||"template.pdf"}`}
+          </div>
+          {row&&<div style={{fontSize:10.5,color:B.textMute,marginBottom:10}}>
+            {spec.required.length?`${spec.required.length} field${spec.required.length>1?"s":""} filled by the platform`:"Reference document — no form fields"}
+          </div>}
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <label style={{fontSize:11.5,color:B.navy,cursor:busy?"wait":"pointer",border:`1px solid ${B.border}`,borderRadius:7,padding:"6px 10px",background:B.bg}}>
+              {busy===spec.key?"Working…":(row?"Replace":"Upload PDF")}
+              <input type="file" accept="application/pdf" disabled={!!busy} style={{display:"none"}}
+                onChange={e=>{const f=e.target.files?.[0];e.target.value="";upload(f,spec);}}/>
+            </label>
+            {row&&<Btn small variant="danger" onClick={()=>remove(spec)} disabled={!!busy}>Remove</Btn>}
+          </div>
+        </div>;
+      })}
+    </div>}
+  </div>;
+}
+
 function BrandingView({toast}){
   const[rows,setRows]=useState([]);
   const[loading,setLoading]=useState(true);
@@ -7556,6 +7868,8 @@ function BrandingView({toast}){
         </div>
       </div>)}
     </div>
+
+    <BrandDocumentsSection brands={rows} toast={toast}/>
 
     {modal&&<Modal wide title={modal.isNew?"New Brand Profile":`Edit — ${modal.row.label}`} onClose={closeModal}>
       {restored&&<div style={{fontSize:11.5,color:B.navy,background:"rgba(206,182,132,0.16)",border:`1px solid ${B.gold}`,borderRadius:8,padding:"8px 12px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
