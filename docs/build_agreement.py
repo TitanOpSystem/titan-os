@@ -34,6 +34,7 @@ Usage:
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -350,8 +351,22 @@ def norm(text):
     return " ".join(keep)
 
 
-def words(path):
+def words(path, firm=None, short=None, tagline=None):
+    """Words of a document, with firm identity neutralised.
+
+    Without this the check is only usable when regenerating the same brand. Run
+    for a different firm it reported 'PCM' x10, 'Family' x4, 'Office' x4 and the
+    old tagline as "lost" — which is precisely what a rebrand is supposed to
+    change. Flagging the intended change as a failure would have trained me to
+    ignore the one check that matters. Firm names collapse to a token so the
+    comparison is about the wording that must NOT change.
+    """
     txt = subprocess.run(["pdftotext", "-layout", path, "-"], capture_output=True, text=True).stdout
+    for name in filter(None, [firm, tagline]):
+        txt = txt.replace(name, "«FIRM»")
+    if short:
+        # After the full name, so "PCM Family Office" is not left as "«FIRM» Family Office".
+        txt = re.sub(rf"\b{re.escape(short)}\b", "«FIRM»", txt)
     return norm(txt).split()
 
 
@@ -368,7 +383,8 @@ def verify(original, generated):
     import difflib
     from collections import Counter
 
-    a, b = words(original), words(generated)
+    a = words(original, "PCM Family Office", "PCM", "DISCOVER · SIMPLIFY · EXECUTE")
+    b = words(generated, FIRM, SHORT, TAGLINE)
     ca, cb = Counter(a), Counter(b)
 
     lost = {w: ca[w] - cb.get(w, 0) for w in ca if ca[w] > cb.get(w, 0)}
