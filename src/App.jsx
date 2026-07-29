@@ -6283,7 +6283,13 @@ function guessState(address){
 const DOC_CONFIGS={
   agreement:{
     label:"Client Services Agreement",icon:"doc",
-    desc:"$5,000/mo advisory agreement · 6-month minimum",
+    // No subtitle. It read "$5,000/mo advisory agreement · 6-month minimum",
+    // which stated commercial terms on a tile that every tenant firm sees and
+    // that no template actually contains — the fee and term are filled in per
+    // client when the document is generated, and the agreement PDF itself carries
+    // no such wording. Quoting a price in the UI was both wrong for other firms
+    // and not something the platform should assert on a firm's behalf.
+    desc:"",
     docKey:"agreement",
     fields:[
       {key:"client_name",   label:"Client / Family Name", pdfField:"client_name",    default:(f)=>f.name||""},
@@ -6829,8 +6835,11 @@ function ResourcesView({data,userProfile,toast}){
                 style={{textAlign:"left",background:blocked?B.bg:B.white,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${blocked?B.border:B.gold}`,borderRadius:12,padding:18,cursor:blocked?"not-allowed":"pointer",boxShadow:blocked?"none":B.shadow,fontFamily:"inherit",display:"flex",alignItems:"center",gap:14,opacity:blocked?0.72:1}}>
                 <ResIconBadge name={d.icon}/>
                 <div style={{minWidth:0}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:B.navy,fontWeight:600,marginBottom:3}}>{d.label}</div>
-                  <div style={{fontSize:11.5,color:blocked?"#8a5c00":B.textSoft}}>{blocked?why:d.desc}</div>
+                  {/* No empty second line when a document has no subtitle — an
+                      empty styled div still occupies space and the tile looks
+                      broken rather than deliberately spare. */}
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:B.navy,fontWeight:600,marginBottom:(blocked||d.desc)?3:0}}>{d.label}</div>
+                  {(blocked||d.desc)&&<div style={{fontSize:11.5,color:blocked?"#8a5c00":B.textSoft}}>{blocked?why:d.desc}</div>}
                 </div>
               </button>;
             })}
