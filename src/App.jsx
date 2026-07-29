@@ -6868,6 +6868,13 @@ function ResourcesView({data,userProfile,toast}){
 
     {activeDoc&&family&&<FillClientDocModal docId={activeDoc} family={family} contact={primaryContact} userProfile={userProfile} bankAccount={bankAccount} onClose={()=>setActiveDoc(null)} toast={toast}/>}
 
+    {/* Template administration sits here, next to the tiles it unblocks, rather
+        than on the Branding screen — that screen only exists when
+        VITE_BRAND_RUNTIME=1, so on a single-identity deployment the upload UI was
+        unreachable and the tiles above could never be unblocked. Admins only;
+        RLS enforces the same rule server-side regardless of this check. */}
+    {userProfile?.role==="admin"&&<BrandDocumentsSection toast={toast}/>}
+
     <ScheduledPromptsSection userProfile={userProfile} families={families} toast={toast}/>
     <WorkflowTemplatesSection userProfile={userProfile} toast={toast}/>
   </div>;
@@ -7644,12 +7651,32 @@ const BRAND_DOC_KEYS=[
 // Per-tenant document templates. Attached either to one brand profile or to the
 // project as a whole, for a deployment that brands itself through build-time env
 // vars and has no brand profiles at all (PCM production).
-function BrandDocumentsSection({brands,toast}){
+// `brands` is optional. This section has to work on a deployment that does not
+// use runtime brand switching at all — PCM production sets no VITE_BRAND_RUNTIME,
+// so the Branding screen never renders there. Managing document templates is
+// document administration, not brand switching, and gating it behind that flag
+// left the Resources tiles permanently blocked with no way to unblock them. So it
+// loads its own brand list when none is handed in.
+function BrandDocumentsSection({brands:brandsProp,toast}){
   const isMobile=useIsMobile();
   const[scope,setScope]=useState("");           // "" = project default
   const[rows,setRows]=useState([]);
+  const[brands,setBrands]=useState(brandsProp||[]);
   const[loading,setLoading]=useState(true);
   const[busy,setBusy]=useState("");
+
+  useEffect(()=>{
+    if(brandsProp){setBrands(brandsProp);return;}
+    let cancelled=false;
+    (async()=>{
+      // Absent or unreadable brand_profiles is normal, not an error: the scope
+      // selector simply offers "Project default" only, which is the right answer
+      // for a single-identity deployment.
+      const{data}=await sb.from("brand_profiles").select("id,label,is_active").order("label");
+      if(!cancelled)setBrands(data||[]);
+    })();
+    return()=>{cancelled=true;};
+  },[brandsProp]);
 
   const load=useCallback(async()=>{
     setLoading(true);
@@ -7916,7 +7943,9 @@ function BrandingView({toast}){
       </div>)}
     </div>
 
-    <BrandDocumentsSection brands={rows} toast={toast}/>
+    {/* Document templates are administered from the Resources tab, so they stay
+        reachable on deployments that never render this screen. Not duplicated
+        here: one home for it, or the two copies drift. */}
 
     {modal&&<Modal wide title={modal.isNew?"New Brand Profile":`Edit — ${modal.row.label}`} onClose={closeModal}>
       {restored&&<div style={{fontSize:11.5,color:B.navy,background:"rgba(206,182,132,0.16)",border:`1px solid ${B.gold}`,borderRadius:8,padding:"8px 12px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
