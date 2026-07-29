@@ -198,7 +198,15 @@ class Report:
             self.para(claim, size=11, colour=self.PRIMARY, after=10)
 
     def stat_band(self, items):
-        """Big figures, evenly spaced. The only place counts lead."""
+        """Big figures, evenly spaced. The only place counts lead.
+
+        A value of None means the platform could not measure it, and it prints as
+        an em dash rather than as a number. client_activity_payload() deliberately
+        returns null instead of 0 when the underlying rows cannot be placed in the
+        reporting period, and coercing that to "0" here would undo the whole point:
+        on a client-facing document, 0 reads as "this did not happen" rather than
+        "we cannot evidence this". Nothing in this method may fall back to zero.
+        """
         self.room(62)
         gap = 12
         w = (CONTENT - gap * (len(items) - 1)) / len(items)
@@ -208,7 +216,7 @@ class Report:
             self.c.rect(x, self.y - 46, w, 46, stroke=0, fill=1)
             self.c.setFont(HEAD_F, 21)
             self.c.setFillColor(self.PRIMARY)
-            self.c.drawString(x + 11, self.y - 24, str(value))
+            self.c.drawString(x + 11, self.y - 24, "—" if value is None else str(value))
             self.c.setFont("Helvetica", 7.4)
             self.c.setFillColor(self.LABEL)
             for j, ln in enumerate(self.wrap(label, "Helvetica", 7.4, w - 22)[:2]):

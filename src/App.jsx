@@ -4850,8 +4850,7 @@ function ReviewQueue({families,toast,userProfile}){
 
   const act=async(st,to)=>{
     setBusy(st.id);
-    const patch={status:to,updated_at:new Date().toISOString()};
-    if(to==="sent"){patch.approved_by=CURRENT_USER_LABEL||userProfile?.email||"—";patch.approved_at=new Date().toISOString();patch.sent_at=new Date().toISOString();}
+    const patch=stepTransitionPatch(to,CURRENT_USER_LABEL||userProfile?.email||"—");
     const{error}=await sb.from("workflow_instance_steps").update(patch).eq("id",st.id);
     if(error)toast(error.message,"error");else{toast(to==="sent"?"Approved and sent":"Marked done");}
     setBusy(null);load();
@@ -6953,6 +6952,33 @@ function ResourcesView({data,userProfile,toast}){
 // ── WORKFLOW ENGINE (shared) ─────────────────────────────────────────────────
 const addDays=(iso,n)=>{const d=new Date(iso+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+(Number(n)||0));return d.toISOString().slice(0,10);};
 const todayISO=()=>new Date().toISOString().slice(0,10);
+
+// One definition of the timestamps a step carries when its status changes.
+//
+// A step can be advanced from two places — the review queue and the cycle detail
+// — and they had drifted into recording the same two things and missing the same
+// third. Both stamped approved_at and sent_at; neither stamped when the step
+// actually finished. Those two columns only exist when a person approved
+// something or something went out, so a step the platform completed on its own
+// carried no date at all and could not be placed in a reporting period. The
+// client activity report consequently printed "0 automated steps" over the top of
+// work that had happened, which is the worst kind of wrong: it reads as evidence
+// of nothing rather than as an absence of evidence.
+//
+// Any future path that advances a step must go through here rather than building
+// its own patch, or the third copy will miss a column the same way.
+const stepTransitionPatch=(to,actorLabel)=>{
+  const now=new Date().toISOString();
+  const p={status:to,updated_at:now};
+  // Terminal states get a completion time whether a person or the platform got
+  // them there. "skipped" deliberately does not: it was never completed, and the
+  // report must not be able to count it as work.
+  p.completed_at=(to==="done"||to==="sent")?now:null;
+  if(to==="sent"||to==="approved"){p.approved_by=actorLabel;p.approved_at=now;}
+  if(to==="sent")p.sent_at=now;
+  return p;
+};
+
 // Must stay in step with the obligations_kind_check constraint. A kind the
 // database accepts but this list omits is a kind nobody can select.
 const OBLIGATION_KINDS=[
@@ -7299,9 +7325,7 @@ function ObligationsSection({family,data,toast,canEdit,userProfile}){
 
   // Approving records WHO approved it, which is the point of the gate.
   const advance=async(st,to)=>{
-    const patch={status:to,updated_at:new Date().toISOString()};
-    if(to==="sent"||to==="approved"){patch.approved_by=CURRENT_USER_LABEL||userProfile?.email||"—";patch.approved_at=new Date().toISOString();}
-    if(to==="sent")patch.sent_at=new Date().toISOString();
+    const patch=stepTransitionPatch(to,CURRENT_USER_LABEL||userProfile?.email||"—");
     const{error}=await sb.from("workflow_instance_steps").update(patch).eq("id",st.id);
     if(error){toast(error.message,"error");return;}
     // Close the cycle once nothing actionable remains.
