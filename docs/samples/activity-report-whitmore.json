@@ -8,9 +8,8 @@
   },
   "meta": {
     "household": "Whitmore Family Office",
-    "period": "Twelve months to 31 July 2026",
     "opening": "This report sets out what was done on your behalf over the period: the commitments we discharged, the exposures we identified and closed, and the records behind every figure in your reporting. Where something remains open, it is listed.",
-    "scope_note": "This report covers work recorded in the platform between 1 August 2025 and 31 July 2026. Each item is drawn from a dated record — an approval, a sent message, a filed statement or a logged exception. Meetings, calls and correspondence handled outside the platform are not included, so this is an account of recorded work rather than of the whole relationship."
+    "scope_note_template": "This report covers work recorded in the platform between {span}. Each item is drawn from a dated record — an approval, a sent message, a filed statement or a logged exception. Meetings, calls and correspondence handled outside the platform are not included, so this is an account of recorded work rather than of the whole relationship."
   },
   "summary": {
     "obligations_closed": 1,
@@ -150,5 +149,11 @@
       "2026 ILIT premium, Pacific Life — $185,000 due 15 November. Cycle open, first step due 1 September.",
       "Three household tasks open, none yet overdue."
     ]
+  },
+  "period": {
+    "kind": "trailing_12",
+    "from": "2025-08-01",
+    "to": "2026-08-01",
+    "tz": "America/New_York"
   }
 }

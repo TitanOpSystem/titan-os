@@ -47,7 +47,7 @@ Usage:
 import argparse
 import json
 import os
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 from reportlab.lib.colors import HexColor, Color
 from reportlab.lib.pagesizes import letter
@@ -70,6 +70,44 @@ def mix(hex_colour, other, t):
     ch = lambda s, i: int(s[i:i + 2], 16)
     return HexColor("#%02x%02x%02x" % tuple(
         round(ch(a, i) * (1 - t) + ch(b, i) * t) for i in (0, 2, 4)))
+
+
+def period_label(kind, d_from, d_to):
+    """The heading, computed from the boundaries the data was actually gathered on.
+
+    Mirrors report_period() in SQL. The label is DERIVED rather than passed in:
+    a caller that supplies both a range and a description can make them disagree,
+    and nothing on the page would reveal it. Monthly / quarterly / annual / custom
+    all resolve here, and an unrecognised kind is an error rather than a guess.
+
+    d_to is exclusive, matching the SQL. display_end is the last day inside.
+    """
+    f = date.fromisoformat(d_from)
+    t = date.fromisoformat(d_to)
+    if t <= f:
+        raise ValueError(f"Reporting period must end after it starts (got {d_from} to {d_to}).")
+    end = t - timedelta(days=1)
+    months = ["January","February","March","April","May","June",
+              "July","August","September","October","November","December"]
+    long = lambda d: f"{d.day} {months[d.month - 1]} {d.year}"
+
+    if kind == "month":
+        if not (f.day == 1 and t.day == 1 and (t.month - f.month) % 12 == 1):
+            raise ValueError(f"'month' period is not a whole calendar month: {d_from} to {d_to}.")
+        return f"{months[f.month - 1]} {f.year}"
+    if kind == "quarter":
+        if not (f.day == 1 and f.month in (1, 4, 7, 10)):
+            raise ValueError(f"'quarter' period does not start a calendar quarter: {d_from}.")
+        return f"Q{(f.month - 1) // 3 + 1} {f.year}"
+    if kind == "year":
+        if not (f.month == 1 and f.day == 1):
+            raise ValueError(f"'year' period does not start a calendar year: {d_from}.")
+        return f"Calendar year {f.year}"
+    if kind == "trailing_12":
+        return f"Twelve months to {long(end)}"
+    if kind == "custom":
+        return f"{long(f)} to {long(end)}"
+    raise ValueError(f"Unknown period kind {kind!r}. Expected month, quarter, year, trailing_12 or custom.")
 
 
 class Report:
@@ -214,6 +252,16 @@ class Report:
 
 def build(out, payload):
     brand, meta = payload["brand"], payload["meta"]
+
+    per = payload["period"]
+    meta["period"] = period_label(per["kind"], per["from"], per["to"])
+    # The scope note must name the same boundaries the heading does.
+    f = date.fromisoformat(per["from"])
+    e = date.fromisoformat(per["to"]) - timedelta(days=1)
+    months = ["January","February","March","April","May","June",
+              "July","August","September","October","November","December"]
+    span = f"{f.day} {months[f.month-1]} {f.year} and {e.day} {months[e.month-1]} {e.year}"
+    meta["scope_note"] = meta["scope_note_template"].replace("{span}", span)
     r = Report(out, brand, meta)
     c = r.c
 
