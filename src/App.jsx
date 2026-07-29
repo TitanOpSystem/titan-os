@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
+import { buildActivityReportPdf, AR_PERIODS, fig as arFig } from "./activityReport.js";
 // PCM Platform v5.0 — build 20260429
 //
 // Nothing PCM-specific is imported here any more, and that is deliberate.
@@ -6821,6 +6822,168 @@ function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
   </>;
 }
 
+function ActivityReportSection({families,toast}){
+  const[familyId,setFamilyId]=useState("");
+  const[kind,setKind]=useState("trailing_12");
+  const[anchor,setAnchor]=useState(todayISO());
+  const[from,setFrom]=useState("");
+  const[to,setTo]=useState("");
+  const[busy,setBusy]=useState(false);
+  const[preview,setPreview]=useState(null);
+  const family=(families||[]).find(f=>f.id===familyId)||null;
+
+  // Anchor semantics differ per kind and saying so prevents the commonest
+  // misreading: that "Monthly" means the last thirty days.
+  const anchorHelp={
+    trailing_12:"Twelve months ending on this date, inclusive.",
+    month:"The whole calendar month containing this date.",
+    quarter:"The whole calendar quarter containing this date.",
+    year:"The whole calendar year containing this date.",
+    custom:"",
+  }[kind];
+
+  const run=async(download)=>{
+    if(!familyId){toast("Choose a household first","error");return;}
+    if(kind==="custom"&&(!from||!to)){toast("A custom range needs both a start and an end","error");return;}
+    setBusy(true);
+    try{
+      // The period is resolved server-side, under the caller's own permissions.
+      // security invoker plus family-scoped RLS means an Expert cannot assemble a
+      // report for a household outside their book even by passing another id.
+      const{data,error}=await sb.rpc("client_activity_payload",{
+        p_family_id:familyId,
+        p_kind:kind,
+        p_anchor:kind==="custom"?todayISO():anchor,
+        p_from:kind==="custom"?from:null,
+        p_to:kind==="custom"?to:null,
+        // Calendar boundaries are a local idea: a monthly report run from Florida
+        // must not place an event logged at 8pm on 31 July into August.
+        p_tz:Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC",
+      });
+      if(error)throw new Error(error.message);
+      if(!data)throw new Error("No report data came back for that household and period.");
+      setPreview(data);
+      if(!download){setBusy(false);return;}
+      const bytes=await buildActivityReportPdf({
+        payload:data,
+        brandName:BRAND.name, tagline:BRAND.tagline, logoUrl:BRAND.logo,
+        primaryHex:B.navy, accentHex:B.gold,
+      });
+      const safe=String(data.meta?.household||"household").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"");
+      const url=URL.createObjectURL(new Blob([bytes],{type:"application/pdf"}));
+      const a=document.createElement("a");
+      a.href=url; a.download=`${safe}_Activity_Report_${(data.period?.from||"")}_to_${(data.period?.to||"")}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+      toast("Report generated");
+    }catch(e){
+      // One codebase serves every tenant, but the reporting functions are applied
+      // per project. On a tenant that has the frontend and not the schema, PostgREST
+      // returns a schema-cache miss, which as a raw message ("Could not find the
+      // function public.client_activity_payload...") reads like a bug in front of a
+      // client. Name the actual situation instead. Deliberately not hidden behind a
+      // build-time flag: gating the template upload UI that way made it unreachable
+      // on PCM, a fail-closed switch with no release valve.
+      const m=String(e.message||"");
+      if(/Could not find the function|does not exist|schema cache/i.test(m)){
+        toast("Activity reporting isn't enabled on this deployment yet — the reporting "+
+              "functions haven't been applied to this firm's database.","error");
+      }else{
+        toast(m||"Could not build the report","error");
+      }
+    }
+    setBusy(false);
+  };
+
+  const S=preview?.summary||{};
+  // Same null-safe helper the PDF uses, imported rather than re-declared: an
+  // on-screen figure and the printed one disagreeing about whether null means
+  // zero is exactly the confusion this whole feature exists to avoid.
+  const fig=arFig;
+
+  return <div style={{marginTop:26,background:B.white,border:`1px solid ${B.borderLight}`,
+      borderTop:`3px solid ${B.gold}`,borderRadius:12,padding:20,boxShadow:B.shadow}}>
+    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>
+      Client activity report</div>
+    <div style={{fontSize:11.5,color:B.textSoft,marginTop:4,marginBottom:16,maxWidth:620}}>
+      What was done for a household over a period — obligations discharged, exposures raised
+      and closed, the records behind each balance, and what is still open. Generated on demand
+      and reviewed before it goes to the client.
+    </div>
+
+    <div style={{display:"flex",flexWrap:"wrap",gap:12,alignItems:"flex-end"}}>
+      <label style={{fontSize:11,color:B.textSoft}}>
+        <div style={{marginBottom:4}}>Household</div>
+        <select value={familyId} onChange={e=>{setFamilyId(e.target.value);setPreview(null);}}
+          style={{...inp,minWidth:210}}>
+          <option value="">Choose…</option>
+          {(families||[]).map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+        </select>
+      </label>
+      <label style={{fontSize:11,color:B.textSoft}}>
+        <div style={{marginBottom:4}}>Period</div>
+        <select value={kind} onChange={e=>{setKind(e.target.value);setPreview(null);}}
+          style={{...inp,minWidth:160}}>
+          {AR_PERIODS.map(p=><option key={p.kind} value={p.kind}>{p.label}</option>)}
+        </select>
+      </label>
+      {kind==="custom"
+        ? <>
+            <label style={{fontSize:11,color:B.textSoft}}>
+              <div style={{marginBottom:4}}>From</div>
+              <input type="date" value={from} onChange={e=>{setFrom(e.target.value);setPreview(null);}} style={{...inp,width:150}}/>
+            </label>
+            <label style={{fontSize:11,color:B.textSoft}}>
+              <div style={{marginBottom:4}}>To (exclusive)</div>
+              <input type="date" value={to} onChange={e=>{setTo(e.target.value);setPreview(null);}} style={{...inp,width:150}}/>
+            </label>
+          </>
+        : <label style={{fontSize:11,color:B.textSoft}}>
+            <div style={{marginBottom:4}}>Anchor date</div>
+            <input type="date" value={anchor} onChange={e=>{setAnchor(e.target.value);setPreview(null);}} style={{...inp,width:150}}/>
+          </label>}
+      <button onClick={()=>run(false)} disabled={busy}
+        style={{background:B.white,color:B.navy,border:`1px solid ${B.border}`,borderRadius:8,
+          padding:"9px 16px",fontSize:12,cursor:busy?"wait":"pointer",fontFamily:"inherit"}}>
+        {busy?"Working…":"Preview figures"}</button>
+      <button onClick={()=>run(true)} disabled={busy}
+        style={{background:B.navy,color:B.white,border:"none",borderRadius:8,
+          padding:"10px 18px",fontSize:12,cursor:busy?"wait":"pointer",fontFamily:"inherit"}}>
+        {busy?"Working…":"Generate PDF"}</button>
+    </div>
+    {anchorHelp&&<div style={{fontSize:10.5,color:B.textMute,marginTop:8}}>{anchorHelp}</div>}
+
+    {preview&&<div style={{marginTop:18,paddingTop:16,borderTop:`1px solid ${B.borderLight}`}}>
+      <div style={{fontSize:12,color:B.navy,fontWeight:600,marginBottom:2}}>
+        {preview.meta?.household} · {preview.period?.label_from_db}</div>
+      <div style={{fontSize:10.5,color:B.textMute,marginBottom:12}}>
+        {preview.period?.from} to {preview.period?.to} (exclusive) · {preview.period?.tz}</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:10}}>
+        {[["Obligations discharged",S.obligations_closed],
+          ["Exposures raised",S.exposures_raised],
+          ["Exposures closed",S.exposures_closed],
+          ["Open at period end",S.exposures_open],
+          ["Approved by adviser",S.approvals],
+          // Rendered from the same null-safe helper as the PDF. A dash here means
+          // the platform cannot measure it, which is not the same as zero.
+          ["Steps done by the platform",S.automated_steps],
+          ["Statements reconciled",S.statements]].map(([lab,v])=>
+          <div key={lab} style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:8,
+              padding:"8px 12px",minWidth:118}}>
+            <div style={{fontSize:19,color:B.navy,fontFamily:"'Cormorant Garamond',serif",fontWeight:600}}>{fig(v)}</div>
+            <div style={{fontSize:9.5,color:B.textSoft,lineHeight:1.25}}>{lab}</div>
+          </div>)}
+      </div>
+      {!!(preview.data_gaps||[]).length&&
+        <div style={{marginTop:12,background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,padding:"10px 12px"}}>
+          <div style={{fontSize:10.5,color:"#8a5c00",fontWeight:600,marginBottom:4}}>Where the record is incomplete</div>
+          {preview.data_gaps.map((g,i)=>
+            <div key={i} style={{fontSize:10.5,color:"#8a5c00",lineHeight:1.4}}>· {g}</div>)}
+        </div>}
+    </div>}
+  </div>;
+}
+
 function ResourcesView({data,userProfile,toast}){
   const isMobile=useIsMobile();
   const[familyId,setFamilyId]=useState("");
@@ -6943,6 +7106,8 @@ function ResourcesView({data,userProfile,toast}){
         unreachable and the tiles above could never be unblocked. Admins only;
         RLS enforces the same rule server-side regardless of this check. */}
     {userProfile?.role==="admin"&&<BrandDocumentsSection toast={toast}/>}
+
+    <ActivityReportSection families={families} toast={toast}/>
 
     <ScheduledPromptsSection userProfile={userProfile} families={families} toast={toast}/>
     <WorkflowTemplatesSection userProfile={userProfile} toast={toast}/>
