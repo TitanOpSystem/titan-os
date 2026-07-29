@@ -7721,6 +7721,106 @@ const BRAND_DOC_KEYS=[
 // Per-tenant document templates. Attached either to one brand profile or to the
 // project as a whole, for a deployment that brands itself through build-time env
 // vars and has no brand profiles at all (PCM production).
+// The firm's standard fees, editable.
+//
+// These were added to brand_profiles and read at runtime, with no way to set them
+// short of SQL — the same dead end as putting the template upload screen behind a
+// flag PCM production does not set. A value that only lives in the database and
+// cannot be changed from the product is not configurable, it is just hidden.
+//
+// Writes to the active brand profile, because that is the row the fee is read
+// from. A deployment with no brand row at all has nowhere to store this, and says
+// so rather than silently discarding the input.
+function FirmFeeDefaults({toast}){
+  const isMobile=useIsMobile();
+  const[row,setRow]=useState(null);          // {id, monthly, onboarding}
+  const[loading,setLoading]=useState(true);
+  const[saving,setSaving]=useState(false);
+
+  const load=useCallback(async()=>{
+    setLoading(true);
+    try{
+      const{data,error}=await sb.from("brand_profiles")
+        .select("id, brand_name, default_monthly_fee, default_onboarding_fee")
+        .eq("is_active",true).maybeSingle();
+      if(error)throw error;
+      setRow(data?{id:data.id,name:data.brand_name,
+        monthly:data.default_monthly_fee==null?"":String(data.default_monthly_fee),
+        onboarding:data.default_onboarding_fee==null?"":String(data.default_onboarding_fee)}:null);
+    }catch(_e){ setRow(null); }
+    finally{ setLoading(false); }
+  },[]);
+  useEffect(()=>{load();},[load]);
+
+  // Blank means "no standard fee" and is stored as NULL, not zero. Zero would
+  // print 0.00 onto an agreement, which is a stated price of nothing rather than
+  // an unanswered question.
+  const parse=v=>{
+    const s=String(v==null?"":v).replace(/[^0-9.]/g,"").trim();
+    if(!s)return null;
+    const n=Number(s);
+    return Number.isFinite(n)&&n>=0&&n<10000000?n:undefined;   // undefined = invalid
+  };
+
+  const save=async()=>{
+    if(!row)return;
+    const m=parse(row.monthly), o=parse(row.onboarding);
+    if(m===undefined||o===undefined){toast("Enter a plain amount, or leave blank for none","error");return;}
+    setSaving(true);
+    try{
+      const{error}=await sb.from("brand_profiles")
+        .update({default_monthly_fee:m,default_onboarding_fee:o,updated_at:new Date().toISOString()})
+        .eq("id",row.id);
+      if(error)throw new Error(error.message);
+      // Refresh the in-memory copy so a modal opened straight after this picks up
+      // the new figure rather than the one loaded at page load.
+      await loadFirmDefaults();
+      await load();
+      toast("Standard fees saved");
+    }catch(e){ toast(e.message||"Couldn't save","error"); }
+    finally{ setSaving(false); }
+  };
+
+  if(loading)return null;
+
+  return <div style={{marginBottom:30}}>
+    <SectionLabel>Standard Fees</SectionLabel>
+    <div style={{fontSize:13,color:B.textSoft,maxWidth:760,lineHeight:1.55,marginBottom:12}}>
+      Pre-fills the Client Services Agreement and the Auto-Debit form. A Titan Expert can change either figure
+      on a particular client before generating. Leave blank for no standard fee and the field starts empty —
+      the annual figure on the agreement is always twelve times the monthly one, and the onboarding fee is
+      itemised separately rather than folded into it.
+    </div>
+    {!row
+      ? <div style={{fontSize:12,color:"#8a5c00",background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"10px 12px",maxWidth:760,lineHeight:1.5}}>
+          No active brand profile on this deployment, so there is nowhere to store a firm-wide fee. The fields on
+          each document still work; they just start empty.
+        </div>
+      : <div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,boxShadow:B.shadow,padding:16,maxWidth:620}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:14}}>
+            <Field label="Monthly advisory fee">
+              <input value={row.monthly} placeholder="e.g. 5000"
+                onChange={e=>setRow(r=>({...r,monthly:e.target.value}))} style={inp}/>
+            </Field>
+            <Field label="Onboarding fee (one-time)">
+              <input value={row.onboarding} placeholder="e.g. 7500"
+                onChange={e=>setRow(r=>({...r,onboarding:e.target.value}))} style={inp}/>
+            </Field>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginTop:4,flexWrap:"wrap"}}>
+            <Btn small variant="gold" onClick={save} disabled={saving}>{saving?"Saving…":"Save"}</Btn>
+            <div style={{fontSize:11.5,color:B.textMute}}>
+              {row.monthly?`Agreement will show ${feePlain(Number(row.monthly))} monthly · ${feeAnnualPlain(Number(row.monthly))} annually`:"Monthly fee blank — agreement fee fields start empty"}
+            </div>
+          </div>
+          <div style={{fontSize:11,color:B.textMute,marginTop:10,lineHeight:1.5}}>
+            Applies to {row.name}. The onboarding fee prints only on an agreement template that carries an
+            onboarding_fee field; on an older template it is recorded here and left off the document.
+          </div>
+        </div>}
+  </div>;
+}
+
 // `brands` is optional. This section has to work on a deployment that does not
 // use runtime brand switching at all — PCM production sets no VITE_BRAND_RUNTIME,
 // so the Branding screen never renders there. Managing document templates is
@@ -7821,6 +7921,7 @@ function BrandDocumentsSection({brands:brandsProp,toast}){
   };
 
   return <div style={{marginTop:34}}>
+    <FirmFeeDefaults toast={toast}/>
     <SectionLabel>Document Templates</SectionLabel>
     <div style={{fontSize:13,color:B.textSoft,maxWidth:760,lineHeight:1.55,marginBottom:8}}>
       The fillable documents on the Resources tab are the firm's own paperwork, so each firm supplies its own.
