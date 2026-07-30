@@ -43,7 +43,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log(`  ok   ${n}`); } else { 
 // ── Build a callable copy of the real App.jsx ─────────────────────────────────
 mkdirSync(tmp, { recursive: true });
 const appSrc = readFileSync(join(repo, "src/App.jsx"), "utf8")
-  + "\n\nexport { buildFamilySnapshot, buildVendorOptions };\n";
+  + "\n\nexport { buildFamilySnapshot, buildVendorOptions, FIRM_DEFAULTS };\n";
 writeFileSync(join(tmp, "App.jsx"), appSrc);
 for (const f of ["propertyCashFlow.js", "activityReport.js"]) {
   writeFileSync(join(tmp, f), readFileSync(join(repo, "src", f), "utf8"));
@@ -55,7 +55,13 @@ execFileSync("npx", ["--yes", "esbuild@0.23", join(tmp, "App.jsx"),
   `--define:import.meta.env={"VITE_SUPABASE_URL":"https://example.supabase.co","VITE_SUPABASE_ANON_KEY":"x","VITE_BRAND_RUNTIME":"1"}`,
   `--outfile=${bundle}`, "--log-level=error"], { stdio: ["ignore", "ignore", "inherit"] });
 
-const { buildFamilySnapshot } = await import("../app.probe.mjs");
+const { buildFamilySnapshot, FIRM_DEFAULTS } = await import("../app.probe.mjs");
+
+// Deriving property costs into cash flow is opt-in per firm (brand_profiles
+// .derive_property_costs, default false). loadFirmDefaults() reads it from the brand
+// record and is never called here, so the flag starts false — which is exactly the state a
+// firm that has not categorised its expenses is in. Both paths are asserted.
+FIRM_DEFAULTS.derivePropertyCosts = true;
 
 // ── Real rows from the demo database, in the client (camelCase) shape ─────────
 const FID = "21133f57-f245-4643-ad20-4b6ce4f2a0d0";
@@ -213,5 +219,31 @@ ok("with no vendors, spendByVendor is empty", (bareSnap.spendByVendor || []).len
 
 rmSync(bundle, { force: true });
 rmSync(tmp, { recursive: true, force: true });
+// ── The opt-out path: a firm that has not categorised its expenses ───────────
+//
+// This is the state PCM production was in. Derived lines must NOT appear, because they
+// would be added on top of bundled manual lines and double-count real client money. But
+// the assistant must still not claim the spend is zero — the figures ARE on the property
+// records, so they are named in dataSourceNotes instead.
+console.log("\nWith derivation opted out (the default)");
+FIRM_DEFAULTS.derivePropertyCosts = false;
+const off = buildFamilySnapshot(family, data);
+const offCat = Object.fromEntries((off.expenseByCategory || []).map(c => [c.category, c]));
+ok("no property-derived items appear anywhere",
+  !Object.values(offCat).some(c => c.items.some(i => i.source === "property record")));
+ok("utilities show ONLY the three itemised lines", offCat.utilities.annualised === 11400,
+  `got ${offCat.utilities?.annualised}`);
+ok("categories held only on the property vanish from spend", !offCat.taxes && !offCat.insurance);
+// The honesty requirement. Silence here would read as "you spend nothing on tax".
+ok("the property-held figures are still named for the assistant",
+  (off.dataSourceNotes || []).some(n => /does NOT feed them into the Cash Flow tab/.test(n)));
+ok("and it is told not to say nothing is recorded",
+  (off.dataSourceNotes || []).some(n => /do NOT say that nothing is recorded/.test(n)));
+ok("the note carries the real annual tax figure",
+  (off.dataSourceNotes || []).some(n => n.includes("39,900")));
+ok("no duplicate warning fires when nothing is derived",
+  (off.probableDuplicateSpend || []).length === 0);
+FIRM_DEFAULTS.derivePropertyCosts = true;
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

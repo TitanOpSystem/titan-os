@@ -276,21 +276,28 @@ async function loadBrandDocuments(){
 //
 // null means the firm has not set one. The field is then left blank for the Expert
 // to complete, which is visible and harmless. There is deliberately no fallback.
-const FIRM_DEFAULTS={loaded:false,monthlyFee:null,onboardingFee:null};
+const FIRM_DEFAULTS={loaded:false,monthlyFee:null,onboardingFee:null,
+  // Opt-in per firm. Default false so a tenant that has not categorised its
+  // expenses keeps exactly the numbers it had before this feature existed.
+  derivePropertyCosts:false};
 
 async function loadFirmDefaults(){
   try{
     const{data,error}=await sb.from("brand_profiles")
-      .select("default_monthly_fee, default_onboarding_fee").eq("is_active",true).maybeSingle();
+      .select("default_monthly_fee, default_onboarding_fee, derive_property_costs").eq("is_active",true).maybeSingle();
     if(error)throw error;
     const num=v=>{ if(v==null)return null; const n=Number(v); return Number.isFinite(n)?n:null; };
     FIRM_DEFAULTS.monthlyFee=num(data?.default_monthly_fee);
     FIRM_DEFAULTS.onboardingFee=num(data?.default_onboarding_fee);
+    FIRM_DEFAULTS.derivePropertyCosts=data?.derive_property_costs===true;
   }catch(_e){
     // No brand row, no column, or no access: behave as "not set" rather than
     // guessing a number onto a contract.
     FIRM_DEFAULTS.monthlyFee=null;
     FIRM_DEFAULTS.onboardingFee=null;
+    // Fail CLOSED: an unreadable brand row must not switch on a behaviour that
+    // changes what a client is told they spend.
+    FIRM_DEFAULTS.derivePropertyCosts=false;
   }finally{
     FIRM_DEFAULTS.loaded=true;
   }
@@ -1670,7 +1677,16 @@ function buildFamilySnapshot(family,data){
   // forProjection is false on purpose: the projection honours the user's includeRental
   // toggle, but a client asking what they actually spend must not get a different
   // answer because a modelling checkbox was unticked.
-  const derivedPropertyEvents=derivePropertyEvents(properties,{
+  // Computed either way. When the firm has opted in these are merged into the spend
+  // totals; when it has not, they are still needed for an honest answer — otherwise the
+  // assistant would tell a client "no utilities spend is recorded" while $33,600 a year
+  // sits on their property records. Saying nothing is recorded is a definite answer, and
+  // it would be wrong. So the figures are named in dataSourceNotes instead.
+  const propertyHeldCosts=derivePropertyEvents(properties,{forProjection:false,
+      manualEvents:cashFlowEvents})
+    .filter(e=>e.direction==="expense");
+
+  const derivedPropertyEvents=!FIRM_DEFAULTS.derivePropertyCosts?[]:derivePropertyEvents(properties,{
       forProjection:false,
       // Itemised lines win: a property+category a firm has broken out by vendor must not
       // ALSO contribute the property record's single blended figure.
@@ -1858,6 +1874,21 @@ function buildFamilySnapshot(family,data){
   // it came from. Two instructions in conflict on one question would leave the model to
   // pick a winner.
   const dataSourceNotes=[];
+  if(!FIRM_DEFAULTS.derivePropertyCosts&&propertyHeldCosts.length){
+    const byCat={};
+    propertyHeldCosts.forEach(e=>{
+      const k=EXPENSE_CATEGORY_LABEL[e.category]||e.category;
+      byCat[k]=(byCat[k]||0)+(annualise(e.amount,e.frequency)||0);
+    });
+    dataSourceNotes.push(
+      `This firm records property costs on the PROPERTY record and does NOT feed them into the `+
+      `Cash Flow tab, so they are absent from expenseByCategory and spendByVendor. They ARE held, `+
+      `with these annual figures: `+
+      Object.entries(byCat).map(([k,v])=>`${k} $${v.toLocaleString()}`).join("; ")+
+      `. If asked about one of these, answer from this note, say the figure comes from the property `+
+      `record rather than the cash-flow ledger, and do NOT say that nothing is recorded. Do not add `+
+      `these to a cash-flow total — a manual line may already cover the same money.`);
+  }
   if(derivedPropertyEvents.length) dataSourceNotes.push(
     `${derivedPropertyEvents.length} expense line(s) are derived from property records rather than typed `+
     `into the Cash Flow tab (property tax, insurance, flood, utilities, HOA, mortgage). They ARE included `+
@@ -3739,7 +3770,9 @@ function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,
     //
     // Now every cost is its own line, derived at read time, so it appears exactly once
     // and the screen and the assistant cannot disagree.
-    e.push(...derivePropertyEvents(properties,{
+    // Opt-in per firm: a tenant that has not categorised its expenses would otherwise
+    // get these lines ADDED to bundled manual lines it already has, double-counting.
+    if(FIRM_DEFAULTS.derivePropertyCosts)e.push(...derivePropertyEvents(properties,{
       includeRental:settings.includeRental,
       forProjection:true,
     }));
