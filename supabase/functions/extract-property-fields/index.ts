@@ -1,3 +1,20 @@
+// ⚠️ TENANT DRIFT AT BACKUP TIME (30 July 2026)
+// demo (tkryueqzvgcigvxgjzsp) v10 and prod (unkirihxtruhdjeldfpm) v17 differ.
+// This file is the v17 copy from prod.
+// Differences observed: the control flow is identical, but one difference is NOT
+// cosmetic. FIELD_SPEC is interpolated into the model's instruction, so the inline
+// "// annual %, e.g. 6.25", "// monthly", "// ANNUAL amount", "// ANNUAL premium",
+// "// hazard / homeowners carrier" and similar annotations that prod carries inside
+// that template literal are part of the prompt the model actually reads; demo's
+// FIELD_SPEC is the same schema with every annotation stripped, so demo gives the
+// model no in-schema unit hints. The rest is comments: prod's header reads
+// "PCM Family Office — Property document field extraction", names the document kinds
+// it accepts, and carries a "Deploy:/Secret:/Optional:" block, where demo reads
+// "TitanOS — Property document field extraction (white-label deployment)."; prod also
+// keeps the "── Auth ──", "── Authorize ──" and "── Input ──" section dividers, the
+// note above FIELD_SPEC, the base64-expansion note above the size cap, and the
+// "Strip any accidental code fences" note, all of which demo has removed.
+// Reconcile before deploying this file to either project.
 // supabase/functions/extract-property-fields/index.ts
 // PCM Family Office — Property document field extraction
 // Receives a base64 PDF or image (insurance declaration, mortgage statement,

@@ -1,3 +1,16 @@
+// ⚠️ TENANT DRIFT AT BACKUP TIME (30 July 2026)
+// demo (tkryueqzvgcigvxgjzsp) v10 and prod (unkirihxtruhdjeldfpm) v11 differ.
+// This file is the v11 copy from prod.
+// Differences observed: comments only — the executable code is character-for-character
+// identical in both tenants. Prod's header reads "PCM Family Office — document text
+// extraction for the AI assistant" and carries an extra rationale paragraph (pure
+// transcriber, never queries the database or storage, no cross-family surface) plus a
+// "Deploy:/Secret:/Optional:" block; demo's header instead reads "TitanOS — document
+// text extraction for the AI assistant (white-label deployment)." and drops both. Prod
+// also keeps five inline comments that demo has stripped: the note above MAX_CHARS, the
+// "Authenticated users only" note, the `images` payload annotation, and the
+// "Batch of rendered page images" / "Single file (PDF or image)" branch labels.
+// Reconcile before deploying this file to either project.
 // supabase/functions/extract-document-text/index.ts
 // PCM Family Office — document text extraction for the AI assistant
 // Transcribes a single uploaded PDF or image to plain text so the family's
