@@ -1,91 +1,96 @@
 # Handoff — spend by vendor / property-derived cash flow
 
-Paused 30 July 2026. Everything below is verified, not assumed.
+Updated 30 July 2026, end of session. **The feature work is complete and shipped.** One
+housekeeping item remains.
 
-## State right now
+## State
 
 | | |
 |---|---|
-| `main` | `37c70ac` — rolled back to `b29cdee`'s `src/App.jsx`. **Family card works.** |
-| Deployed | titanosdemo build `37c70ac`, confirmed against the live bundle |
-| WIP branch | `wip-spend-vendor` (also tag `wip/spend-vendor-work`), pushed to origin — all six commits |
-| Database | All migrations applied to **both** projects. Unread by `main`, which is harmless. |
-| Demo data | Vendor links, itemised utility lines and the vendor contacts are all still in place |
+| `main` | `95e4e59` |
+| Demo | titanosdemo build `95e4e59`, family card working, derivation ON |
+| PCM production | pcm-realestate-phi build `95e4e59`, derivation **OFF**, numbers unchanged from before this work |
+| Tests | `npm test` — lint plus four suites, **154 assertions** |
+| WIP branch | `wip-spend-vendor` / tag `wip/spend-vendor-work` — the pre-fix commits, kept for reference only. Safe to delete. |
 
-## The bug — found, with a stack trace
+## THE ONE REMAINING ITEM
 
-```
-ReferenceError: Cannot access 'derivedPropertyEvents' before initialization
-    at buildFamilySnapshot (app.probe.mjs:2183)
-```
+**Back up the deployed edge functions into the repo** (tasks #106, #78).
 
-In `buildFamilySnapshot` the declaration order is:
+Six of eight repo copies are stale. Most important: **`family-ai-assistant` v14 exists only
+inside Supabase.** It carries all of this session's assistant work — the spend-by-category
+rules, the spend-by-vendor rules, the "two places a cost can live" block, the
+smoothed-average rule, and the fix replacing "contact your Titan Expert" with the firm name
+resolved from the brand record. If that project is ever reset, it is gone.
 
-1. `cashFlowEvents`
-2. `expenseByCategory` — spreads `...derivedPropertyEvents`  ← **throws here**
-3. `uncategorisedExpenses`
-4. `derivedPropertyEvents` — declared *after* it is used
-5. `duplicateWarnings`, `spendByVendor`
+Also stale: `run-scheduled-prompts`, `admin-set-password`, and three others. Confirm with
+`mcp list_edge_functions` then `get_edge_function` per slug, and write each to
+`supabase/functions/<slug>/index.ts`.
 
-A temporal dead zone error on a `const`. Introduced in `547682a`. `buildFamilySnapshot`
-runs on family-card mount, so the card threw every time.
+Do this in a session with plenty of context — each function's full source has to pass
+through, and stopping halfway is how the repo got into this state.
 
-**Fix:** move `const derivedPropertyEvents = …` (and `duplicateWarnings`, which depends on
-it) above `expenseByCategory`. Nothing else about the design changes.
+## What shipped this session
 
-## Why three green builds shipped it
+- Expense **categories** on `cash_flow_events`, constrained, with a picklist that is the
+  single source of truth (`EXPENSE_CATEGORIES` in App.jsx must match the check constraint).
+- **Property costs derived into cash flow** — entered once on the property, appearing as
+  itemised lines. Rental income is now GROSS with costs beside it rather than netted.
+- **Vendor granularity**: `property_id` plus two vendor foreign keys on `cash_flow_events`,
+  and `spendByVendor` pre-totalled in the snapshot.
+- **Monthly and annual views**, with `everyLineIsMonthly` so a smoothed average is never
+  described as a payment.
+- **The suppression rule**: an itemised line naming a property and category replaces the
+  property record's blended figure for that pair, so itemising never double-counts.
+- **`brand_profiles.derive_property_costs`** — opt-in per firm, default false.
+- **The client activity report** (earlier in the session) — Resources tab, five periods.
 
-Worth writing down, because each of these is a hole to close:
+## Bugs found and fixed, and how
 
-- **Vite does not check that identifiers resolve.** `npm run build` passed every time.
-- **`no-undef` cannot catch a TDZ error.** The variable *is* declared — just not yet
-  initialised. `npm run lint:undef` (added in `24cdaf4`) is still worth having, and it did
-  find a real latent bug, but it would never have caught this one.
-- **The test suites mirror the logic instead of importing it.** `docs/test_expense_rollup.mjs`
-  re-implements the rollup, so 114 assertions were green while the real function was broken.
-  This is the important one.
+Five, all in this session's own work. Worth reading before extending it.
 
-## How the bug was actually found — reuse this
+1. **TDZ crash.** `expenseByCategory` spread `...derivedPropertyEvents` before that `const`
+   was initialised, so `buildFamilySnapshot` threw on every call and the family card was
+   blank. Shipped three times behind a green build.
+2. **Property `id` missing from the snapshot.** Every derived line got the id
+   `prop_undefined_<field>` and every suppression key collapsed to `"undefined::x"`, so the
+   suppression rule could never fire and itemised costs double-counted. The mirrored tests
+   passed because their fixtures supplied an id the real snapshot did not.
+3. **Vendor columns absent from the snake→camel field map** (`m`, ~line 695), so
+   `spendByVendor` was always empty in the app while correct in the database.
+4. **`findProbableDuplicates` ignored property**, flagging Ocean Vista's itemised utilities
+   as duplicating Gulf Shore's derived line. A false duplicate warning tells an adviser a
+   correct total is double-counted and invites deleting a real line.
+5. **Derivation shipped ON to PCM production**, where nothing is categorised, so derived
+   lines were added to bundled manual lines and the projection double-counted live client
+   money. Hence the opt-in gate.
 
-`buildFamilySnapshot` could not be imported in node because `App.jsx` uses `import.meta.env`
-and JSX. Bundle it with esbuild and the real function becomes callable:
+### Why the guards missed them
 
-```sh
-cp <wip App.jsx> /tmp/probe/App.jsx
-echo 'export { buildFamilySnapshot, buildVendorOptions };' >> /tmp/probe/App.jsx
-npx --yes esbuild@0.23 /tmp/probe/App.jsx --bundle --format=esm --jsx=automatic \
-  --external:react --external:react-dom --external:react/jsx-runtime \
-  --external:@supabase/supabase-js --external:pdf-lib \
-  --define:import.meta.env='{"VITE_SUPABASE_URL":"https://example.supabase.co","VITE_SUPABASE_ANON_KEY":"x","VITE_BRAND_RUNTIME":"1"}' \
-  --outfile=./app.probe.mjs
-# must sit inside the repo so node resolves react from node_modules
-node -e 'import("./app.probe.mjs").then(m=>m.buildFamilySnapshot(family,data))'
-```
+- `npm run build` passes regardless: **Vite does not check that identifiers resolve.**
+- `no-undef` cannot see a TDZ error — the identifier *is* declared, just not initialised.
+- `docs/test_expense_rollup.mjs` **re-implements** the rollup, so 114 assertions were green
+  while the real function was in pieces.
 
-## Do before re-landing
+### What catches them now
 
-1. **Fix the TDZ order** and re-run the probe against real demo data — it must not throw.
-2. **Extract `buildFamilySnapshot` into `src/familySnapshot.js`** with no React or Vite
-   dependency, the same treatment `activityReport.js` and `propertyCashFlow.js` got. Then
-   the tests import the real function instead of a copy of its logic, and a deletion or a
-   reordering fails a test rather than shipping.
-3. **Two further bugs found while reading the real data, both still unfixed on the WIP branch:**
-   - The snapshot's `properties` objects **carry no `id`**. So `derivePropertyEvents` emits
-     `prop_undefined_propertyTaxesAnnual` for *every* property — duplicate React keys — and
-     `suppressionKey` becomes `"undefined::utilities"`, which never matches a manual line's
-     real `propertyId`. **The suppression rule therefore never fires in the live app**, so
-     itemised utilities would be double-counted against the property's blended figure. The
-     unit tests passed because the fixtures supply an `id` the real snapshot does not.
-   - `vendor_family_contact_id` / `vendor_property_contact_id` were **never added to the
-     snake→camel mapper** (`m`, around line 695). The client shape keeps the snake_case
-     keys, so `vendorNameFor` always returns null and `spendByVendor` is always empty.
-4. **Re-apply the render error boundary** (`4096756`). A blank screen with no message is
-   what made this take three rounds.
-5. **Re-apply the `closeModal` → `setModal(null)` fix** in `ScheduledPromptsSection`.
+`docs/test_family_snapshot.mjs` calls the **real** `buildFamilySnapshot`. It bundles
+App.jsx with esbuild (resolving `import.meta.env` and JSX, React external), appends a
+test-only export, and runs it against rows copied from the demo database. Every bug above
+fails it. It asserts both the opted-in and opted-out paths.
 
-## Still outstanding from before
+`npm run lint:undef` checks unresolved identifiers, duplicate declarations and unreachable
+code. Narrow on purpose — a noisy lint gets ignored.
 
-- Repo copies of 6 of 8 edge functions are stale; `family-ai-assistant` v14 exists only in
-  Supabase (task #106).
-- PCM production has not been audited for manual cash-flow lines that duplicate property
-  fields (task #109).
+## Open items elsewhere
+
+- **PCM data anomalies, not touched** — they are the firm's records to judge. Lamb's
+  Raintree shows HOA of $72,420/yr ($6,035/mo); Lamb's property taxes read $1,834 and $707,
+  which look like monthly figures in annual fields.
+- **PCM has no categorised expenses.** Turning `derive_property_costs` on there requires
+  categorising lines and attaching them to properties first. Bennett's "Monthly Expense for
+  Home and 6 Unit Rental Building: Mortgage and Utilities" bundles two categories and has
+  no clean split.
+- The reporting functions (`client_activity_payload`, `report_period`, `client_exceptions`)
+  are demo-only; PCM has `workflow_instance_steps.completed_at` but not the rest (#109).
+- Tasks #82, #84, #85, #86, #89, #92, #102, #107 unchanged.
