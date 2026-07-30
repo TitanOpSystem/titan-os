@@ -1705,6 +1705,85 @@ function buildFamilySnapshot(family,data){
     cashFlowEvents.filter(e=>e.direction==="expense"),
     derivedPropertyEvents);
 
+  // Include document CONTENTS (extracted at upload) so the assistant can answer
+  // from inside files. Bounded by a per-document cap and a global budget so the
+  // prompt stays a sane size even with dozens of documents.
+  const PER_DOC=40000, DOC_BUDGET=160000;
+  let docTextUsed=0;
+  const documents=(data.documents||[]).filter(d=>d.familyId===fid).map(d=>{
+    const out={ name:d.name||null, category:d.category||null, fileType:d.fileType||null,
+      description:d.description||null, uploadedAt:d.uploadedAt||d.createdAt||null };
+    const raw=(d.extractedText||"").trim();
+    if(!raw){ out.contentsAvailable=false; return out; }
+    if(docTextUsed>=DOC_BUDGET){ out.contentsAvailable=true; out.contents="[not included — document-text budget reached; ask about this document specifically]"; return out; }
+    let txt=raw.slice(0,PER_DOC);
+    if(raw.length>PER_DOC) txt+="…[truncated]";
+    docTextUsed+=txt.length;
+    out.contentsAvailable=true; out.contents=txt;
+    return out;
+  });
+
+  // ── PEOPLE AND SERVICE PROVIDERS ───────────────────────────────────────────
+  // The family's own people and the firms that work for them live in three
+  // separate tables, all of which were already being fetched and family-scoped —
+  // and none of which reached the assistant. So "who are my service providers?"
+  // got answered from whatever names happened to be embedded in property and
+  // account fields (the insurance carrier, the banker) while every actual
+  // contact record was invisible: the trust counsel, the CPA, the art advisor,
+  // and every per-property vendor.
+  //
+  // The three are kept distinct rather than flattened. contacts are the family
+  // themselves, and a model handed one undifferentiated list will sooner or later
+  // introduce a family member as a vendor.
+  const trimOrNull=v=>{ const s=String(v==null?"":v).trim(); return s||null; };
+  const propertyNameById=id=>{
+    if(!id)return null;
+    const p=(data.properties||[]).find(x=>x.id===id);
+    return p?trimOrNull(p.name)||trimOrNull(p.address):null;
+  };
+  const mapProvider=(c,extra)=>({
+    name:trimOrNull(c.name), role:trimOrNull(c.role), company:trimOrNull(c.company),
+    email:trimOrNull(c.email), phone:trimOrNull(c.phone), notes:trimOrNull(c.notes),
+    ...extra,
+  });
+
+  // contacts — the household's own members, not providers.
+  const familyMembers=(data.contacts||[]).filter(c=>c.familyId===fid).map(c=>({
+    name:trimOrNull(c.name), email:trimOrNull(c.email), phone:trimOrNull(c.phone),
+    isPrimaryContact:!!c.isPrimary,
+  }));
+
+  // family_contacts — the professional team retained across the household rather
+  // than tied to one asset. isAdvisor marks whoever leads that discipline.
+  const householdProviders=(data.family_contacts||[]).filter(c=>c.familyId===fid)
+    .map(c=>mapProvider(c,{ scope:"household", isLeadForDiscipline:!!c.isAdvisor }));
+
+  // property_contacts — vendors attached to a single property.
+  const propertyProviders=(data.property_contacts||[]).filter(c=>c.familyId===fid)
+    .map(c=>mapProvider(c,{ scope:"property", attachedToProperty:propertyNameById(c.propertyId) }));
+
+  const serviceProviders=[...householdProviders,...propertyProviders];
+
+  const totalRE=properties.reduce((s,p)=>s+(p.currentValue||p.purchasePrice||0),0);
+  const totalDebt=properties.reduce((s,p)=>s+p.loanBalance+p.secondMortgageBalance,0)
+    +portfolioAccounts.filter(a=>a.type==="Line of Credit").reduce((s,a)=>s+a.currentBalance,0);
+  const totalPortfolio=portfolioAccounts.filter(a=>a.type!=="Line of Credit").reduce((s,a)=>s+a.currentBalance,0);
+  const totalValuables=valuables.reduce((s,v)=>s+v.estimatedValue,0);
+  const netWorth=totalRE-totalDebt+totalPortfolio+totalValuables;
+
+  // Tell the model which things are genuinely not in the data, so it answers honestly.
+  const notTracked=[];
+  const anyInsExp=properties.some(p=>p.insuranceExpirationDate||p.floodInsuranceExpirationDate);
+  if(!anyInsExp) notTracked.push("insurance policy expiration / renewal dates (only carrier and annual premium are stored)");
+  // Said explicitly, because the alternative is the model assembling a plausible
+  // answer out of insurance carriers and banker names and presenting it as the
+  // provider list — which is how this gap stayed invisible.
+  if(!serviceProviders.length) notTracked.push("service providers / vendors (no contact records are on file for this family; insurance carriers and banker names appearing elsewhere are not the same thing)");
+
+  // Say plainly when a spend total is incomplete. Without this the assistant would
+  // quote a category figure that silently excludes uncategorised lines, and it would
+  // look authoritative.
+
   // Not notTracked entries. notTracked means "the platform holds no such data" and the
   // prompt answers "that isn't tracked yet"; these describe data that IS held, and where
   // it came from. Two instructions in conflict on one question would leave the model to
