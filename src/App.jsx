@@ -7049,7 +7049,12 @@ function ScheduledPromptsSection({userProfile,families,toast,lockFamilyId}){
       const{error}=await sb.functions.invoke("run-scheduled-prompts",{body:{forcePromptId:id}});
       if(error)throw new Error(error.message||"Failed to start the run");
       toast("Running now — "+userProfile.email+" will get an email when it's ready");
-      closeModal();load();
+      // setModal(null), not closeModal() — there is no closeModal in this component.
+      // The old call threw a ReferenceError immediately after the toast, so the modal
+      // stayed open and neither load() nor the two delayed reloads below ever ran: the
+      // run really had started, but the card never showed its result. Silent because it
+      // happened after the success toast, and invisible to the bundler.
+      setModal(null);load();
       setTimeout(load,8000);setTimeout(load,25000);
     }catch(e){toast(e.message||"Could not run now","error");}
     finally{setRunningNow(false);}
