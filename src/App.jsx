@@ -1,6 +1,6 @@
 // PCM Family Office Platform — App.jsx
 // BUILD 2026-05-05 · Cash Flow (income+expenses+reorder) · MoneyInput commas · smart chart axis · client read-only · mobile
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, Component } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
 import { buildActivityReportPdf, AR_PERIODS, fig as arFig } from "./activityReport.js";
@@ -1467,6 +1467,56 @@ const withMonthly=g=>{
     everyLineIsMonthly:freqs.length>0&&freqs.every(f=>String(f).toLowerCase()==="monthly"),
   };
 };
+
+// Show a render error instead of a blank screen.
+//
+// There was no error boundary anywhere in the app. When a view threw during render, React
+// unmounted the tree and the user got an empty panel with no explanation — the failure
+// mode reported as "I click a family and nothing comes up". The only evidence was a
+// console message the person seeing the problem was never going to open.
+//
+// This does not prevent the crash. It makes the crash legible: the message, where it
+// happened, and a way back. A blank screen is the least debuggable outcome there is, and
+// on a client-facing platform it is also the least trustworthy.
+class ViewErrorBoundary extends Component {
+  constructor(props){ super(props); this.state={err:null,info:null}; }
+  static getDerivedStateFromError(err){ return {err}; }
+  componentDidCatch(err,info){
+    this.setState({info});
+    // Keep the console trace too — it has the component stack, which the panel truncates.
+    console.error(`[${this.props.label||"view"}] render failed:`, err, info?.componentStack);
+  }
+  render(){
+    if(!this.state.err) return this.props.children;
+    const msg=String(this.state.err?.message||this.state.err);
+    const where=String(this.state.info?.componentStack||"").trim().split("\n").slice(0,4).join("\n");
+    return <div style={{padding:24,maxWidth:820,margin:"0 auto"}}>
+      <div style={{background:"#fff5f5",border:"1px solid #f3c2c2",borderTop:"3px solid #b93a3a",
+          borderRadius:12,padding:20}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,color:"#8b1a1a",fontWeight:600}}>
+          This screen didn’t load</div>
+        <div style={{fontSize:12.5,color:"#7a3030",marginTop:6,lineHeight:1.5}}>
+          Something in {this.props.label||"this view"} failed while rendering. Nothing was saved or
+          changed. The details below are what an engineer needs — copy them as they are.
+        </div>
+        <pre style={{marginTop:14,padding:"10px 12px",background:"#fff",border:"1px solid #f0d4d4",
+            borderRadius:8,fontSize:11.5,color:"#5a2020",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
+{msg}{where?"\n\n"+where:""}</pre>
+        <div style={{display:"flex",gap:10,marginTop:14,flexWrap:"wrap"}}>
+          <button onClick={()=>{
+              navigator.clipboard?.writeText(msg+(where?"\n\n"+where:""));
+            }} style={{background:"#fff",color:"#8b1a1a",border:"1px solid #d99",borderRadius:8,
+              padding:"9px 16px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>
+            Copy details</button>
+          {this.props.onBack&&<button onClick={this.props.onBack}
+            style={{background:"#8b1a1a",color:"#fff",border:"none",borderRadius:8,
+              padding:"9px 16px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>
+            Go back</button>}
+        </div>
+      </div>
+    </div>;
+  }
+}
 
 // ── FAMILY DASHBOARD ──────────────────────────────────────────────────────────
 // ── AI HELP CENTER ────────────────────────────────────────────────────────────
@@ -4347,7 +4397,9 @@ function FamiliesView({data,reload,toast,userProfile}){
   const del=async id=>{const{error}=await sb.from("families").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("families");if(selected?.id===id)setSelected(null);}};
 
   // If a family is selected, show its dashboard
-  if(selected) return <FamilyDashboard family={selected} data={data} reload={reload} toast={toast} onBack={()=>setSelected(null)} userProfile={userProfile}/>;
+  if(selected) return <ViewErrorBoundary label="the family dashboard" onBack={()=>setSelected(null)}>
+    <FamilyDashboard family={selected} data={data} reload={reload} toast={toast} onBack={()=>setSelected(null)} userProfile={userProfile}/>
+  </ViewErrorBoundary>;
 
   const getStats=f=>({
     properties:(data.properties||[]).filter(p=>p.familyId===f.id).length,
@@ -6615,7 +6667,9 @@ function PartnerDashboard({data,userProfile,logout,toast,reload}){
         {myFamilies.length>1&&<button onClick={()=>setSelectedId(null)} style={{background:"none",border:`1px solid ${B.border}`,borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:12,color:B.navy,fontWeight:600}}>← Switch Family</button>}
       </HeaderBar>
       <div style={{flex:1,minHeight:0}}>
-        <FamilyDashboard family={selected} data={data} reload={reload} toast={toast} onBack={()=>setSelectedId(null)} userProfile={userProfile}/>
+        <ViewErrorBoundary label="the family dashboard" onBack={()=>setSelectedId(null)}>
+          <FamilyDashboard family={selected} data={data} reload={reload} toast={toast} onBack={()=>setSelectedId(null)} userProfile={userProfile}/>
+        </ViewErrorBoundary>
       </div>
     </div>;
   }
