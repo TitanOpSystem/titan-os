@@ -40,15 +40,27 @@ const M = 12;
 
 // Each derived line: what it is, where it comes from, and which category it totals
 // into. `field` is named so a reader can go to the property record and check it.
+// `vendorField` names the property column holding who is paid, where one exists. The
+// property record already carries the carrier and the lender, so a derived line can say
+// who the money goes to without any extra data entry.
 const COST_FIELDS = [
   { field: "propertyTaxesAnnual",            label: "Property tax",        category: "taxes",               annual: true  },
-  { field: "insurancePremiumAnnual",         label: "Insurance premium",   category: "insurance",           annual: true  },
-  { field: "floodInsurancePremiumAnnual",    label: "Flood insurance",     category: "insurance",           annual: true  },
+  { field: "insurancePremiumAnnual",         label: "Insurance premium",   category: "insurance",           annual: true,  vendorField: "insuranceCompany" },
+  { field: "floodInsurancePremiumAnnual",    label: "Flood insurance",     category: "insurance",           annual: true,  vendorField: "floodInsuranceCompany" },
   { field: "utilitiesMonthly",               label: "Utilities",           category: "utilities",           annual: false },
   // HOA is a charge for shared grounds and amenities. It goes under property
   // management rather than inventing a category the database constraint would reject.
   { field: "hoaFeeMonthly",                  label: "HOA fee",             category: "property_management", annual: false },
 ];
+
+// Costs a property record can only hold as ONE blended number.
+//
+// A property has a single `utilities` figure. A family with separate electric, water and
+// gas vendors cannot express that here — they itemise it as expense lines instead. When
+// they do, the blended figure must stop being derived or the money is counted twice.
+// `itemisedKeys` below carries the property+category pairs a firm has itemised, and any
+// derived line matching one steps aside.
+const suppressionKey = (propertyId, category) => `${propertyId || ""}::${category}`;
 
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 
@@ -68,8 +80,19 @@ const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
  *                          spend on insurance should not get a different answer because
  *                          a projection checkbox was unticked.
  */
-export function derivePropertyEvents(properties, { includeRental = true, forProjection = false } = {}) {
+export function derivePropertyEvents(properties, { includeRental = true, forProjection = false, manualEvents = [] } = {}) {
   const out = [];
+
+  // Property+category pairs a firm has already itemised by hand. A derived blended
+  // figure for one of these would double-count against the lines they typed, so it
+  // steps aside. This is what makes vendor-level itemisation safe: enter electric,
+  // water and gas as three vendor lines against a property and the property's single
+  // `utilities` figure stops being derived for it.
+  const itemisedKeys = new Set(
+    (manualEvents || [])
+      .filter(e => e.direction === "expense" && e.category && e.propertyId)
+      .map(e => suppressionKey(e.propertyId, e.category)));
+
   (properties || []).forEach(p => {
     const rent = num(p.rentalIncomeMonthly ?? p.rentalIncome);
     const isRental = rent > 0;
@@ -77,9 +100,12 @@ export function derivePropertyEvents(properties, { includeRental = true, forProj
     if (isRental && forProjection && !includeRental) return;
 
     const addr = p.address || "Property";
-    const push = (label, category, monthly, field) => {
+    const push = (label, category, monthly, field, vendor) => {
       if (!monthly) return;
+      // Itemised by hand for this property and category — do not also derive it.
+      if (itemisedKeys.has(suppressionKey(p.id, category))) return;
       out.push({
+        vendor: vendor || null,
         id: `prop_${p.id}_${field}`,
         _synthetic: true,
         _source: "property",
@@ -102,7 +128,10 @@ export function derivePropertyEvents(properties, { includeRental = true, forProj
 
     COST_FIELDS.forEach(c => {
       const raw = num(p[c.field] ?? p[c.field.replace(/Annual$|Monthly$/, "")]);
-      push(c.label, c.category, c.annual ? raw / M : raw, c.field);
+      // The carrier is already on the property record, so a derived line can name who
+      // is paid without anyone entering it twice.
+      push(c.label, c.category, c.annual ? raw / M : raw, c.field,
+        c.vendorField ? (p[c.vendorField] || null) : null);
     });
 
     // The mortgage is opt-out per property (includeMortgageInCashflow). A household
@@ -110,9 +139,9 @@ export function derivePropertyEvents(properties, { includeRental = true, forProj
     // is honoured rather than overridden.
     if (p.includeMortgageInCashflow !== false) {
       push("Mortgage payment", "debt_service",
-        num(p.monthlyPayment ?? p.loanPayment), "monthlyPayment");
+        num(p.monthlyPayment ?? p.loanPayment), "monthlyPayment", p.lender || null);
       push("Second mortgage", "debt_service",
-        num(p.secondMortgagePaymentMonthly ?? p.secondMortgagePayment), "secondMortgagePayment");
+        num(p.secondMortgagePaymentMonthly ?? p.secondMortgagePayment), "secondMortgagePayment", p.lender || null);
     }
 
     if (isRental) {

@@ -1281,6 +1281,8 @@ function LoginScreen(){
 function FamilyReport({family,data,onClose}){
   const contacts=data.contacts.filter(c=>c.familyId===family.id);
   const properties=data.properties.filter(p=>p.familyId===family.id);
+  // Providers this family can be billed by, for the vendor picker on an expense line.
+  const vendorOptions=buildVendorOptions(data,family.id);
   const deals=data.deals.filter(d=>d.familyId===family.id);
   const tasks=data.tasks.filter(t=>t.familyId===family.id&&!t.done);
   const notes=data.notes.filter(n=>n.familyId===family.id);
@@ -1406,6 +1408,34 @@ const EXPENSE_CATEGORIES=[
 ];
 const EXPENSE_CATEGORY_LABEL=Object.fromEntries(EXPENSE_CATEGORIES);
 
+// The family's service providers, as pickable options for an expense line.
+//
+// Providers live in two tables — family_contacts (household-wide) and property_contacts
+// (attached to one property) — and cash_flow_events has a separate nullable foreign key
+// for each, with a constraint allowing at most one. A single select needs one value, so
+// the key is prefixed with which table it came from and split again on save. Storing a
+// plain name instead would fragment the vendor total across spellings, which is the same
+// mistake free-text categories made.
+const vendorKeyFor=e=>e?.vendorFamilyContactId?`f:${e.vendorFamilyContactId}`
+  :e?.vendorPropertyContactId?`p:${e.vendorPropertyContactId}`:"";
+const splitVendorKey=key=>{
+  const[kind,id]=String(key||"").split(":");
+  return{
+    vendor_family_contact_id:kind==="f"&&id?id:null,
+    vendor_property_contact_id:kind==="p"&&id?id:null,
+  };
+};
+function buildVendorOptions(data,familyId){
+  const label=c=>c.company&&c.name&&c.company!==c.name?`${c.company} (${c.name})`
+    :c.company||c.name||c.role||"Unnamed provider";
+  const fam=(data?.family_contacts||[]).filter(c=>c.familyId===familyId&&!c.isAdvisor)
+    .map(c=>({key:`f:${c.id}`,label:label(c),group:"Household"}));
+  const byProp=Object.fromEntries((data?.properties||[]).map(p=>[p.id,p.address]));
+  const prop=(data?.property_contacts||[]).filter(c=>c.familyId===familyId)
+    .map(c=>({key:`p:${c.id}`,label:label(c),group:byProp[c.propertyId]||"Property"}));
+  return [...fam,...prop].sort((a,b)=>a.group.localeCompare(b.group)||a.label.localeCompare(b.label));
+}
+
 // Occurrences per year for each frequency the app supports.
 //
 // `once` is deliberately absent rather than mapped to 1: a single payment is not an
@@ -1469,6 +1499,20 @@ function buildFamilySnapshot(family,data){
 
   const paymentLogByEvent={};
   (data.cash_flow_payment_log||[]).filter(p=>p.familyId===fid).forEach(p=>{(paymentLogByEvent[p.eventId]=paymentLogByEvent[p.eventId]||[]).push(p);});
+  // Vendor and property lookups for cash-flow lines. Built once rather than searched
+  // per row, and resolved from the contact tables so a renamed vendor is renamed
+  // everywhere it is reported.
+  const propertyAddressById=Object.fromEntries(properties.map(p=>[p.id,p.address]));
+  const famContactById=Object.fromEntries((data.family_contacts||[]).filter(c=>c.familyId===fid).map(c=>[c.id,c]));
+  const propContactById=Object.fromEntries((data.property_contacts||[]).filter(c=>c.familyId===fid).map(c=>[c.id,c]));
+  const vendorNameFor=e=>{
+    const c=e.vendorFamilyContactId?famContactById[e.vendorFamilyContactId]
+           :e.vendorPropertyContactId?propContactById[e.vendorPropertyContactId]:null;
+    if(!c)return null;
+    // Company is what appears on an invoice; the person is a fallback.
+    return c.company||c.name||null;
+  };
+
   const cashFlowEvents=(data.cash_flow_events||[]).filter(e=>e.familyId===fid).map(e=>{
     const isRegisterFreq=e.direction==="expense"&&e.pcmResponsible&&["monthly","quarterly","annually"].includes(e.frequency);
     let paymentRegister;
@@ -1504,6 +1548,11 @@ function buildFamilySnapshot(family,data){
       description:e.description||null, type:e.eventType||null,
       category:e.category||null,
       notes:e.notes||null,
+      propertyId:e.propertyId||null,
+      property:e.propertyId?(propertyAddressById[e.propertyId]||null):null,
+      // Who is paid. Resolved from the contact record rather than parsed out of the
+      // description, so spend-per-vendor is a fact and not a string match.
+      vendor:vendorNameFor(e),
       amount:num(e.amount),
       // Annualised in code rather than left to the model. Multiplying by a frequency
       // is exactly the arithmetic an LLM does confidently and occasionally wrongly,
@@ -1556,6 +1605,36 @@ function buildFamilySnapshot(family,data){
   })();
   const uncategorisedExpenses=expenseByCategory.find(c=>c.category==="uncategorised")||null;
 
+  // Spend per vendor — the other axis families ask about. "How much do we pay ABC
+  // Landscaping?" is a different question from "what do we spend on landscaping?", and
+  // one category can span several vendors.
+  //
+  // Totalled in code for the same reason the category rollup is: the model should quote
+  // a figure, not compute one. Lines with no vendor recorded are grouped under a null
+  // vendor rather than dropped, so a vendor total is never quietly incomplete.
+  const spendByVendor=(()=>{
+    const acc={};
+    [...cashFlowEvents.filter(e=>e.direction==="expense"),...derivedPropertyEvents].forEach(e=>{
+      if(!e.vendor)return;
+      const a=acc[e.vendor]||(acc[e.vendor]={vendor:e.vendor,annualised:0,lines:0,
+        categories:new Set(),properties:new Set(),items:[]});
+      if(e.annualisedAmount!=null)a.annualised+=e.annualisedAmount;
+      a.lines++;
+      if(e.category)a.categories.add(EXPENSE_CATEGORY_LABEL[e.category]||e.category);
+      if(e.property)a.properties.add(e.property);
+      a.items.push({description:e.description,annualisedAmount:e.annualisedAmount,
+        source:e.source||"cash flow",property:e.property||undefined});
+    });
+    return Object.values(acc)
+      .map(v=>({...v,categories:[...v.categories],properties:[...v.properties]}))
+      .sort((x,y)=>y.annualised-x.annualised);
+  })();
+
+  // Expense lines with no vendor recorded. Named so the assistant can say a
+  // spend-per-vendor answer is partial rather than presenting it as the full list.
+  const expensesWithoutVendor=[...cashFlowEvents.filter(e=>e.direction==="expense"),...derivedPropertyEvents]
+    .filter(e=>!e.vendor).length;
+
   // Property costs, via the SAME derivation the Cash Flow tab uses.
   //
   // These were previously totalled separately as propertyCarriedCosts, which meant a
@@ -1567,12 +1646,18 @@ function buildFamilySnapshot(family,data){
   // forProjection is false on purpose: the projection honours the user's includeRental
   // toggle, but a client asking what they actually spend must not get a different
   // answer because a modelling checkbox was unticked.
-  const derivedPropertyEvents=derivePropertyEvents(properties,{forProjection:false})
+  const derivedPropertyEvents=derivePropertyEvents(properties,{
+      forProjection:false,
+      // Itemised lines win: a property+category a firm has broken out by vendor must not
+      // ALSO contribute the property record's single blended figure.
+      manualEvents:cashFlowEvents,
+    })
     .filter(e=>e.direction==="expense")
     .map(e=>({...e,
       annualisedAmount:annualise(e.amount,e.frequency),
       source:"property record",
       property:e._propertyAddress,
+      vendor:e.vendor||null,
       field:e._field}));
 
   // Manual lines and derived lines can still describe the same obligation, because a
@@ -1594,6 +1679,11 @@ function buildFamilySnapshot(family,data){
     `into the Cash Flow tab (property tax, insurance, flood, utilities, HOA, mortgage). They ARE included `+
     `in expenseByCategory and each item carries source:"property record" and the property address. When `+
     `you quote a figure, say which source it came from.`);
+  if(expensesWithoutVendor) dataSourceNotes.push(
+    `${expensesWithoutVendor} expense line(s) have no vendor recorded, so spendByVendor does NOT `+
+    `account for all spend. If asked what is paid to a particular vendor, answer from spendByVendor; `+
+    `if asked to list every vendor or to reconcile vendor spend against a category total, say that `+
+    `some lines have no vendor recorded.`);
   duplicateWarnings.forEach(d=>dataSourceNotes.push(
     `${EXPENSE_CATEGORY_LABEL[d.category]||d.category} has spend from BOTH a manual cash-flow line `+
     `($${Math.round(d.manual).toLocaleString()}/yr: ${d.manualLines.join("; ")}) AND property records `+
@@ -1655,6 +1745,8 @@ function buildFamilySnapshot(family,data){
     // Categories where a manual line and a property-derived line overlap, which means
     // the total above may double-count. Flagged, not silently resolved.
     probableDuplicateSpend:duplicateWarnings,
+    // Spend per vendor, pre-totalled. Answers "how much do we pay X?".
+    spendByVendor,
     // Where a figure lives, and where two figures describe the same money. Distinct
     // from notTracked: these describe data that IS held, just not where you'd look.
     dataSourceNotes,
@@ -2046,6 +2138,8 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
 
   const contacts=data.contacts.filter(c=>c.familyId===family.id);
   const properties=data.properties.filter(p=>p.familyId===family.id);
+  // Providers this family can be billed by, for the vendor picker on an expense line.
+  const vendorOptions=buildVendorOptions(data,family.id);
   const deals=data.deals.filter(d=>d.familyId===family.id);
   const openDeals=deals.filter(d=>d.stage!=="Closed Lost"&&d.stage!=="Closed Won");
   const famNotes=data.notes.filter(n=>n.familyId===family.id);
@@ -2538,7 +2632,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
         </div>}
 
         {/* CASH FLOW TAB */}
-        {activeTab==="cashflow"&&<CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} reload={reload} toast={toast} readOnly={!canEdit}/>}
+        {activeTab==="cashflow"&&<CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} vendors={vendorOptions} reload={reload} toast={toast} readOnly={!canEdit}/>}
 
         {/* OBLIGATIONS TAB */}
         {activeTab==="obligations"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
@@ -3050,11 +3144,15 @@ function AccountForm({initial,onSave,onClose}){
 }
 
 // ── CASH FLOW EVENT FORM ──────────────────────────────────────────────────────
-function CashFlowEventForm({initial,onSave,onClose}){
-  const blank={direction:"income",eventType:"Salary",description:"",amount:"",frequency:"once",startDate:new Date().toISOString().slice(0,10),endDate:"",taxTreatment:"ordinary",notes:"",pcmResponsible:false,category:""};
+function CashFlowEventForm({initial,onSave,onClose,properties=[],vendors=[]}){
+  const blank={direction:"income",eventType:"Salary",description:"",amount:"",frequency:"once",startDate:new Date().toISOString().slice(0,10),endDate:"",taxTreatment:"ordinary",notes:"",pcmResponsible:false,category:"",propertyId:"",vendorKey:""};
   const[f,setF]=useState(()=>{
     if(!initial)return blank;
-    return{...blank,...initial,direction:initial.direction||"income"};
+    return{...blank,...initial,direction:initial.direction||"income",
+      propertyId:initial.propertyId||"",
+      // One select, two possible foreign keys — recombined into a prefixed key so the
+      // form has a single value to bind to, and split again on save.
+      vendorKey:vendorKeyFor(initial)};
   });
   const[saving,setSaving]=useState(false);
   const set=k=>e=>setF(p=>({...p,[k]:e.target.value}));
@@ -3068,7 +3166,7 @@ function CashFlowEventForm({initial,onSave,onClose}){
       // cash_flow_events_category_expense_chk forbids a category on income, so
       // flipping the direction has to clear it or the save fails on a constraint
       // the user never saw.
-      if(dir==="income")next.category="";
+      if(dir==="income"){next.category="";next.vendorKey="";}
       return next;
     });
   };
@@ -3106,6 +3204,34 @@ function CashFlowEventForm({initial,onSave,onClose}){
         lines are excluded from category totals and reported as uncategorised.
       </div>
     </Field>}
+    {/* Vendor and property. Together these make an expense line granular: spend per
+        vendor becomes answerable, and naming the property lets this line REPLACE the
+        blended figure on that property record for this category — so a family with
+        three utility vendors itemises all three without the property's single
+        `utilities` number being counted on top. */}
+    {isExpense&&<Grid2>
+      <Field label="Vendor — who is paid">
+        <Sel value={f.vendorKey||""} onChange={set("vendorKey")}>
+          <option value="">Not specified</option>
+          {vendors.map(v=><option key={v.key} value={v.key}>{v.group} · {v.label}</option>)}
+        </Sel>
+        {!vendors.length&&<div style={{fontSize:10.5,color:B.textMute,marginTop:4}}>
+          No service providers on file for this family yet — add them as contacts first.
+        </div>}
+      </Field>
+      <Field label="Property (optional)">
+        <Sel value={f.propertyId||""} onChange={set("propertyId")}>
+          <option value="">Not property-specific</option>
+          {properties.map(p=><option key={p.id} value={p.id}>{p.address}</option>)}
+        </Sel>
+      </Field>
+    </Grid2>}
+    {isExpense&&f.propertyId&&f.category&&<div style={{fontSize:10.5,color:"#8a5c00",
+        background:"#fffbeb",border:"1px solid #fde68a",borderRadius:8,padding:"8px 12px",marginBottom:14}}>
+      This line covers {EXPENSE_CATEGORY_LABEL[f.category]||f.category} for that property, so the
+      matching figure on the property record will no longer be added separately. Itemise the rest
+      of that category the same way, or the remainder will be missing.
+    </div>}
     <Field label="Description"><Inp placeholder={isExpense?"e.g., Monthly grocery budget":"e.g., Acme Corp Q4 Bonus"} value={f.description||""} onChange={set("description")}/></Field>
     {isExpense?
       <>
@@ -3307,7 +3433,7 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
 }
 
 // ── CASH FLOW VIEW (the tab content) ──────────────────────────────────────────
-function CashFlowView({family,events,paymentLog=[],properties,reload,toast,readOnly=false}){
+function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,toast,readOnly=false}){
   const isMobile=useIsMobile();
   const[modal,setModal]=useState(null);
   const[reportOpen,setReportOpen]=useState(false);
@@ -3559,11 +3685,11 @@ function CashFlowView({family,events,paymentLog=[],properties,reload,toast,readO
   const addEvent=async(f)=>{
     // New events go to the end of the list
     const maxSort=Math.max(0,...events.map(e=>Number(e.sortOrder)||0));
-    const{error}=await sb.from("cash_flow_events").insert({family_id:family.id,direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null,sort_order:maxSort+10,pcm_responsible:f.direction==="expense"?!!f.pcmResponsible:false,category:f.direction==="expense"?(f.category||null):null});
+    const{error}=await sb.from("cash_flow_events").insert({family_id:family.id,direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null,sort_order:maxSort+10,pcm_responsible:f.direction==="expense"?!!f.pcmResponsible:false,category:f.direction==="expense"?(f.category||null):null,property_id:f.propertyId||null,...(f.direction==="expense"?splitVendorKey(f.vendorKey):{vendor_family_contact_id:null,vendor_property_contact_id:null})});
     if(error)toast(error.message,"error");else{toast("Event added");reload("cash_flow_events");}
   };
   const editEvent=async(id,f)=>{
-    const{error}=await sb.from("cash_flow_events").update({direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null,pcm_responsible:f.direction==="expense"?!!f.pcmResponsible:false,category:f.direction==="expense"?(f.category||null):null}).eq("id",id);
+    const{error}=await sb.from("cash_flow_events").update({direction:f.direction||"income",event_type:f.eventType,description:f.description||null,amount:Number(f.amount)||0,frequency:f.frequency,start_date:f.startDate,end_date:f.endDate||null,tax_treatment:f.taxTreatment||"ordinary",notes:f.notes||null,pcm_responsible:f.direction==="expense"?!!f.pcmResponsible:false,category:f.direction==="expense"?(f.category||null):null,property_id:f.propertyId||null,...(f.direction==="expense"?splitVendorKey(f.vendorKey):{vendor_family_contact_id:null,vendor_property_contact_id:null})}).eq("id",id);
     if(error)toast(error.message,"error");else{toast("Event updated");reload("cash_flow_events");}
   };
   const delEvent=async(id)=>{
@@ -3913,8 +4039,8 @@ function CashFlowView({family,events,paymentLog=[],properties,reload,toast,readO
     </div>
 
     {/* Modals */}
-    {modal&&modal.type==="add"&&<Modal title="New Cash Flow Event" onClose={()=>setModal(null)} wide><CashFlowEventForm onSave={async f=>{await addEvent(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
-    {modal&&modal.type==="edit"&&<Modal title={modal.event.direction==="expense"?"Edit Expense":"Edit Income Event"} onClose={()=>setModal(null)} wide><CashFlowEventForm initial={modal.event} onSave={async f=>{await editEvent(modal.event.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
+    {modal&&modal.type==="add"&&<Modal title="New Cash Flow Event" onClose={()=>setModal(null)} wide><CashFlowEventForm properties={properties} vendors={vendors} onSave={async f=>{await addEvent(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
+    {modal&&modal.type==="edit"&&<Modal title={modal.event.direction==="expense"?"Edit Expense":"Edit Income Event"} onClose={()=>setModal(null)} wide><CashFlowEventForm initial={modal.event} properties={properties} vendors={vendors} onSave={async f=>{await editEvent(modal.event.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
     {reportOpen&&<CashFlowReport family={family} projectionMonths={settings.projectionMonths} projectionMode={settings.projectionMode} filingStatus={settings.filingStatus} baseIncome={settings.baseIncome} stateRate={settings.stateTaxRate} stateName={STATE_TAX_RATES.find(s=>s.code===settings.stateCode)?.name||settings.stateCode} localRate={settings.localTaxRate} monthlyData={monthlyData} events={enrichedEvents} onClose={()=>setReportOpen(false)}/>}
   </div>;
 }
@@ -6019,6 +6145,10 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
 // ── CLIENT DASHBOARD ──────────────────────────────────────────────────────────
 function ClientDashboard({family,data,userProfile,logout,toast,reload}){
   const isMobile=useIsMobile();
+  // Needed because this view renders CashFlowView too. The client view is read-only, so
+  // the picker never opens here — but the prop still has to resolve, and an undefined
+  // identifier would take the whole dashboard down rather than degrade.
+  const vendorOptions=buildVendorOptions(data,family.id);
   const[activeTab,setActiveTab]=useState("summary");
   const[emailAdvisorOpen,setEmailAdvisorOpen]=useState(false);
   const fam=(data.families||[]).find(x=>x.id===family.id)||family;
@@ -6250,7 +6380,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
       {activeTab==="cashflow"&&<div>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:8}}>Cash Flow Projection</div>
         <div style={{fontSize:14,color:B.textSoft,marginBottom:20}}>Projection of expected cash flow events configured by your Titan Expert.</div>
-        <CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} reload={()=>{}} toast={toast||(()=>{})} readOnly={true}/>
+        <CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} vendors={vendorOptions} reload={()=>{}} toast={toast||(()=>{})} readOnly={true}/>
       </div>}
 
       {/* VALUABLES */}

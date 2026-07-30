@@ -128,5 +128,64 @@ ok("a property with no costs yields no lines",
 ok("zero and null amounts are skipped, not emitted as $0 lines",
   derivePropertyEvents([{ id: "z", address: "Z", propertyTaxesAnnual: 0, utilitiesMonthly: null }]).length === 0);
 
+// ── Vendor granularity, and the suppression rule that makes it safe ─────────────
+//
+// A property holds ONE blended utilities figure. A family with electric, water and gas
+// vendors itemises three lines instead. If the blended figure kept deriving, the money
+// would be counted twice — so an itemised property+category suppresses it. The property
+// worth asserting is that itemising changes GRANULARITY, not the TOTAL.
+console.log("\nVendor granularity and suppression");
+const annual = e => Math.round(e.amount * 12);
+const catTotal = (evs, c) => evs.filter(e => e.category === c && e.direction === "expense")
+  .reduce((s, e) => s + annual(e), 0);
+
+const itemisedUtilities = [
+  { direction: "expense", category: "utilities", propertyId: "ov", amount: 520, frequency: "monthly" },
+  { direction: "expense", category: "utilities", propertyId: "ov", amount: 180, frequency: "monthly" },
+  { direction: "expense", category: "utilities", propertyId: "ov", amount: 250, frequency: "monthly" },
+];
+const before = derivePropertyEvents([oceanVista, gulfShore]);
+const after  = derivePropertyEvents([oceanVista, gulfShore], { manualEvents: itemisedUtilities });
+
+ok("without itemisation both properties derive utilities",
+  before.filter(e => e.category === "utilities").length === 2);
+ok("itemising suppresses only the itemised property",
+  after.filter(e => e.category === "utilities").length === 1 &&
+  after.find(e => e.category === "utilities")._propertyId === "gs");
+// The whole point of the rule.
+ok("the utilities TOTAL is unchanged by itemising",
+  catTotal(before, "utilities") === catTotal(after, "utilities") + itemisedUtilities.reduce((s, e) => s + annual(e), 0),
+  `before ${catTotal(before, "utilities")}, after ${catTotal(after, "utilities")} + ${itemisedUtilities.reduce((s, e) => s + annual(e), 0)}`);
+ok("suppression is per category, not per property — tax still derives for both",
+  after.filter(e => e.category === "taxes").length === 2);
+
+// Suppression must key on BOTH property and category, or itemising one property's
+// utilities would silently drop another's.
+const otherProp = derivePropertyEvents([oceanVista, gulfShore], {
+  manualEvents: [{ direction: "expense", category: "utilities", propertyId: "gs", amount: 320, frequency: "monthly" }],
+});
+ok("itemising the OTHER property suppresses that one instead",
+  otherProp.find(e => e.category === "utilities")._propertyId === "ov");
+
+// A line with a category but no property cannot suppress anything — it does not say
+// which property it covers, so dropping a derived line would be a guess.
+const noProp = derivePropertyEvents([oceanVista], {
+  manualEvents: [{ direction: "expense", category: "utilities", amount: 950, frequency: "monthly" }],
+});
+ok("a category line with no property suppresses nothing",
+  noProp.some(e => e.category === "utilities"));
+
+console.log("\nDerived lines name the vendor already on the property record");
+const withVendors = derivePropertyEvents([{
+  ...oceanVista, insuranceCompany: "Chubb", floodInsuranceCompany: "Wright Flood", lender: "First Republic",
+}]);
+const vend = c => withVendors.filter(e => e.category === c).map(e => e.vendor);
+ok("the carrier is named on the insurance line", vend("insurance").includes("Chubb"));
+ok("the flood carrier is named separately", vend("insurance").includes("Wright Flood"));
+ok("the lender is named on the mortgage line", vend("debt_service").includes("First Republic"));
+// No vendor field exists for these, and inventing one would be worse than leaving it blank.
+ok("tax and utilities have no invented vendor",
+  vend("taxes").every(v => v === null) && vend("utilities").every(v => v === null));
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
