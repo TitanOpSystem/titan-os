@@ -23,17 +23,24 @@ const annualise = (amount, frequency) => {
   const per = FREQ_PER_YEAR[String(frequency || "").toLowerCase()];
   return per ? Math.round(amount * per) : null;
 };
+const withMonthly = g => {
+  const freqs = [...(g.frequencies || [])];
+  return { ...g, frequencies: freqs,
+    monthlyAverage: Math.round(g.annualised / 12),
+    everyLineIsMonthly: freqs.length > 0 && freqs.every(f => String(f).toLowerCase() === "monthly") };
+};
 const rollup = events => {
   const acc = {};
   events.filter(e => e.direction === "expense").forEach(e => {
     const key = e.category || "uncategorised";
-    const a = acc[key] || (acc[key] = { category:key, annualised:0, lines:0, oneOffTotal:0, oneOffCount:0 });
+    const a = acc[key] || (acc[key] = { category:key, annualised:0, lines:0, oneOffTotal:0, oneOffCount:0, frequencies:new Set() });
     a.lines++;
+    if (e.frequency) a.frequencies.add(e.frequency);
     const ann = annualise(e.amount, e.frequency);
     if (ann == null) { a.oneOffTotal += e.amount; a.oneOffCount++; }
     else a.annualised += ann;
   });
-  return Object.values(acc).sort((x, y) => y.annualised - x.annualised);
+  return Object.values(acc).map(withMonthly).sort((x, y) => y.annualised - x.annualised);
 };
 
 console.log("\nannualise — frequency arithmetic is done in code, not by the model");
@@ -104,6 +111,56 @@ const w = rollup(withOneOff)[0];
 ok("a one-off is excluded from the annual total", w.annualised === 22200, `got ${w.annualised}`);
 ok("but it is still counted and totalled separately",
   w.lines === 2 && w.oneOffCount === 1 && w.oneOffTotal === 9500);
+
+console.log("\nmonthlyAverage — and whether it is a real payment");
+// Billed monthly: the average IS what is paid each month, and may be stated as such.
+const monthlyOnly = rollup([
+  { direction:"expense", category:"utilities", amount:520, frequency:"monthly" },
+  { direction:"expense", category:"utilities", amount:180, frequency:"monthly" },
+])[0];
+ok("monthly lines give a monthly average", monthlyOnly.monthlyAverage === 700);
+ok("and it is flagged as a real monthly payment", monthlyOnly.everyLineIsMonthly === true);
+
+// Billed annually: $14,200/12 = $1,183 is a SMOOTHED figure. Nobody pays the carrier
+// $1,183 in a month, and describing it that way to a client is simply false.
+const annualOnly = rollup([
+  { direction:"expense", category:"insurance", amount:14200, frequency:"annually" },
+])[0];
+ok("an annual premium still yields an average", annualOnly.monthlyAverage === 1183);
+ok("but it is NOT flagged as a monthly payment", annualOnly.everyLineIsMonthly === false);
+ok("the billing frequency is reported so the caller can say so",
+  annualOnly.frequencies.length === 1 && annualOnly.frequencies[0] === "annually");
+
+// Mixed frequencies: some of the money is monthly, some is not, so the group as a whole
+// cannot be described as a monthly payment.
+const mixedFreq = rollup([
+  { direction:"expense", category:"insurance", amount:14200, frequency:"annually" },
+  { direction:"expense", category:"insurance", amount:100,   frequency:"monthly" },
+])[0];
+ok("a mixed group is not a monthly payment", mixedFreq.everyLineIsMonthly === false);
+ok("mixed frequencies are all listed",
+  mixedFreq.frequencies.includes("annually") && mixedFreq.frequencies.includes("monthly"));
+ok("the average covers both", mixedFreq.monthlyAverage === Math.round((14200 + 1200) / 12));
+
+// Harrington's real landscaping figures, in both views.
+const land = rollup([
+  { direction:"expense", category:"landscaping", amount:1850, frequency:"monthly" },
+  { direction:"expense", category:"landscaping", amount:420,  frequency:"monthly" },
+])[0];
+ok("landscaping is $27,240 a year and $2,270 a month",
+  land.annualised === 27240 && land.monthlyAverage === 2270);
+ok("and both lines are monthly, so the monthly figure is real",
+  land.everyLineIsMonthly === true);
+
+// A one-off must not inflate the monthly average, because it is not a run rate.
+const oneOff = rollup([
+  { direction:"expense", category:"landscaping", amount:1000, frequency:"monthly" },
+  { direction:"expense", category:"landscaping", amount:9600, frequency:"once" },
+])[0];
+ok("a one-off is excluded from the monthly average", oneOff.monthlyAverage === 1000,
+  `got ${oneOff.monthlyAverage}`);
+ok("a group containing a one-off is not a clean monthly payment",
+  oneOff.everyLineIsMonthly === false);
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

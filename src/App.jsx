@@ -1448,6 +1448,26 @@ const annualise=(amount,frequency)=>{
   return per?Math.round(amount*per):null;
 };
 
+// Add the monthly view to a rollup group, and say whether it is a real payment.
+//
+// "How much do we pay monthly?" has two different answers and conflating them puts a
+// false statement in front of a client. Florida Power & Light is billed monthly, so
+// annual/12 IS the payment. Chubb's premium is annual: $14,200/12 = $1,183 is a smoothed
+// average and nobody pays Chubb $1,183 in any month.
+//
+// So the field is called monthlyAverage rather than monthly, and `everyLineIsMonthly`
+// tells the caller which of the two situations it is in. A figure that is only an average
+// must never be described as what is paid each month.
+const withMonthly=g=>{
+  const freqs=[...(g.frequencies||[])];
+  return{
+    ...g,
+    frequencies:freqs,
+    monthlyAverage:Math.round(g.annualised/12),
+    everyLineIsMonthly:freqs.length>0&&freqs.every(f=>String(f).toLowerCase()==="monthly"),
+  };
+};
+
 // ── FAMILY DASHBOARD ──────────────────────────────────────────────────────────
 // ── AI HELP CENTER ────────────────────────────────────────────────────────────
 // Builds a compact, family-scoped snapshot of everything on the dashboard, then
@@ -1591,8 +1611,17 @@ function buildFamilySnapshot(family,data){
       const key=e.category||"uncategorised";
       const a=acc[key]||(acc[key]={category:key,
         label:EXPENSE_CATEGORY_LABEL[key]||"Uncategorised",
-        annualised:0, lines:0, oneOffTotal:0, oneOffCount:0, items:[]});
+        annualised:0, lines:0, oneOffTotal:0, oneOffCount:0, items:[],
+        // Every distinct billing frequency in this group. It is what decides whether a
+        // monthly figure is a real payment or a smoothed average.
+        frequencies:new Set()});
       a.lines++;
+      // billedFrequency where present. A property-derived line smooths an annual figure
+      // into a monthly amount, so its `frequency` says monthly and would misreport an
+      // annual premium as a monthly payment. A manual line has no billedFrequency — the
+      // frequency chosen on the form IS its billing cadence.
+      const billed=e.billedFrequency||e.frequency;
+      if(billed)a.frequencies.add(billed);
       if(e.annualisedAmount==null){ a.oneOffTotal+=e.amount; a.oneOffCount++; }
       else a.annualised+=e.annualisedAmount;
       a.items.push({description:e.description,amount:e.amount,frequency:e.frequency,
@@ -1601,7 +1630,7 @@ function buildFamilySnapshot(family,data){
         // look at it — the Cash Flow tab or a specific property record.
         source:e.source||"cash flow",property:e.property||undefined});
     });
-    return Object.values(acc).sort((x,y)=>y.annualised-x.annualised);
+    return Object.values(acc).map(withMonthly).sort((x,y)=>y.annualised-x.annualised);
   })();
   const uncategorisedExpenses=expenseByCategory.find(c=>c.category==="uncategorised")||null;
 
@@ -1617,16 +1646,22 @@ function buildFamilySnapshot(family,data){
     [...cashFlowEvents.filter(e=>e.direction==="expense"),...derivedPropertyEvents].forEach(e=>{
       if(!e.vendor)return;
       const a=acc[e.vendor]||(acc[e.vendor]={vendor:e.vendor,annualised:0,lines:0,
-        categories:new Set(),properties:new Set(),items:[]});
+        categories:new Set(),properties:new Set(),items:[],frequencies:new Set()});
       if(e.annualisedAmount!=null)a.annualised+=e.annualisedAmount;
       a.lines++;
+      // billedFrequency where present. A property-derived line smooths an annual figure
+      // into a monthly amount, so its `frequency` says monthly and would misreport an
+      // annual premium as a monthly payment. A manual line has no billedFrequency — the
+      // frequency chosen on the form IS its billing cadence.
+      const billed=e.billedFrequency||e.frequency;
+      if(billed)a.frequencies.add(billed);
       if(e.category)a.categories.add(EXPENSE_CATEGORY_LABEL[e.category]||e.category);
       if(e.property)a.properties.add(e.property);
       a.items.push({description:e.description,annualisedAmount:e.annualisedAmount,
         source:e.source||"cash flow",property:e.property||undefined});
     });
     return Object.values(acc)
-      .map(v=>({...v,categories:[...v.categories],properties:[...v.properties]}))
+      .map(v=>withMonthly({...v,categories:[...v.categories],properties:[...v.properties]}))
       .sort((x,y)=>y.annualised-x.annualised);
   })();
 
@@ -1658,6 +1693,7 @@ function buildFamilySnapshot(family,data){
       source:"property record",
       property:e._propertyAddress,
       vendor:e.vendor||null,
+      billedFrequency:e.billedFrequency||"monthly",
       field:e._field}));
 
   // Manual lines and derived lines can still describe the same obligation, because a
@@ -1679,6 +1715,31 @@ function buildFamilySnapshot(family,data){
     `into the Cash Flow tab (property tax, insurance, flood, utilities, HOA, mortgage). They ARE included `+
     `in expenseByCategory and each item carries source:"property record" and the property address. When `+
     `you quote a figure, say which source it came from.`);
+  // Where a monthly figure is a smoothed average rather than a payment.
+  //
+  // Every group carries monthlyAverage = annualised/12. For a monthly-billed cost that
+  // IS the payment. For an annual insurance premium it is not: $14,200/12 = $1,183, and
+  // nobody pays the carrier $1,183 in any month. Saying "you pay $1,183 a month" is a
+  // false statement about a client's money, so the groups where that applies are named
+  // here explicitly rather than left for the model to work out from the frequencies.
+  //
+  // Data-driven rather than a static prompt rule, so it names the actual categories and
+  // vendors affected and cannot go stale as the data changes.
+  [["category",expenseByCategory,g=>g.label],["vendor",spendByVendor,g=>g.vendor]]
+    .forEach(([kind,groups,name])=>{
+      const smoothed=groups.filter(g=>!g.everyLineIsMonthly&&g.annualised>0);
+      if(!smoothed.length)return;
+      dataSourceNotes.push(
+        `For these ${kind===
+          "category"?"categories":"vendors"}, monthlyAverage is a SMOOTHED average and NOT what is paid `+
+        `each month, because the underlying items are not all billed monthly: `+
+        smoothed.map(g=>`${name(g)} ($${g.monthlyAverage.toLocaleString()}/mo average, `+
+          `$${g.annualised.toLocaleString()}/yr, billed ${g.frequencies.join(" and ")})`).join("; ")+
+        `. Describe these as an average and name the billing frequency. Never say the client pays that `+
+        `amount monthly. Every other ${kind} has everyLineIsMonthly=true, where the monthly figure is a `+
+        `real payment and may be stated plainly.`);
+    });
+
   if(expensesWithoutVendor) dataSourceNotes.push(
     `${expensesWithoutVendor} expense line(s) have no vendor recorded, so spendByVendor does NOT `+
     `account for all spend. If asked what is paid to a particular vendor, answer from spendByVendor; `+

@@ -187,5 +187,35 @@ ok("the lender is named on the mortgage line", vend("debt_service").includes("Fi
 ok("tax and utilities have no invented vendor",
   vend("taxes").every(v => v === null) && vend("utilities").every(v => v === null));
 
+// ── billedFrequency: the smoothed amount vs the real billing cadence ────────────
+//
+// A property holds tax and premiums as ANNUAL figures. Deriving them divides by 12 so
+// the projection can smooth them across the year, and the line's `frequency` therefore
+// reads "monthly". If a spend rollup trusted that, it would conclude an annual premium
+// is billed monthly and the assistant would tell a client "you pay Chubb $1,183 a month"
+// when the carrier takes $14,200 once a year. billedFrequency keeps the truth.
+console.log("\nbilledFrequency — a smoothed amount is not a monthly bill");
+const billed = derivePropertyEvents([{
+  ...oceanVista, insuranceCompany: "Chubb", lender: "Goldman Sachs Private Bank",
+}]);
+const bf = f => billed.find(e => e._field === f);
+ok("an annual premium is flagged as annually billed",
+  bf("insurancePremiumAnnual").billedFrequency === "annually");
+ok("property tax likewise", bf("propertyTaxesAnnual").billedFrequency === "annually");
+ok("flood insurance likewise",
+  derivePropertyEvents([{ ...oceanVista, floodInsurancePremiumAnnual: 3100 }])
+    .find(e => e._field === "floodInsurancePremiumAnnual").billedFrequency === "annually");
+// Genuinely monthly costs must not be mislabelled the other way.
+ok("utilities are genuinely monthly", bf("utilitiesMonthly").billedFrequency === "monthly");
+ok("HOA is genuinely monthly", bf("hoaFeeMonthly").billedFrequency === "monthly");
+ok("the mortgage payment is monthly", bf("monthlyPayment").billedFrequency === "monthly");
+// The smoothed amount itself is unchanged — the projection still needs it.
+ok("the amount is still the smoothed monthly figure, for the projection",
+  bf("insurancePremiumAnnual").amount === 1183.33 &&
+  bf("insurancePremiumAnnual").frequency === "monthly");
+// And the annual figure reconstructs exactly.
+ok("annualising the smoothed amount returns the source figure",
+  Math.round(bf("insurancePremiumAnnual").amount * 12) === 14200);
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

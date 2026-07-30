@@ -100,12 +100,21 @@ export function derivePropertyEvents(properties, { includeRental = true, forProj
     if (isRental && forProjection && !includeRental) return;
 
     const addr = p.address || "Property";
-    const push = (label, category, monthly, field, vendor) => {
+    // `billedFrequency` is how the cost is ACTUALLY billed; `frequency` stays monthly
+    // because the projection smooths a property cost across the year.
+    //
+    // Without this distinction the platform would believe an annual insurance premium is
+    // billed monthly — it is stored on the property as an annual figure and divided by 12
+    // here — and a spend answer would tell a client "you pay Chubb $1,183 a month" when
+    // the carrier takes $14,200 once a year. The rollups read billedFrequency, so a
+    // smoothed figure is always described as an average.
+    const push = (label, category, monthly, field, vendor, billedFrequency = "monthly") => {
       if (!monthly) return;
       // Itemised by hand for this property and category — do not also derive it.
       if (itemisedKeys.has(suppressionKey(p.id, category))) return;
       out.push({
         vendor: vendor || null,
+        billedFrequency,
         id: `prop_${p.id}_${field}`,
         _synthetic: true,
         _source: "property",
@@ -131,7 +140,10 @@ export function derivePropertyEvents(properties, { includeRental = true, forProj
       // The carrier is already on the property record, so a derived line can name who
       // is paid without anyone entering it twice.
       push(c.label, c.category, c.annual ? raw / M : raw, c.field,
-        c.vendorField ? (p[c.vendorField] || null) : null);
+        c.vendorField ? (p[c.vendorField] || null) : null,
+        // A figure held as an annual total IS billed annually. Tax and premiums are the
+        // cases that matter; utilities and HOA are genuinely monthly.
+        c.annual ? "annually" : "monthly");
     });
 
     // The mortgage is opt-out per property (includeMortgageInCashflow). A household
