@@ -204,26 +204,53 @@ export function propertyNetMonthly(p) {
  * funds on top. Only a person can say which, so this reports and does not delete.
  */
 export function findProbableDuplicates(manualEvents, derivedEvents) {
-  const byCat = {};
   const annual = e => e.amount * (e.frequency === "monthly" ? 12
     : e.frequency === "quarterly" ? 4 : e.frequency === "annually" ? 1
     : e.frequency === "weekly" ? 52 : e.frequency === "biweekly" ? 26 : 0);
 
-  (manualEvents || []).filter(e => e.direction === "expense" && e.category).forEach(e => {
-    const c = byCat[e.category] || (byCat[e.category] = { category: e.category, manual: 0, derived: 0, manualLines: [], derivedLines: [] });
-    c.manual += annual(e);
-    c.manualLines.push(e.description || e.eventType || "(unnamed)");
-  });
-  (derivedEvents || []).filter(e => e.direction === "expense" && e.category).forEach(e => {
-    const c = byCat[e.category] || (byCat[e.category] = { category: e.category, manual: 0, derived: 0, manualLines: [], derivedLines: [] });
-    c.derived += annual(e);
-    c.derivedLines.push(`${e._propertyAddress} ${e.eventType}`);
+  const manual = (manualEvents || []).filter(e => e.direction === "expense" && e.category);
+  const derived = (derivedEvents || []).filter(e => e.direction === "expense" && e.category);
+
+  // Comparing category totals alone raises false alarms, and a false duplicate warning is
+  // expensive: it tells an adviser a correct total is double-counted and invites them to
+  // delete a line that is real.
+  //
+  // The case that exposed it: Ocean Vista's utilities itemised by vendor, Gulf Shore's
+  // utilities still derived from its property record. Both are "utilities", neither is a
+  // duplicate — they are different properties. So a manual line that names its property
+  // can only conflict with a derived line for THAT property.
+  //
+  // A manual line with no property named is different: it could cover any or all of them,
+  // so it is still compared against the category as a whole. That is the "Combined
+  // property tax reserve, both properties" shape, which genuinely was a duplicate.
+  const groups = {};
+  const group = key => groups[key] || (groups[key] = {
+    category: key.split("::")[0], property: key.split("::")[1] || null,
+    manual: 0, derived: 0, manualLines: [], derivedLines: [],
   });
 
-  return Object.values(byCat)
+  manual.forEach(e => {
+    const g = group(e.propertyId ? `${e.category}::${e.propertyId}` : e.category);
+    g.manual += annual(e);
+    g.manualLines.push(e.description || e.eventType || "(unnamed)");
+  });
+  derived.forEach(e => {
+    // A derived line lands in the property-specific bucket AND the category-wide one, so
+    // it can be matched by either kind of manual line without being counted twice within
+    // a single comparison.
+    [`${e.category}::${e._propertyId}`, e.category].forEach(key => {
+      const g = group(key);
+      g.derived += annual(e);
+      g.derivedLines.push(`${e._propertyAddress} ${e.eventType}`);
+    });
+  });
+
+  return Object.values(groups)
     .filter(c => c.manual > 0 && c.derived > 0)
     .map(c => ({
-      ...c,
+      category: c.category,
+      manual: c.manual, derived: c.derived,
+      manualLines: c.manualLines, derivedLines: c.derivedLines,
       // Within 2% (or $100) means one obligation entered twice, near enough.
       likelySameMoney: Math.abs(c.manual - c.derived) <= Math.max(100, c.manual * 0.02),
     }))

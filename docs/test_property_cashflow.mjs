@@ -217,5 +217,33 @@ ok("the amount is still the smoothed monthly figure, for the projection",
 ok("annualising the smoothed amount returns the source figure",
   Math.round(bf("insurancePremiumAnnual").amount * 12) === 14200);
 
+// Same category, DIFFERENT properties is not a duplicate. Ocean Vista's utilities
+// itemised by vendor while Gulf Shore's still derive from its property record is the real
+// arrangement, and flagging it would tell an adviser a correct total is double-counted and
+// invite them to delete a line that is real.
+console.log("\nDuplicate detection is property-aware");
+const derivedBoth = derivePropertyEvents([oceanVista, gulfShore], {
+  manualEvents: [{ direction: "expense", category: "utilities", propertyId: "ov", amount: 950, frequency: "monthly" }],
+});
+const crossProp = findProbableDuplicates(
+  [{ direction: "expense", category: "utilities", propertyId: "ov", description: "FPL electric", amount: 950, frequency: "monthly" }],
+  derivedBoth);
+ok("a manual line for one property does not clash with another property's derived line",
+  crossProp.length === 0, JSON.stringify(crossProp.map(d => [d.category, d.manual, d.derived])));
+
+// Same category, SAME property is a duplicate.
+const samePropDerived = derivePropertyEvents([gulfShore]);
+ok("a manual line for the same property IS flagged",
+  findProbableDuplicates(
+    [{ direction: "expense", category: "utilities", propertyId: "gs", description: "Utilities", amount: 320, frequency: "monthly" }],
+    samePropDerived).some(d => d.category === "utilities" && d.likelySameMoney));
+
+// A manual line naming no property could cover any of them, so it is still compared
+// against the category as a whole — the "both properties" reserve shape.
+ok("an unattributed manual line is still compared category-wide",
+  findProbableDuplicates(
+    [{ direction: "expense", category: "taxes", description: "Combined tax reserve, both properties", amount: 3325, frequency: "monthly" }],
+    derivePropertyEvents([oceanVista, gulfShore])).some(d => d.category === "taxes" && d.likelySameMoney));
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
