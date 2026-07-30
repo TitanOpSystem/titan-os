@@ -1551,6 +1551,61 @@ function buildFamilySnapshot(family,data){
   })();
   const uncategorisedExpenses=expenseByCategory.find(c=>c.category==="uncategorised")||null;
 
+  // Costs recorded on the PROPERTY record rather than in the Cash Flow tab.
+  //
+  // There are two places a household expense can live and they do not agree. On the
+  // demo's Harrington family: taxes and insurance appear in both, for the same money;
+  // one of two mortgages is in cash flow, so debt service is understated by $58,200 a
+  // year; utilities and HOA exist only on the property and so were entirely absent
+  // from expenseByCategory. Asked "what do we spend on utilities?" the assistant would
+  // have answered "nothing is recorded" while $15,240 a year sat on the property cards
+  // — wrong, and phrased with total confidence.
+  //
+  // These are NOT merged into expenseByCategory. Whether a cash-flow tax line and a
+  // property tax figure are the same money or two different obligations is a question
+  // about how the firm keeps its books, and guessing either way is a real error:
+  // merging blindly double-counts, ignoring them hides spend. So both are reported,
+  // labelled by source, and the assistant is told to say when a category appears in
+  // both rather than silently picking one.
+  const propertyCarriedCosts=(()=>{
+    const acc={};
+    const add=(category,annual,address,field)=>{
+      if(!annual)return;
+      const a=acc[category]||(acc[category]={category,
+        label:EXPENSE_CATEGORY_LABEL[category]||category,
+        annualised:0,lines:0,items:[]});
+      a.annualised+=Math.round(annual); a.lines++;
+      a.items.push({property:address,field,annualisedAmount:Math.round(annual)});
+    };
+    properties.forEach(p=>{
+      add("taxes",p.propertyTaxesAnnual,p.address,"propertyTaxesAnnual");
+      add("insurance",p.insurancePremiumAnnual,p.address,"insurancePremiumAnnual");
+      add("insurance",p.floodInsurancePremiumAnnual,p.address,"floodInsurancePremiumAnnual");
+      add("utilities",(p.utilitiesMonthly||0)*12,p.address,"utilitiesMonthly");
+      // HOA has no category of its own; it is a charge for shared grounds and
+      // amenities, so it is reported under property management rather than invented
+      // as a new category the database would reject.
+      add("property_management",(p.hoaFeeMonthly||0)*12,p.address,"hoaFeeMonthly");
+      add("debt_service",(p.monthlyPayment||0)*12,p.address,"monthlyPayment");
+      add("debt_service",(p.secondMortgagePaymentMonthly||0)*12,p.address,"secondMortgagePaymentMonthly");
+    });
+    return Object.values(acc).sort((x,y)=>y.annualised-x.annualised);
+  })();
+
+  // Categories that appear in BOTH sources. Named explicitly so the assistant does not
+  // have to notice the overlap itself.
+  const bothSources=propertyCarriedCosts
+    .filter(pc=>expenseByCategory.some(c=>c.category===pc.category))
+    .map(pc=>{
+      const cf=expenseByCategory.find(c=>c.category===pc.category);
+      return{category:pc.category,label:pc.label,
+        cashFlowAnnual:cf.annualised,propertyAnnual:pc.annualised,
+        // Equal figures almost certainly describe one obligation recorded twice;
+        // different figures mean at least one source is incomplete. Either way the
+        // assistant must not add them together.
+        likelySameMoney:Math.abs(cf.annualised-pc.annualised)<=Math.max(100,cf.annualised*0.02)};
+    });
+
   // Include document CONTENTS (extracted at upload) so the assistant can answer
   // from inside files. Bounded by a per-document cap and a global budget so the
   // prompt stays a sane size even with dozens of documents.
@@ -1629,6 +1684,29 @@ function buildFamilySnapshot(family,data){
   // Say plainly when a spend total is incomplete. Without this the assistant would
   // quote a category figure that silently excludes uncategorised lines, and it would
   // look authoritative.
+  // Where the same kind of cost is recorded in two places, or in the other place only.
+  //
+  // These are NOT notTracked entries. notTracked means "the platform does not store
+  // this", and the prompt tells the assistant to answer "that isn't tracked yet". A
+  // note saying "this IS recorded, read it from propertyCarriedCosts" would then be
+  // two instructions in conflict on the same question, and which one wins would be
+  // down to the model.
+  const dataSourceNotes=[];
+  {
+    const cfCats=new Set(expenseByCategory.map(c=>c.category));
+    propertyCarriedCosts.filter(pc=>!cfCats.has(pc.category)).forEach(pc=>dataSourceNotes.push(
+      `${pc.label} spend is NOT in the Cash Flow tab and so is absent from `+
+      `expenseByCategory, but $${pc.annualised.toLocaleString()} a year IS recorded on the `+
+      `property record(s). Answer from propertyCarriedCosts and say the figure comes from `+
+      `the property record rather than the cash-flow ledger. Do NOT say nothing is recorded.`));
+    bothSources.forEach(b=>dataSourceNotes.push(
+      `${b.label} appears in BOTH sources: $${b.cashFlowAnnual.toLocaleString()} a year in the `+
+      `Cash Flow tab and $${b.propertyAnnual.toLocaleString()} a year on the property record(s). `+
+      (b.likelySameMoney
+        ? `The figures agree, so this is almost certainly one obligation recorded twice — quote it ONCE and do not add them.`
+        : `The figures DISAGREE, so at least one source is incomplete — give both, say they disagree, and do not add them or pick one silently.`)));
+  }
+
   if(uncategorisedExpenses) notTracked.push(
     `${uncategorisedExpenses.lines} expense line(s) have no category, so they are NOT included in any category total. `+
     `They are listed under expenseByCategory as "uncategorised". If a category total is quoted and this entry exists, `+
@@ -1677,6 +1755,16 @@ function buildFamilySnapshot(family,data){
     // Pre-totalled spend by category. Use these figures directly; do not re-derive
     // them from cashFlowEvents.
     expenseByCategory,
+    // The SAME kinds of cost, but recorded on the property record instead of in the
+    // Cash Flow tab. Deliberately not merged into expenseByCategory: see the comment
+    // where it is built. Never add the two together.
+    propertyCarriedCosts,
+    // Categories present in both sources, with both figures, so the overlap does not
+    // have to be spotted by the model.
+    expenseCategoriesInBothSources:bothSources,
+    // Where a figure lives, and where two figures describe the same money. Distinct
+    // from notTracked: these describe data that IS held, just not where you'd look.
+    dataSourceNotes,
     notTracked,
   };
 }
