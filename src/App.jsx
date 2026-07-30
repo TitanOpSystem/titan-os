@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
 import { buildActivityReportPdf, AR_PERIODS, fig as arFig } from "./activityReport.js";
+import { derivePropertyEvents, findProbableDuplicates } from "./propertyCashFlow.js";
 // PCM Platform v5.0 — build 20260429
 //
 // Nothing PCM-specific is imported here any more, and that is deliberate.
@@ -1536,7 +1537,8 @@ function buildFamilySnapshot(family,data){
   //     a client can ask to see them
   const expenseByCategory=(()=>{
     const acc={};
-    cashFlowEvents.filter(e=>e.direction==="expense").forEach(e=>{
+    [...cashFlowEvents.filter(e=>e.direction==="expense"),
+     ...derivedPropertyEvents].forEach(e=>{
       const key=e.category||"uncategorised";
       const a=acc[key]||(acc[key]={category:key,
         label:EXPENSE_CATEGORY_LABEL[key]||"Uncategorised",
@@ -1545,167 +1547,62 @@ function buildFamilySnapshot(family,data){
       if(e.annualisedAmount==null){ a.oneOffTotal+=e.amount; a.oneOffCount++; }
       else a.annualised+=e.annualisedAmount;
       a.items.push({description:e.description,amount:e.amount,frequency:e.frequency,
-        annualisedAmount:e.annualisedAmount});
+        annualisedAmount:e.annualisedAmount,
+        // Every figure names where it came from, so a client told a number can go and
+        // look at it — the Cash Flow tab or a specific property record.
+        source:e.source||"cash flow",property:e.property||undefined});
     });
     return Object.values(acc).sort((x,y)=>y.annualised-x.annualised);
   })();
   const uncategorisedExpenses=expenseByCategory.find(c=>c.category==="uncategorised")||null;
 
-  // Costs recorded on the PROPERTY record rather than in the Cash Flow tab.
+  // Property costs, via the SAME derivation the Cash Flow tab uses.
   //
-  // There are two places a household expense can live and they do not agree. On the
-  // demo's Harrington family: taxes and insurance appear in both, for the same money;
-  // one of two mortgages is in cash flow, so debt service is understated by $58,200 a
-  // year; utilities and HOA exist only on the property and so were entirely absent
-  // from expenseByCategory. Asked "what do we spend on utilities?" the assistant would
-  // have answered "nothing is recorded" while $15,240 a year sat on the property cards
-  // — wrong, and phrased with total confidence.
+  // These were previously totalled separately as propertyCarriedCosts, which meant a
+  // category could have two competing totals and the assistant had to be told never to
+  // add them. Now both sources feed one rollup, each item labelled with where it came
+  // from, so "what do we spend on insurance?" has a single answer that includes the
+  // property-held premiums.
   //
-  // These are NOT merged into expenseByCategory. Whether a cash-flow tax line and a
-  // property tax figure are the same money or two different obligations is a question
-  // about how the firm keeps its books, and guessing either way is a real error:
-  // merging blindly double-counts, ignoring them hides spend. So both are reported,
-  // labelled by source, and the assistant is told to say when a category appears in
-  // both rather than silently picking one.
-  const propertyCarriedCosts=(()=>{
-    const acc={};
-    const add=(category,annual,address,field)=>{
-      if(!annual)return;
-      const a=acc[category]||(acc[category]={category,
-        label:EXPENSE_CATEGORY_LABEL[category]||category,
-        annualised:0,lines:0,items:[]});
-      a.annualised+=Math.round(annual); a.lines++;
-      a.items.push({property:address,field,annualisedAmount:Math.round(annual)});
-    };
-    properties.forEach(p=>{
-      add("taxes",p.propertyTaxesAnnual,p.address,"propertyTaxesAnnual");
-      add("insurance",p.insurancePremiumAnnual,p.address,"insurancePremiumAnnual");
-      add("insurance",p.floodInsurancePremiumAnnual,p.address,"floodInsurancePremiumAnnual");
-      add("utilities",(p.utilitiesMonthly||0)*12,p.address,"utilitiesMonthly");
-      // HOA has no category of its own; it is a charge for shared grounds and
-      // amenities, so it is reported under property management rather than invented
-      // as a new category the database would reject.
-      add("property_management",(p.hoaFeeMonthly||0)*12,p.address,"hoaFeeMonthly");
-      add("debt_service",(p.monthlyPayment||0)*12,p.address,"monthlyPayment");
-      add("debt_service",(p.secondMortgagePaymentMonthly||0)*12,p.address,"secondMortgagePaymentMonthly");
-    });
-    return Object.values(acc).sort((x,y)=>y.annualised-x.annualised);
-  })();
+  // forProjection is false on purpose: the projection honours the user's includeRental
+  // toggle, but a client asking what they actually spend must not get a different
+  // answer because a modelling checkbox was unticked.
+  const derivedPropertyEvents=derivePropertyEvents(properties,{forProjection:false})
+    .filter(e=>e.direction==="expense")
+    .map(e=>({...e,
+      annualisedAmount:annualise(e.amount,e.frequency),
+      source:"property record",
+      property:e._propertyAddress,
+      field:e._field}));
 
-  // Categories that appear in BOTH sources. Named explicitly so the assistant does not
-  // have to notice the overlap itself.
-  const bothSources=propertyCarriedCosts
-    .filter(pc=>expenseByCategory.some(c=>c.category===pc.category))
-    .map(pc=>{
-      const cf=expenseByCategory.find(c=>c.category===pc.category);
-      return{category:pc.category,label:pc.label,
-        cashFlowAnnual:cf.annualised,propertyAnnual:pc.annualised,
-        // Equal figures almost certainly describe one obligation recorded twice;
-        // different figures mean at least one source is incomplete. Either way the
-        // assistant must not add them together.
-        likelySameMoney:Math.abs(cf.annualised-pc.annualised)<=Math.max(100,cf.annualised*0.02)};
-    });
+  // Manual lines and derived lines can still describe the same obligation, because a
+  // firm may have typed the cost in by hand before this existed. Flagged, never
+  // silently merged or dropped: a "Property Tax Reserve" line might duplicate the
+  // property's tax figure, or be a separate reserve funded on top of it. Only a person
+  // can tell, so both are reported and the overlap is named.
+  const duplicateWarnings=findProbableDuplicates(
+    cashFlowEvents.filter(e=>e.direction==="expense"),
+    derivedPropertyEvents);
 
-  // Include document CONTENTS (extracted at upload) so the assistant can answer
-  // from inside files. Bounded by a per-document cap and a global budget so the
-  // prompt stays a sane size even with dozens of documents.
-  const PER_DOC=40000, DOC_BUDGET=160000;
-  let docTextUsed=0;
-  const documents=(data.documents||[]).filter(d=>d.familyId===fid).map(d=>{
-    const out={ name:d.name||null, category:d.category||null, fileType:d.fileType||null,
-      description:d.description||null, uploadedAt:d.uploadedAt||d.createdAt||null };
-    const raw=(d.extractedText||"").trim();
-    if(!raw){ out.contentsAvailable=false; return out; }
-    if(docTextUsed>=DOC_BUDGET){ out.contentsAvailable=true; out.contents="[not included — document-text budget reached; ask about this document specifically]"; return out; }
-    let txt=raw.slice(0,PER_DOC);
-    if(raw.length>PER_DOC) txt+="…[truncated]";
-    docTextUsed+=txt.length;
-    out.contentsAvailable=true; out.contents=txt;
-    return out;
-  });
-
-  // ── PEOPLE AND SERVICE PROVIDERS ───────────────────────────────────────────
-  // The family's own people and the firms that work for them live in three
-  // separate tables, all of which were already being fetched and family-scoped —
-  // and none of which reached the assistant. So "who are my service providers?"
-  // got answered from whatever names happened to be embedded in property and
-  // account fields (the insurance carrier, the banker) while every actual
-  // contact record was invisible: the trust counsel, the CPA, the art advisor,
-  // and every per-property vendor.
-  //
-  // The three are kept distinct rather than flattened. contacts are the family
-  // themselves, and a model handed one undifferentiated list will sooner or later
-  // introduce a family member as a vendor.
-  const trimOrNull=v=>{ const s=String(v==null?"":v).trim(); return s||null; };
-  const propertyNameById=id=>{
-    if(!id)return null;
-    const p=(data.properties||[]).find(x=>x.id===id);
-    return p?trimOrNull(p.name)||trimOrNull(p.address):null;
-  };
-  const mapProvider=(c,extra)=>({
-    name:trimOrNull(c.name), role:trimOrNull(c.role), company:trimOrNull(c.company),
-    email:trimOrNull(c.email), phone:trimOrNull(c.phone), notes:trimOrNull(c.notes),
-    ...extra,
-  });
-
-  // contacts — the household's own members, not providers.
-  const familyMembers=(data.contacts||[]).filter(c=>c.familyId===fid).map(c=>({
-    name:trimOrNull(c.name), email:trimOrNull(c.email), phone:trimOrNull(c.phone),
-    isPrimaryContact:!!c.isPrimary,
-  }));
-
-  // family_contacts — the professional team retained across the household rather
-  // than tied to one asset. isAdvisor marks whoever leads that discipline.
-  const householdProviders=(data.family_contacts||[]).filter(c=>c.familyId===fid)
-    .map(c=>mapProvider(c,{ scope:"household", isLeadForDiscipline:!!c.isAdvisor }));
-
-  // property_contacts — vendors attached to a single property.
-  const propertyProviders=(data.property_contacts||[]).filter(c=>c.familyId===fid)
-    .map(c=>mapProvider(c,{ scope:"property", attachedToProperty:propertyNameById(c.propertyId) }));
-
-  const serviceProviders=[...householdProviders,...propertyProviders];
-
-  const totalRE=properties.reduce((s,p)=>s+(p.currentValue||p.purchasePrice||0),0);
-  const totalDebt=properties.reduce((s,p)=>s+p.loanBalance+p.secondMortgageBalance,0)
-    +portfolioAccounts.filter(a=>a.type==="Line of Credit").reduce((s,a)=>s+a.currentBalance,0);
-  const totalPortfolio=portfolioAccounts.filter(a=>a.type!=="Line of Credit").reduce((s,a)=>s+a.currentBalance,0);
-  const totalValuables=valuables.reduce((s,v)=>s+v.estimatedValue,0);
-  const netWorth=totalRE-totalDebt+totalPortfolio+totalValuables;
-
-  // Tell the model which things are genuinely not in the data, so it answers honestly.
-  const notTracked=[];
-  const anyInsExp=properties.some(p=>p.insuranceExpirationDate||p.floodInsuranceExpirationDate);
-  if(!anyInsExp) notTracked.push("insurance policy expiration / renewal dates (only carrier and annual premium are stored)");
-  // Said explicitly, because the alternative is the model assembling a plausible
-  // answer out of insurance carriers and banker names and presenting it as the
-  // provider list — which is how this gap stayed invisible.
-  if(!serviceProviders.length) notTracked.push("service providers / vendors (no contact records are on file for this family; insurance carriers and banker names appearing elsewhere are not the same thing)");
-
-  // Say plainly when a spend total is incomplete. Without this the assistant would
-  // quote a category figure that silently excludes uncategorised lines, and it would
-  // look authoritative.
-  // Where the same kind of cost is recorded in two places, or in the other place only.
-  //
-  // These are NOT notTracked entries. notTracked means "the platform does not store
-  // this", and the prompt tells the assistant to answer "that isn't tracked yet". A
-  // note saying "this IS recorded, read it from propertyCarriedCosts" would then be
-  // two instructions in conflict on the same question, and which one wins would be
-  // down to the model.
+  // Not notTracked entries. notTracked means "the platform holds no such data" and the
+  // prompt answers "that isn't tracked yet"; these describe data that IS held, and where
+  // it came from. Two instructions in conflict on one question would leave the model to
+  // pick a winner.
   const dataSourceNotes=[];
-  {
-    const cfCats=new Set(expenseByCategory.map(c=>c.category));
-    propertyCarriedCosts.filter(pc=>!cfCats.has(pc.category)).forEach(pc=>dataSourceNotes.push(
-      `${pc.label} spend is NOT in the Cash Flow tab and so is absent from `+
-      `expenseByCategory, but $${pc.annualised.toLocaleString()} a year IS recorded on the `+
-      `property record(s). Answer from propertyCarriedCosts and say the figure comes from `+
-      `the property record rather than the cash-flow ledger. Do NOT say nothing is recorded.`));
-    bothSources.forEach(b=>dataSourceNotes.push(
-      `${b.label} appears in BOTH sources: $${b.cashFlowAnnual.toLocaleString()} a year in the `+
-      `Cash Flow tab and $${b.propertyAnnual.toLocaleString()} a year on the property record(s). `+
-      (b.likelySameMoney
-        ? `The figures agree, so this is almost certainly one obligation recorded twice — quote it ONCE and do not add them.`
-        : `The figures DISAGREE, so at least one source is incomplete — give both, say they disagree, and do not add them or pick one silently.`)));
-  }
+  if(derivedPropertyEvents.length) dataSourceNotes.push(
+    `${derivedPropertyEvents.length} expense line(s) are derived from property records rather than typed `+
+    `into the Cash Flow tab (property tax, insurance, flood, utilities, HOA, mortgage). They ARE included `+
+    `in expenseByCategory and each item carries source:"property record" and the property address. When `+
+    `you quote a figure, say which source it came from.`);
+  duplicateWarnings.forEach(d=>dataSourceNotes.push(
+    `${EXPENSE_CATEGORY_LABEL[d.category]||d.category} has spend from BOTH a manual cash-flow line `+
+    `($${Math.round(d.manual).toLocaleString()}/yr: ${d.manualLines.join("; ")}) AND property records `+
+    `($${Math.round(d.derived).toLocaleString()}/yr: ${d.derivedLines.join("; ")}). `+
+    (d.likelySameMoney
+      ? `The two figures agree, so this is very likely ONE obligation recorded twice and the category total `+
+        `above DOUBLE-COUNTS it. Say so, give the single figure, and suggest the manual line be removed.`
+      : `The figures differ, so they may be separate costs or one may be incomplete. Give the breakdown by `+
+        `source and say it needs checking. Do not present the combined total as certain.`)));
 
   if(uncategorisedExpenses) notTracked.push(
     `${uncategorisedExpenses.lines} expense line(s) have no category, so they are NOT included in any category total. `+
@@ -1755,13 +1652,9 @@ function buildFamilySnapshot(family,data){
     // Pre-totalled spend by category. Use these figures directly; do not re-derive
     // them from cashFlowEvents.
     expenseByCategory,
-    // The SAME kinds of cost, but recorded on the property record instead of in the
-    // Cash Flow tab. Deliberately not merged into expenseByCategory: see the comment
-    // where it is built. Never add the two together.
-    propertyCarriedCosts,
-    // Categories present in both sources, with both figures, so the overlap does not
-    // have to be spotted by the model.
-    expenseCategoriesInBothSources:bothSources,
+    // Categories where a manual line and a property-derived line overlap, which means
+    // the total above may double-count. Flagged, not silently resolved.
+    probableDuplicateSpend:duplicateWarnings,
     // Where a figure lives, and where two figures describe the same money. Distinct
     // from notTracked: these describe data that IS held, just not where you'd look.
     dataSourceNotes,
@@ -3501,38 +3394,20 @@ function CashFlowView({family,events,paymentLog=[],properties,reload,toast,readO
   const allEvents=useMemo(()=>{
     // Backfill direction='income' for any legacy events without it; sort by sortOrder asc
     const e=events.map(ev=>({...ev,direction:ev.direction||"income"}));
-    if(settings.includeRental){
-      properties.filter(p=>Number(p.rentalIncome)>0).forEach(p=>{
-        const grossRental=Number(p.rentalIncome)||0;
-        const taxesM=(Number(p.propertyTaxes)||0)/12;
-        const insM=(Number(p.insurancePremium)||0)/12;
-        const floodM=(Number(p.floodInsurancePremium)||0)/12;
-        const hoaM=Number(p.hoaFee)||0;
-        const pmPct=Number(p.propertyManagementFeePct)||0;
-        const pmM=grossRental*(pmPct/100);
-        const includesMortgage=p.includeMortgageInCashflow!==false;
-        const mortgageM=includesMortgage?((Number(p.loanPayment)||0)+(Number(p.secondMortgagePayment)||0)):0;
-        const netRental=grossRental-taxesM-insM-floodM-hoaM-pmM-mortgageM;
-        e.push({
-          id:`rental_${p.id}`,
-          _synthetic:true,
-          direction:"income",
-          _breakdown:{
-            grossRental,propertyTaxesMonthly:taxesM,insuranceMonthly:insM,floodInsuranceMonthly:floodM,
-            hoaMonthly:hoaM,pmFeeMonthly:pmM,pmFeePct:pmPct,mortgageMonthly:mortgageM,includesMortgage,netRental,
-          },
-          eventType:"Rental Income (Net)",
-          description:p.address,
-          amount:netRental,
-          frequency:"monthly",
-          startDate:new Date().toISOString().slice(0,10),
-          endDate:null,
-          taxTreatment:netRental>0?"ordinary":"none",
-          notes:`From property: ${p.address}`,
-          sortOrder:999999, // synthetic always at the end of income list
-        });
-      });
-    }
+    // Property costs come from ONE shared derivation, also used by the AI snapshot.
+    //
+    // This used to net every property cost inside a single "Rental Income (Net)" line
+    // and emit nothing at all for a property without rent. Both meant a property cost
+    // could not be totalled by category, so firms retyped the cost into this tab by
+    // hand — giving two records of one obligation, and on the demo's Harrington family
+    // a genuine double-count of Gulf Shore's property tax.
+    //
+    // Now every cost is its own line, derived at read time, so it appears exactly once
+    // and the screen and the assistant cannot disagree.
+    e.push(...derivePropertyEvents(properties,{
+      includeRental:settings.includeRental,
+      forProjection:true,
+    }));
     // Sort: synthetic events go after manual events by their sortOrder
     return e.sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0));
   },[events,settings.includeRental,properties]);

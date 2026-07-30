@@ -1,0 +1,190 @@
+// Property costs, derived into cash-flow lines.
+//
+// THE PROBLEM THIS SOLVES
+//
+// A property's recurring costs — tax, insurance, flood, utilities, HOA, mortgage —
+// are entered on the property record. They were then either (a) invisible to the
+// Cash Flow tab entirely, for a property with no rental income, or (b) netted
+// silently inside a single "Rental Income (Net)" line, for one with rental income.
+// Either way a question like "what do we spend on insurance?" could not be answered
+// from the cash-flow ledger, and firms worked around it by ALSO typing the cost into
+// the Cash Flow tab by hand. That gave two records of one obligation.
+//
+// On the demo's Harrington family that produced a live double-count: Gulf Shore's
+// $11,400 property tax was subtracted inside the netted rental line AND included in a
+// manual "Property Tax Reserve" line covering both properties. Same money, counted
+// twice, and only when the includeRental toggle happened to be on.
+//
+// DERIVED, NOT COPIED — and this is the important decision
+//
+// The obvious fix is to write real cash_flow_events rows when a property is saved.
+// That trades one bug for a worse one: two records that can now disagree. Someone
+// edits the property tax — does the row follow? Someone edits the row — does the
+// property? Delete the property — does the row survive? Every answer is a rule
+// somebody has to remember, and the failure is silent.
+//
+// These lines are computed at read time and never stored. There is exactly one place
+// the number lives, so it cannot drift. This also matches what the codebase already
+// did for rental income (`rental_${p.id}`, `_synthetic:true`) — the mechanism existed,
+// it just netted everything into one line instead of itemising.
+//
+// ONE DERIVATION, TWO CONSUMERS
+//
+// The Cash Flow tab and the AI snapshot both call this. They used to compute property
+// costs separately, which is precisely how the screen and the assistant came to
+// describe the same money differently. If a figure is wrong now, it is wrong in both
+// places at once, which is far easier to notice.
+
+// Monthly amount -> annual, matching FREQ_PER_YEAR in App.jsx.
+const M = 12;
+
+// Each derived line: what it is, where it comes from, and which category it totals
+// into. `field` is named so a reader can go to the property record and check it.
+const COST_FIELDS = [
+  { field: "propertyTaxesAnnual",            label: "Property tax",        category: "taxes",               annual: true  },
+  { field: "insurancePremiumAnnual",         label: "Insurance premium",   category: "insurance",           annual: true  },
+  { field: "floodInsurancePremiumAnnual",    label: "Flood insurance",     category: "insurance",           annual: true  },
+  { field: "utilitiesMonthly",               label: "Utilities",           category: "utilities",           annual: false },
+  // HOA is a charge for shared grounds and amenities. It goes under property
+  // management rather than inventing a category the database constraint would reject.
+  { field: "hoaFeeMonthly",                  label: "HOA fee",             category: "property_management", annual: false },
+];
+
+const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+
+/**
+ * Derive cash-flow events from property records.
+ *
+ * @param properties        Array in the snapshot/client shape (camelCase).
+ * @param includeRental     Whether rental properties are in scope at all. This governs
+ *                          the property WHOLESALE — its rent and its costs together.
+ *                          Including a property's costs while excluding its income
+ *                          would make net cash flow look worse than reality, which is
+ *                          the opposite of the toggle's purpose.
+ * @param forProjection     True when feeding the Cash Flow projection, which honours
+ *                          the user's toggles. False for the AI snapshot, which must
+ *                          describe what is actually spent regardless of how someone
+ *                          has configured a modelling view. A client asking what they
+ *                          spend on insurance should not get a different answer because
+ *                          a projection checkbox was unticked.
+ */
+export function derivePropertyEvents(properties, { includeRental = true, forProjection = false } = {}) {
+  const out = [];
+  (properties || []).forEach(p => {
+    const rent = num(p.rentalIncomeMonthly ?? p.rentalIncome);
+    const isRental = rent > 0;
+    // Only the projection honours the toggle. The snapshot always sees everything.
+    if (isRental && forProjection && !includeRental) return;
+
+    const addr = p.address || "Property";
+    const push = (label, category, monthly, field) => {
+      if (!monthly) return;
+      out.push({
+        id: `prop_${p.id}_${field}`,
+        _synthetic: true,
+        _source: "property",
+        _propertyId: p.id,
+        _propertyAddress: addr,
+        _field: field,
+        direction: "expense",
+        eventType: label,
+        description: `${addr} — ${label.toLowerCase()}`,
+        category,
+        amount: Math.round(monthly * 100) / 100,
+        frequency: "monthly",
+        startDate: new Date().toISOString().slice(0, 10),
+        endDate: null,
+        taxTreatment: "none",
+        notes: `From property record: ${addr}`,
+        sortOrder: 999000,
+      });
+    };
+
+    COST_FIELDS.forEach(c => {
+      const raw = num(p[c.field] ?? p[c.field.replace(/Annual$|Monthly$/, "")]);
+      push(c.label, c.category, c.annual ? raw / M : raw, c.field);
+    });
+
+    // The mortgage is opt-out per property (includeMortgageInCashflow). A household
+    // that services a loan from a different pot legitimately excludes it, so the flag
+    // is honoured rather than overridden.
+    if (p.includeMortgageInCashflow !== false) {
+      push("Mortgage payment", "debt_service",
+        num(p.monthlyPayment ?? p.loanPayment), "monthlyPayment");
+      push("Second mortgage", "debt_service",
+        num(p.secondMortgagePaymentMonthly ?? p.secondMortgagePayment), "secondMortgagePayment");
+    }
+
+    if (isRental) {
+      // Management fee is a percentage OF the rent, so it only exists where rent does.
+      const pct = num(p.propertyManagementFeePct);
+      if (pct) push("Management fee", "property_management", rent * (pct / 100), "propertyManagementFeePct");
+
+      // Gross rent as income. Previously this was net of every cost above, which is
+      // why those costs could not be totalled by category — they had been subtracted
+      // inside an income figure and no longer existed as expenses anywhere.
+      out.push({
+        id: `rental_${p.id}`,
+        _synthetic: true,
+        _source: "property",
+        _propertyId: p.id,
+        _propertyAddress: addr,
+        _field: "rentalIncome",
+        direction: "income",
+        eventType: "Rental Income (Gross)",
+        description: addr,
+        amount: rent,
+        frequency: "monthly",
+        startDate: new Date().toISOString().slice(0, 10),
+        endDate: null,
+        taxTreatment: "ordinary",
+        notes: `From property record: ${addr}. Costs are itemised as separate expense lines.`,
+        sortOrder: 999000,
+      });
+    }
+  });
+  return out;
+}
+
+/**
+ * Net monthly position for one property, for display next to the property.
+ * Kept here so the figure shown on a property card is the same arithmetic the
+ * projection uses.
+ */
+export function propertyNetMonthly(p) {
+  const ev = derivePropertyEvents([p], { includeRental: true });
+  return ev.reduce((s, e) => s + (e.direction === "income" ? e.amount : -e.amount), 0);
+}
+
+/**
+ * Where a manual cash-flow line and a derived property line cover the same category,
+ * flag it. Not auto-resolved: a manual "Property Tax Reserve" line might be a
+ * duplicate of the property's tax figure, or a genuinely separate reserve the family
+ * funds on top. Only a person can say which, so this reports and does not delete.
+ */
+export function findProbableDuplicates(manualEvents, derivedEvents) {
+  const byCat = {};
+  const annual = e => e.amount * (e.frequency === "monthly" ? 12
+    : e.frequency === "quarterly" ? 4 : e.frequency === "annually" ? 1
+    : e.frequency === "weekly" ? 52 : e.frequency === "biweekly" ? 26 : 0);
+
+  (manualEvents || []).filter(e => e.direction === "expense" && e.category).forEach(e => {
+    const c = byCat[e.category] || (byCat[e.category] = { category: e.category, manual: 0, derived: 0, manualLines: [], derivedLines: [] });
+    c.manual += annual(e);
+    c.manualLines.push(e.description || e.eventType || "(unnamed)");
+  });
+  (derivedEvents || []).filter(e => e.direction === "expense" && e.category).forEach(e => {
+    const c = byCat[e.category] || (byCat[e.category] = { category: e.category, manual: 0, derived: 0, manualLines: [], derivedLines: [] });
+    c.derived += annual(e);
+    c.derivedLines.push(`${e._propertyAddress} ${e.eventType}`);
+  });
+
+  return Object.values(byCat)
+    .filter(c => c.manual > 0 && c.derived > 0)
+    .map(c => ({
+      ...c,
+      // Within 2% (or $100) means one obligation entered twice, near enough.
+      likelySameMoney: Math.abs(c.manual - c.derived) <= Math.max(100, c.manual * 0.02),
+    }))
+    .sort((a, b) => b.derived - a.derived);
+}
