@@ -2401,7 +2401,14 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
   // Scheduled Prompts is visible to every Titan Expert/Admin, and to a Partner
   // only when an admin has flipped their can_run_scheduled_prompts toggle on.
   const canSeePrompts=userProfile?.role==="advisor"||userProfile?.role==="admin"||(userProfile?.role==="partner"&&userProfile?.canRunScheduledPrompts);
-  const TABS=["Overview","Properties","Portfolio","Cash Flow","Obligations","Valuables","Deals","Notes","Tasks","Vault","Ask Titan",...(canSeePrompts?["Prompts"]:[])];
+  // "Ask Titan" is the internal key, not the label — the label resolves to this household's
+  // assistant name at render, so a family whose assistant is called Nova reads "Ask Nova"
+  // while the tab id stays "asktitan" and existing links keep working.
+  //
+  // It sits LAST, after Prompts. The records tabs are a set of ledgers; the assistant is a
+  // different kind of thing, and putting it at the end stops the eye reading twelve equal
+  // siblings. The star marks it as the AI feature.
+  const TABS=["Overview","Properties","Portfolio","Cash Flow","Obligations","Valuables","Deals","Notes","Tasks","Vault",...(canSeePrompts?["Prompts"]:[]),"Ask Titan"];
   const assistantName=(((data.families||[]).find(x=>x.id===family.id)||family).assistantName||"").trim()||"Titan";
   const[showWelcome,setShowWelcome]=useState(false);
   // Carries "attach a document to this property section" from the Properties tab
@@ -2634,9 +2641,58 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{borderBottom:`1px solid ${B.borderLight}`,background:B.white,padding:isMobile?"0 8px":"0 28px",display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-        {TABS.map(t=><button key={t} onClick={()=>setActiveTab(t.toLowerCase().replace(/\s+/g,""))} style={{background:"none",border:"none",borderBottom:activeTab===t.toLowerCase().replace(/\s+/g,"")?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.toLowerCase().replace(/\s+/g,"")?B.navy:B.textSoft,fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.toLowerCase().replace(/\s+/g,"")?700:400,padding:isMobile?"12px 12px":"10px 14px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>{t==="Ask Titan"?("Ask "+assistantName):t}</button>)}
+      {/* Tabs — folder tabs, not flat text.
+          Depth comes from the active tab losing its bottom border and merging into the
+          content surface below, so page and tab read as one continuous sheet. That is a
+          structural cue rather than a shadow, which matters because this palette's gold is
+          1.97:1 on white and soft grey shadows go muddy on the cream page — both disappear
+          on a projector, and these screens end up in decks and screenshots.
+
+          The bar sits on the page background so the inactive tabs read as recessed behind
+          the active one. The 1px overlap on the active tab is what covers the container's
+          bottom border, which is what makes the join look continuous rather than butted. */}
+      <div style={{borderBottom:`1px solid ${B.border}`,background:B.bg,padding:isMobile?"6px 8px 0":"8px 28px 0",display:"flex",gap:2,alignItems:"flex-end",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        {TABS.map(t=>{
+          const id=t.toLowerCase().replace(/\s+/g,"");
+          const on=activeTab===id;
+          const isAssistant=t==="Ask Titan";
+          const label=isAssistant?("Ask "+assistantName):t;
+          return <button key={t} onClick={()=>setActiveTab(id)} aria-current={on?"page":undefined}
+            style={{
+              background:on?B.white:"transparent",
+              // A tab with no fill and no border reads as a label, not a target. Inactive
+              // tabs get a hairline so the row still looks like a set of tabs.
+              border:on?`1px solid ${B.border}`:"1px solid transparent",
+              borderBottom:on?`1px solid ${B.white}`:"1px solid transparent",
+              // The gold cap sits on top, where it is decoration rather than text.
+              borderTop:on?`2px solid ${B.gold}`:"2px solid transparent",
+              borderRadius:"8px 8px 0 0",
+              color:on?B.navy:B.textSoft,
+              fontFamily:"inherit",
+              fontSize:13,
+              fontWeight:on?600:400,
+              padding:isMobile?(on?"11px 12px 10px":"9px 12px 9px"):(on?"11px 16px 10px":"9px 15px 9px"),
+              cursor:"pointer",
+              // Covers the container's bottom border, which is what turns a butted edge into
+              // a continuous surface. Without it the tab looks stuck on rather than attached.
+              marginBottom:-1,
+              whiteSpace:"nowrap",
+              flexShrink:0,
+              // A small gap sets the assistant apart from the ledger tabs without a divider,
+              // which would read as a hard boundary in a row that already scrolls.
+              marginLeft:isAssistant?10:0,
+              transition:"background 120ms ease, color 120ms ease",
+            }}>
+            {isAssistant&&<span aria-hidden="true" style={{
+              // Gold on white is 1.97:1, so the star is navy-toned when the tab is inactive
+              // and only goes gold on the active tab, where it sits against a white fill
+              // beneath a gold cap and reads as part of that treatment rather than as text.
+              color:on?B.gold:B.navyMid,
+              marginRight:5,
+              fontSize:12,
+            }}>✦</span>}
+            {label}</button>;
+        })}
       </div>
 
       {/* Content */}
@@ -6569,7 +6625,9 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
     {id:"valuables", label:"Valuables",  icon:"◆"},
     {id:"tasks",     label:"Tasks",      icon:"◻"},
     {id:"documents", label:"Vault",  icon:"📁"},
-    {id:"assistant", label:"Ask "+assistantName,   icon:"✦"},
+    // Last in the row on purpose, and flagged so the renderer can mark it with a star: the
+    // other tabs are ledgers, this one is the assistant.
+    {id:"assistant", label:"Ask "+assistantName,   icon:"✦", assistant:true},
   ];
 
   return <div style={{minHeight:"100vh",background:B.bg,fontFamily:"'DM Sans','Helvetica Neue',sans-serif",paddingBottom:isMobile?70:0}}>
@@ -6613,9 +6671,36 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
     {/* Gold accent line */}
     <div style={{height:2,background:`linear-gradient(90deg,${B.gold},${B.goldLight}55,transparent)`}}/>
 
-    {/* Top Tabs (desktop only) — white bar matching advisor view */}
-    {!isMobile&&<div style={{borderBottom:`1px solid ${B.borderLight}`,background:B.white,padding:"0 32px",display:"flex",gap:0,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-      {TABS.map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} style={{background:"none",border:"none",borderBottom:activeTab===t.id?`2px solid ${B.gold}`:"2px solid transparent",color:activeTab===t.id?B.navy:B.textSoft,fontFamily:"inherit",fontSize:13,fontWeight:activeTab===t.id?700:400,padding:"12px 18px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap",flexShrink:0}}>{t.label}</button>)}
+    {/* Top Tabs (desktop only) — folder tabs, matching the advisor view.
+        The active tab's bottom border is the page colour, so it merges into the content
+        below rather than sitting on a line above it. */}
+    {!isMobile&&<div style={{borderBottom:`1px solid ${B.border}`,background:B.bg,padding:"8px 32px 0",display:"flex",gap:2,alignItems:"flex-end",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      {TABS.map(t=>{
+        const on=activeTab===t.id;
+        return <button key={t.id} onClick={()=>setActiveTab(t.id)} aria-current={on?"page":undefined}
+          style={{
+            background:on?B.white:"transparent",
+            border:on?`1px solid ${B.border}`:"1px solid transparent",
+            borderBottom:on?`1px solid ${B.white}`:"1px solid transparent",
+            borderTop:on?`2px solid ${B.gold}`:"2px solid transparent",
+            borderRadius:"8px 8px 0 0",
+            color:on?B.navy:B.textSoft,
+            fontFamily:"inherit", fontSize:13, fontWeight:on?600:400,
+            padding:on?"11px 17px 10px":"9px 16px 9px",
+            cursor:"pointer",
+            // Covers the container's bottom border, which is what makes the join continuous.
+            marginBottom:-1,
+            whiteSpace:"nowrap", flexShrink:0,
+            marginLeft:t.assistant?10:0,
+            transition:"background 120ms ease, color 120ms ease",
+          }}>
+          {t.assistant&&<span aria-hidden="true" style={{
+            // Gold measures 1.97:1 on white, so the star only goes gold on the active tab,
+            // where it sits on a white fill under a gold cap and reads as decoration.
+            color:on?B.gold:B.navyMid, marginRight:5, fontSize:12,
+          }}>✦</span>}
+          {t.label}</button>;
+      })}
     </div>}
 
     {/* Bottom Tab Bar (mobile only) */}
