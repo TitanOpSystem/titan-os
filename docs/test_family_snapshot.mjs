@@ -29,7 +29,7 @@
 // Run: node docs/test_family_snapshot.mjs
 
 import { execFileSync } from "node:child_process";
-import { writeFileSync, readFileSync, rmSync, mkdirSync } from "node:fs";
+import { writeFileSync, readFileSync, rmSync, mkdirSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -45,7 +45,10 @@ mkdirSync(tmp, { recursive: true });
 const appSrc = readFileSync(join(repo, "src/App.jsx"), "utf8")
   + "\n\nexport { buildFamilySnapshot, buildVendorOptions, FIRM_DEFAULTS };\n";
 writeFileSync(join(tmp, "App.jsx"), appSrc);
-for (const f of ["propertyCashFlow.js", "activityReport.js"]) {
+// Copy EVERY sibling module, not a hardcoded list. App.jsx gained an import of
+// vaultFolders.js and the hardcoded list silently broke the bundle — the test failed for a
+// reason that had nothing to do with what it was testing.
+for (const f of readdirSync(join(repo, "src")).filter(f => f.endsWith(".js"))) {
   writeFileSync(join(tmp, f), readFileSync(join(repo, "src", f), "utf8"));
 }
 execFileSync("npx", ["--yes", "esbuild@0.23", join(tmp, "App.jsx"),

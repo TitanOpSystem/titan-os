@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { PDFDocument } from "pdf-lib";
 import { buildActivityReportPdf, AR_PERIODS, fig as arFig } from "./activityReport.js";
 import { derivePropertyEvents, findProbableDuplicates } from "./propertyCashFlow.js";
+import { validateFolderName, buildFolderRows, folderSummary, canDeleteFolder } from "./vaultFolders.js";
 // PCM Platform v5.0 — build 20260429
 //
 // Nothing PCM-specific is imported here any more, and that is deliberate.
@@ -5985,7 +5986,53 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
   const[loading,setLoading]=useState(true);
   const[uploading,setUploading]=useState(false);
   const[modal,setModal]=useState(null);
-  const[openFolder,setOpenFolder]=useState(null); // null = folder grid; else a DOC_CATEGORIES value
+  const[openFolder,setOpenFolder]=useState(null); // null = folder list; else a folder name
+  // Folders this household has added, beyond the built-in eight. Per household by design,
+  // so one client's taxonomy never shows up on another's Vault.
+  const[customFolders,setCustomFolders]=useState([]);
+  const[newFolderName,setNewFolderName]=useState("");
+  const[folderErr,setFolderErr]=useState("");
+  const[savingFolder,setSavingFolder]=useState(false);
+  const loadFolders=useCallback(async()=>{
+    if(!familyId){setCustomFolders([]);return;}
+    const{data,error}=await sb.from("document_folders")
+      .select("id,name,sort_order").eq("family_id",familyId).order("name");
+    // A failure here must not blank the Vault — the built-in folders still work, so fall
+    // back to just those rather than throwing away the whole page.
+    setCustomFolders(error?[]:(data||[]));
+  },[familyId]);
+  useEffect(()=>{loadFolders();},[loadFolders]);
+
+  const createFolder=async()=>{
+    const v=validateFolderName(newFolderName,customFolders.map(f=>f.name));
+    if(!v.ok){setFolderErr(v.reason);return;}
+    setSavingFolder(true);
+    const{error}=await sb.from("document_folders").insert({family_id:familyId,name:v.name});
+    setSavingFolder(false);
+    if(error){
+      // The unique index and the built-in check also live in the database, because the UI is
+      // not the only writer. Translate rather than surfacing a Postgres message.
+      setFolderErr(/duplicate key/i.test(error.message)?`${v.name} already exists.`
+        :/not_builtin/i.test(error.message)?`${v.name} already exists as a standard folder.`
+        :error.message);
+      return;
+    }
+    setModal(null);
+    await loadFolders();
+    toast(`Folder "${v.name}" added`);
+  };
+
+  const removeFolder=async row=>{
+    const gate=canDeleteFolder(row);
+    if(!gate.ok){toast(gate.reason,"error");return;}
+    const f=customFolders.find(x=>x.name===row.name);
+    if(!f)return;
+    const{error}=await sb.from("document_folders").delete().eq("id",f.id);
+    if(error){toast(error.message,"error");return;}
+    if(openFolder===row.name)setOpenFolder(null);
+    await loadFolders();
+    toast(`Folder "${row.name}" removed`);
+  };
   const[name,setName]=useState("");
   const[description,setDescription]=useState("");
   const[category,setCategory]=useState("General");
@@ -6282,7 +6329,15 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
   // The "Other" folder also collects any document whose category is not one of
   // the known folders (legacy or imported values), so no file becomes
   // unreachable in the folder view.
-  const inFolder=(d,cat)=>cat==="Other"?(!DOC_CATEGORIES.includes(d.category)||d.category==="Other"):d.category===cat;
+  // "Other" is the catch-all: anything whose category matches no folder on file lands there,
+  // so a document is never invisible. Custom folders match by name, which is what
+  // documents.category stores.
+  const inFolder=(d,cat)=>{
+    const known=[...DOC_CATEGORIES,...customFolders.map(f=>f.name)];
+    return cat==="Other"
+      ? (!known.includes(d.category)||d.category==="Other")
+      : d.category===cat;
+  };
   const folderCount=cat=>docs.filter(d=>inFolder(d,cat)).length;
 
   return <div style={{height:"100%",display:"flex",flexDirection:"column",minHeight:0}}>
@@ -6292,20 +6347,69 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
         {openFolder&&<button onClick={()=>setOpenFolder(null)} style={{background:"none",border:`1px solid ${B.border}`,color:B.textSoft,cursor:"pointer",fontSize:13,fontFamily:"inherit",padding:"6px 10px",borderRadius:6,flexShrink:0}}>← Vault</button>}
         {openFolder&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{openFolder}</div>}
         {openFolder&&<span style={{fontSize:12,color:B.textMute,flexShrink:0}}>{folderCount(openFolder)} file{folderCount(openFolder)!==1?"s":""}</span>}
+        {openFolder&&customFolders.some(f=>f.name===openFolder)&&folderCount(openFolder)===0&&
+          <button onClick={()=>removeFolder({name:openFolder,custom:true,count:0})}
+            style={{background:"none",border:`1px solid ${B.borderLight}`,color:B.textSoft,cursor:"pointer",
+              fontSize:11.5,fontFamily:"inherit",padding:"4px 9px",borderRadius:6,flexShrink:0}}>
+            Remove folder</button>}
       </div>
       {allowUpload&&<Btn onClick={()=>{setCategory(openFolder||"General");setModal("upload");}}>⬆ Upload Document</Btn>}
       {allowScan&&unscannedCount>0&&<Btn variant="ghost" onClick={scanAllUnscanned} disabled={!!bulkScan} title="Extract text from existing documents so the AI assistant can read them">{bulkScan?`Scanning ${bulkScan.done}/${bulkScan.total}${scanMsg?" · "+scanMsg:""}…`:`✦ Scan ${unscannedCount} for AI`}</Btn>}
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
       {loading?<Spinner/>:openFolder===null?
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:16}}>
-        {DOC_CATEGORIES.map(cat=><div key={cat} className="pcm-folder-card" role="button" tabIndex={0} onClick={()=>setOpenFolder(cat)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")setOpenFolder(cat);}}
-          style={{background:B.white,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,borderRadius:14,padding:"26px 18px",boxShadow:B.shadow,cursor:"pointer",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
-          <div style={{fontSize:38}}>📁</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:B.navy,fontWeight:700}}>{cat}</div>
-          <div style={{fontSize:11,color:B.textMute,fontWeight:600}}>{folderCount(cat)} file{folderCount(cat)!==1?"s":""}</div>
-        </div>)}
-      </div>
+      /* Folder rows, not a card grid.
+         The grid gave an empty folder the same visual weight as one holding twelve
+         documents, stranded the eighth card alone on a second row, and used stock 3D
+         folder clipart. Rows carry a count, a last-updated date and a relative bar, sort
+         by what is actually in them, and collapse the empty folders into one muted line. */
+      (()=>{
+        const rows=buildFolderRows(docs,customFolders);
+        const filled=rows.filter(r=>r.count>0), empty=rows.filter(r=>r.count===0);
+        const sum=folderSummary(rows);
+        const fmtDate=v=>{ if(!v)return "—"; const d=new Date(v);
+          return isNaN(d)?"—":d.toLocaleDateString("en-US",{day:"numeric",month:"short"}); };
+        return <div>
+          <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:14}}>
+            <div style={{fontSize:13,color:B.textSoft}}>
+              {sum.total} document{sum.total===1?"":"s"}
+              {/* Called out separately because "Other" holding nearly half the vault is the
+                  real problem, and a single total hides it. */}
+              {sum.unfiled>0&&<> · <span style={{color:"#8a5c00"}}>{sum.unfiled} unfiled</span></>}
+            </div>
+            <button onClick={()=>{setNewFolderName("");setFolderErr("");setModal("folder");}}
+              style={{background:"none",border:`1px solid ${B.border}`,color:B.navy,cursor:"pointer",
+                fontSize:12,fontFamily:"inherit",padding:"7px 12px",borderRadius:8}}>+ New folder</button>
+          </div>
+          {filled.map(r=><div key={r.name} role="button" tabIndex={0}
+            onClick={()=>setOpenFolder(r.name)}
+            onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")setOpenFolder(r.name);}}
+            style={{display:"flex",alignItems:"center",gap:12,padding:"12px 4px",cursor:"pointer",
+              borderBottom:`1px solid ${B.borderLight}`}}>
+            <div style={{flex:1,minWidth:0}}>
+              <span style={{fontSize:14,color:B.navy}}>{r.name}</span>
+              {r.name==="Other"&&<span style={{fontSize:11.5,color:"#8a5c00",marginLeft:8}}>needs filing</span>}
+              {r.custom&&<span style={{fontSize:10.5,color:B.textMute,marginLeft:8,border:`1px solid ${B.borderLight}`,borderRadius:4,padding:"1px 5px"}}>added</span>}
+            </div>
+            <div style={{width:110,height:4,background:B.bg,borderRadius:2,overflow:"hidden",flexShrink:0}}>
+              <div style={{width:`${Math.round(r.share*100)}%`,height:"100%",
+                background:r.name==="Other"?"#d4900a":B.gold}}/>
+            </div>
+            <div style={{fontSize:13,color:B.textSoft,width:56,textAlign:"right",flexShrink:0}}>{r.count} file{r.count===1?"":"s"}</div>
+            <div style={{fontSize:11.5,color:B.textMute,width:64,textAlign:"right",flexShrink:0}}>{fmtDate(r.lastAt)}</div>
+          </div>)}
+          {/* Empty folders are demoted, not hidden. Hiding them is tidier but then nobody
+              knows Estate Planning exists as a destination. */}
+          {empty.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:8,alignItems:"center",padding:"14px 4px 0"}}>
+            <span style={{fontSize:11.5,color:B.textMute}}>Empty</span>
+            {empty.map(r=><button key={r.name} onClick={()=>setOpenFolder(r.name)}
+              style={{background:"none",border:`1px solid ${B.borderLight}`,color:B.textSoft,
+                cursor:"pointer",fontSize:11.5,fontFamily:"inherit",padding:"4px 9px",borderRadius:6}}>
+              {r.name}{r.custom?" ·":""}
+            </button>)}
+          </div>}
+        </div>;
+      })()
       :(()=>{
         const list=docs.filter(d=>inFolder(d,openFolder));
         return list.length===0
@@ -6352,9 +6456,27 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
       })()}
     </div>
 
+    {modal==="folder"&&<Modal title="New folder" onClose={()=>setModal(null)}>
+      <Field label="Folder name">
+        <Inp placeholder="Aircraft" value={newFolderName} autoFocus
+          onChange={e=>{setNewFolderName(e.target.value);setFolderErr("");}}
+          onKeyDown={e=>{if(e.key==="Enter"&&!savingFolder)createFolder();}}/>
+      </Field>
+      <div style={{fontSize:11.5,color:B.textMute,marginTop:-6,marginBottom:12}}>
+        Only this household sees it. Documents you file here keep the folder name as their category.
+      </div>
+      {folderErr&&<div style={{fontSize:12,color:"#8b1a1a",background:"#fff5f5",
+        border:"1px solid #f3c2c2",borderRadius:8,padding:"8px 10px",marginBottom:12}}>{folderErr}</div>}
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <Btn variant="ghost" onClick={()=>setModal(null)} disabled={savingFolder}>Cancel</Btn>
+        <Btn onClick={createFolder} disabled={savingFolder||!newFolderName.trim()}>
+          {savingFolder?"Adding…":"Add folder"}</Btn>
+      </div>
+    </Modal>}
+
     {modal==="upload"&&<Modal title="Upload Document" onClose={()=>{setModal(null);resetForm();}}>
       <Field label="Document Name"><Inp placeholder="Q4 2024 Statement" value={name} onChange={e=>setName(e.target.value)}/></Field>
-      <Field label="Category"><Sel value={category} onChange={e=>setCategory(e.target.value)}>{DOC_CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></Field>
+      <Field label="Category"><Sel value={category} onChange={e=>setCategory(e.target.value)}>{[...DOC_CATEGORIES,...customFolders.map(f=>f.name)].map(c=><option key={c}>{c}</option>)}</Sel></Field>
       <Field label="Description"><Inp placeholder="Optional description" value={description} onChange={e=>setDescription(e.target.value)}/></Field>
       {linkFields()}
       <Field label="File">
@@ -6374,7 +6496,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
 
     {modal&&modal.edit&&<Modal title="Edit Document" onClose={()=>{setModal(null);resetForm();}}>
       <Field label="Document Name"><Inp placeholder="Q4 2024 Statement" value={name} onChange={e=>setName(e.target.value)}/></Field>
-      <Field label="Category"><Sel value={category} onChange={e=>setCategory(e.target.value)}>{DOC_CATEGORIES.map(c=><option key={c}>{c}</option>)}</Sel></Field>
+      <Field label="Category"><Sel value={category} onChange={e=>setCategory(e.target.value)}>{[...DOC_CATEGORIES,...customFolders.map(f=>f.name)].map(c=><option key={c}>{c}</option>)}</Sel></Field>
       <Field label="Description"><Inp placeholder="Optional description" value={description} onChange={e=>setDescription(e.target.value)}/></Field>
       {linkFields(modal.edit.id)}
       <div style={{fontSize:11,color:B.textMute,marginBottom:14}}>Renaming changes the display title only; the stored file itself is unchanged.</div>
