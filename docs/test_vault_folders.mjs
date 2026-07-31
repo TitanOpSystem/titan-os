@@ -9,6 +9,7 @@
 
 import {
   BUILTIN_FOLDERS, validateFolderName, buildFolderRows, folderSummary, canDeleteFolder,
+  EXPIRY_HORIZON_DAYS,
 } from "../src/vaultFolders.js";
 
 let pass = 0, fail = 0;
@@ -114,6 +115,53 @@ ok("no documents and no folders still returns the built-ins",
 ok("undefined arguments do not throw", buildFolderRows(undefined, undefined).length > 0);
 ok("a null name is refused rather than crashing", !validateFolderName(null).ok);
 ok("canDeleteFolder tolerates nothing", !canDeleteFolder(undefined).ok);
+
+console.log("\nExpiring and expired documents");
+// A fixed "today" is passed in. A test that only passes in a particular month is worse than
+// no test — it fails months later for a reason unrelated to the change that broke it.
+// Built in LOCAL time, deliberately. Production passes new Date(), and local year/month/day
+// is what a person means by "today" — so buildFolderRows reads local components. Passing a
+// UTC-midnight instant here instead made TODAY land on the previous day in any zone behind
+// UTC, which moved the 90-day boundary and failed in UTC and New York while passing in
+// Auckland. The code was right; the fixture was in the wrong frame.
+const TODAY = new Date(2026, 6, 31);
+const day = n => {
+  const d = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+const expDocs = [
+  { category: "Insurance", expiryDate: day(20) },   // inside the horizon
+  { category: "Insurance", expiryDate: day(89) },   // just inside
+  { category: "Insurance", expiryDate: day(91) },   // just outside
+  { category: "Insurance", expiryDate: day(-5) },   // already lapsed
+  { category: "Insurance" },                        // no expiry recorded
+  { category: "Tax", expiryDate: day(10) },
+];
+const e = Object.fromEntries(buildFolderRows(expDocs, [], TODAY).map(r => [r.name, r]));
+ok("a document expiring inside the horizon is counted", e.Insurance.expiring === 2,
+  `got ${e.Insurance.expiring}`);
+ok("the boundary day is inside the horizon",
+  buildFolderRows([{ category: "Tax", expiryDate: day(EXPIRY_HORIZON_DAYS) }], [], TODAY)
+    .find(r => r.name === "Tax").expiring === 1);
+ok("one day past the horizon is not counted",
+  buildFolderRows([{ category: "Tax", expiryDate: day(EXPIRY_HORIZON_DAYS + 1) }], [], TODAY)
+    .find(r => r.name === "Tax").expiring === 0);
+// The distinction that matters: lapsed is not "coming up".
+ok("an already-expired document is counted as expired, not expiring",
+  e.Insurance.expired === 1 && !String(e.Insurance.expiring).includes("3"));
+ok("expiring excludes the expired one", e.Insurance.expiring === 2);
+ok("a document with no expiry date counts in neither",
+  e.Insurance.count === 5 && e.Insurance.expiring + e.Insurance.expired === 3);
+ok("expiry is tracked per folder, not globally", e.Tax.expiring === 1 && e.Tax.expired === 0);
+ok("a folder with no expiring documents reports zero", e.Legal.expiring === 0);
+ok("an unparseable expiry date is ignored rather than throwing",
+  buildFolderRows([{ category: "Tax", expiryDate: "not a date" }], [], TODAY)
+    .find(r => r.name === "Tax").expiring === 0);
+
+const eSum = folderSummary(buildFolderRows(expDocs, [], TODAY));
+ok("the summary totals expiring across folders", eSum.expiring === 3, `got ${eSum.expiring}`);
+ok("the summary reports expired separately", eSum.expired === 1);
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

@@ -6376,6 +6376,10 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
               {/* Called out separately because "Other" holding nearly half the vault is the
                   real problem, and a single total hides it. */}
               {sum.unfiled>0&&<> · <span style={{color:"#8a5c00"}}>{sum.unfiled} unfiled</span></>}
+              {sum.expiring>0&&<> · <span style={{color:"#8a5c00"}}>{sum.expiring} expiring within 90 days</span></>}
+              {/* Separate from expiring on purpose: a lapsed policy is a live gap, not
+                  something coming up, and the softer word would hide the worse case. */}
+              {sum.expired>0&&<> · <span style={{color:"#8b1a1a"}}>{sum.expired} expired</span></>}
             </div>
             <button onClick={()=>{setNewFolderName("");setFolderErr("");setModal("folder");}}
               style={{background:"none",border:`1px solid ${B.border}`,color:B.navy,cursor:"pointer",
@@ -6389,11 +6393,13 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
             <div style={{flex:1,minWidth:0}}>
               <span style={{fontSize:14,color:B.navy}}>{r.name}</span>
               {r.name==="Other"&&<span style={{fontSize:11.5,color:"#8a5c00",marginLeft:8}}>needs filing</span>}
+              {r.expired>0&&<span style={{fontSize:11.5,color:"#8b1a1a",marginLeft:8}}>{r.expired} expired</span>}
+              {r.expiring>0&&<span style={{fontSize:11.5,color:"#8a5c00",marginLeft:8}}>{r.expiring} expiring</span>}
               {r.custom&&<span style={{fontSize:10.5,color:B.textMute,marginLeft:8,border:`1px solid ${B.borderLight}`,borderRadius:4,padding:"1px 5px"}}>added</span>}
             </div>
             <div style={{width:110,height:4,background:B.bg,borderRadius:2,overflow:"hidden",flexShrink:0}}>
               <div style={{width:`${Math.round(r.share*100)}%`,height:"100%",
-                background:r.name==="Other"?"#d4900a":B.gold}}/>
+                background:(r.name==="Other"||r.expiring>0||r.expired>0)?"#d4900a":B.gold}}/>
             </div>
             <div style={{fontSize:13,color:B.textSoft,width:56,textAlign:"right",flexShrink:0}}>{r.count} file{r.count===1?"":"s"}</div>
             <div style={{fontSize:11.5,color:B.textMute,width:64,textAlign:"right",flexShrink:0}}>{fmtDate(r.lastAt)}</div>
