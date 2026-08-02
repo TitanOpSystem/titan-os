@@ -6,6 +6,7 @@ import { PDFDocument } from "pdf-lib";
 import { buildActivityReportPdf, AR_PERIODS, fig as arFig } from "./activityReport.js";
 import { derivePropertyEvents, findProbableDuplicates } from "./propertyCashFlow.js";
 import { validateFolderName, buildFolderRows, folderSummary, canDeleteFolder } from "./vaultFolders.js";
+import { PLANS, PLAN_BLURB, planAllows, planLabel } from "./plans.js";
 // PCM Platform v5.0 — build 20260429
 //
 // Nothing PCM-specific is imported here any more, and that is deliberate.
@@ -1537,6 +1538,16 @@ function buildFamilySnapshot(family,data){
   const daysFromNow=d=>{ if(!d)return null; const t=new Date(d); if(isNaN(t.getTime()))return null; const t0=new Date(t.getFullYear(),t.getMonth(),t.getDate()); return Math.round((t0-today)/86400000); };
   const num=v=>{ const n=Number(v); return Number.isFinite(n)?n:0; };
 
+  // The plan the household is on, and whether bill pay is part of it.
+  //
+  // This matters more here than anywhere else in the app. If the assistant is handed
+  // pcmResponsibleForPayment or a paymentRegister for a Core household, it will answer "yes, we
+  // paid your insurance in March" about a bill the firm has no mandate to pay — a false statement
+  // about client money, delivered in the firm's own voice. Suppressed rather than passed through
+  // with a caveat, because a caveat in the data is something the model may or may not repeat.
+  const plan=family.plan;
+  const billPay=planAllows(plan,"billPay");
+
   const properties=(data.properties||[]).filter(p=>p.familyId===fid).map(p=>({
     // id is REQUIRED, not cosmetic. derivePropertyEvents builds its line ids and its
     // suppression key from it. Without it every property emitted the same id
@@ -1600,7 +1611,10 @@ function buildFamilySnapshot(family,data){
   };
 
   const cashFlowEvents=(data.cash_flow_events||[]).filter(e=>e.familyId===fid).map(e=>{
-    const isRegisterFreq=e.direction==="expense"&&e.pcmResponsible&&["monthly","quarterly","annually"].includes(e.frequency);
+    // firmPays gates every bill-pay field below in one place. On a Core household it is always
+    // false, so the register is not built and none of the paid fields are emitted at all.
+    const firmPays=billPay&&e.direction==="expense"&&!!e.pcmResponsible;
+    const isRegisterFreq=firmPays&&["monthly","quarterly","annually"].includes(e.frequency);
     let paymentRegister;
     if(isRegisterFreq){
       const winStart=new Date();winStart.setHours(0,0,0,0);winStart.setDate(1);winStart.setMonth(winStart.getMonth()-6);
@@ -1646,10 +1660,13 @@ function buildFamilySnapshot(family,data){
       annualisedAmount:annualise(num(e.amount),e.frequency),
       startDate:e.startDate||null, endDate:e.endDate||null, taxTreatment:e.taxTreatment||null,
       direction:e.direction||"income", frequency:e.frequency||null,
-      pcmResponsibleForPayment:e.direction==="expense"?!!e.pcmResponsible:undefined,
+      // Omitted entirely on Core rather than sent as false. `false` would still invite the
+      // assistant to discuss who pays this bill; absent, there is nothing to discuss.
+      pcmResponsibleForPayment:billPay&&e.direction==="expense"?!!e.pcmResponsible:undefined,
       // For one-time (or weekly/biweekly) PCM-responsible expenses: single paid flag.
-      paidByPcm:e.direction==="expense"&&e.pcmResponsible&&!isRegisterFreq?!!e.paid:undefined,
-      paidDate:!isRegisterFreq?(e.paidAt||null):undefined, paidBy:!isRegisterFreq?(e.paidBy||null):undefined,
+      paidByPcm:firmPays&&!isRegisterFreq?!!e.paid:undefined,
+      paidDate:firmPays&&!isRegisterFreq?(e.paidAt||null):undefined,
+      paidBy:firmPays&&!isRegisterFreq?(e.paidBy||null):undefined,
       // For monthly/quarterly/annual PCM-responsible expenses: per-period register summary
       // (last 6 months through next 12 months); overduePeriods lists unpaid periods already in the past.
       paymentRegister,
@@ -1974,7 +1991,12 @@ function buildFamilySnapshot(family,data){
 
   return {
     today:today.toISOString().slice(0,10),
-    family:{ name:family.name||null },
+    // servicePlan is stated so the assistant can answer "do you pay my bills?" and "do you run my
+    // renewals?" correctly instead of inferring it from the absence of data. Absence of a payment
+    // register could mean Core, or it could mean nothing has been recorded yet, and those two
+    // deserve different answers.
+    family:{ name:family.name||null, servicePlan:planLabel(plan),
+             firmPaysBills:billPay, runsWorkflows:planAllows(plan,"workflows") },
     totals:{ netWorth, realEstate:totalRE, totalDebt, portfolio:totalPortfolio, valuables:totalValuables },
     counts:{ properties:properties.length, portfolioAccounts:portfolioAccounts.length, valuables:valuables.length, openTasks:tasks.length, documents:documents.length,
              familyMembers:familyMembers.length, serviceProviders:serviceProviders.length },
@@ -2401,6 +2423,19 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
   // Scheduled Prompts is visible to every Titan Expert/Admin, and to a Partner
   // only when an admin has flipped their can_run_scheduled_prompts toggle on.
   const canSeePrompts=userProfile?.role==="advisor"||userProfile?.role==="admin"||(userProfile?.role==="partner"&&userProfile?.canRunScheduledPrompts);
+  // ORDER MATTERS: familyRow and plan must stay ABOVE TABS, which reads plan to decide whether the
+  // Obligations tab exists. Declared after it, the const would sit in its temporal dead zone and
+  // every render would throw "Cannot access 'plan' before initialization" — the exact failure that
+  // took down the family card once already in this file.
+  //
+  // Read from data.families rather than the `family` prop so a plan change on the edit form takes
+  // effect without reselecting the household. Same reason assistantName does it.
+  const familyRow=(data.families||[]).find(x=>x.id===family.id)||family;
+  const plan=familyRow.plan;
+  const hasWorkflows=planAllows(plan,"workflows");
+  const hasBillPay=planAllows(plan,"billPay");
+  const hasAssignedExpert=planAllows(plan,"assignedExpert");
+
   // "Ask Titan" is the internal key, not the label — the label resolves to this household's
   // assistant name at render, so a family whose assistant is called Nova reads "Ask Nova"
   // while the tab id stays "asktitan" and existing links keep working.
@@ -2408,8 +2443,11 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
   // It sits LAST, after Prompts. The records tabs are a set of ledgers; the assistant is a
   // different kind of thing, and putting it at the end stops the eye reading twelve equal
   // siblings. The star marks it as the AI feature.
-  const TABS=["Overview","Properties","Portfolio","Cash Flow","Obligations","Valuables","Deals","Notes","Tasks","Vault",...(canSeePrompts?["Prompts"]:[]),"Ask Titan"];
-  const assistantName=(((data.families||[]).find(x=>x.id===family.id)||family).assistantName||"").trim()||"Titan";
+  //
+  // Obligations is absent entirely on Core rather than shown disabled. A locked door on every
+  // visit is worse than no door, and the tab row is already the tightest thing on this screen.
+  const TABS=["Overview","Properties","Portfolio","Cash Flow",...(hasWorkflows?["Obligations"]:[]),"Valuables","Deals","Notes","Tasks","Vault",...(canSeePrompts?["Prompts"]:[]),"Ask Titan"];
+  const assistantName=(familyRow.assistantName||"").trim()||"Titan";
   const[showWelcome,setShowWelcome]=useState(false);
   // Carries "attach a document to this property section" from the Properties tab
   // over to the Vault tab, which owns the upload form.
@@ -2630,9 +2668,20 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
       <div style={{padding:isMobile?"12px 16px":"14px 28px",borderBottom:`1px solid ${B.borderLight}`,background:B.white,display:"flex",alignItems:"center",gap:isMobile?10:16,flexWrap:"wrap"}}>
         <button onClick={onBack} style={{background:"none",border:`1px solid ${B.border}`,color:B.textSoft,cursor:"pointer",fontSize:13,fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:6,flexShrink:0}}>←</button>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?18:22,color:B.navy,fontWeight:600,lineHeight:1.1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.name}</div>
-          {!isMobile&&<div style={{fontSize:12,color:B.textSoft,marginTop:2}}>Titan Expert: {family.advisorName||"—"}{family.advisorEmail?` · ${family.advisorEmail}`:""}</div>}
-          {isMobile&&family.advisorName&&<div style={{fontSize:11,color:B.textSoft,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.advisorName}</div>}
+          <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?18:22,color:B.navy,fontWeight:600,lineHeight:1.1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.name}</div>
+            <span style={{flexShrink:0,fontSize:9,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",
+              padding:"3px 7px",borderRadius:4,
+              background:hasWorkflows?B.gold:B.borderLight,color:hasWorkflows?B.navy:B.textSoft}}>{planLabel(plan)}</span>
+          </div>
+          {/* On Core the expert-of-record exists only so staff can open the household; naming them
+              here as the household's Titan Expert would contradict the tier that was sold. */}
+          {!isMobile&&<div style={{fontSize:12,color:B.textSoft,marginTop:2}}>
+            {hasAssignedExpert
+              ? <>Titan Expert: {family.advisorName||"—"}{family.advisorEmail?` · ${family.advisorEmail}`:""}</>
+              : <>Partner-led · no assigned Titan Expert on this plan</>}
+          </div>}
+          {isMobile&&hasAssignedExpert&&family.advisorName&&<div style={{fontSize:11,color:B.textSoft,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.advisorName}</div>}
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
           {overdueTasks.length>0&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>{overdueTasks.length} overdue</Badge>}
@@ -2929,10 +2978,15 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
         </div>}
 
         {/* CASH FLOW TAB */}
-        {activeTab==="cashflow"&&<CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} vendors={vendorOptions} reload={reload} toast={toast} readOnly={!canEdit}/>}
+        {/* familyRow, not the `family` prop: CashFlowView reads family.plan to decide whether bill
+            pay exists, and the prop is a snapshot taken when the household was selected. */}
+        {activeTab==="cashflow"&&<CashFlowView family={familyRow} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} vendors={vendorOptions} reload={reload} toast={toast} readOnly={!canEdit}/>}
 
         {/* OBLIGATIONS TAB */}
-        {activeTab==="obligations"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
+        {/* hasWorkflows is checked here as well as in TABS. Without it, a household whose plan
+            changed while this tab was open would keep rendering the panel: TABS would no longer
+            offer Obligations, but activeTab would still hold the string. */}
+        {activeTab==="obligations"&&hasWorkflows&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
           <ObligationsSection family={family} data={data} toast={toast} canEdit={canEdit} userProfile={userProfile}/>
         </div>}
 
@@ -3441,7 +3495,11 @@ function AccountForm({initial,onSave,onClose}){
 }
 
 // ── CASH FLOW EVENT FORM ──────────────────────────────────────────────────────
-function CashFlowEventForm({initial,onSave,onClose,properties=[],vendors=[]}){
+// billPay defaults TRUE so an existing call site that has not been updated keeps the checkbox
+// rather than silently losing it. The database is what actually refuses the flag on a Core
+// household, so a stale caller here is a cosmetic slip, whereas defaulting to false would hide
+// bill pay from a paying household and look like the feature had broken.
+function CashFlowEventForm({initial,onSave,onClose,properties=[],vendors=[],billPay=true}){
   const blank={direction:"income",eventType:"Salary",description:"",amount:"",frequency:"once",startDate:new Date().toISOString().slice(0,10),endDate:"",taxTreatment:"ordinary",notes:"",pcmResponsible:false,category:"",propertyId:"",vendorKey:""};
   const[f,setF]=useState(()=>{
     if(!initial)return blank;
@@ -3533,10 +3591,10 @@ function CashFlowEventForm({initial,onSave,onClose,properties=[],vendors=[]}){
     {isExpense?
       <>
       <Field label="Amount ($)"><MoneyInput value={f.amount||""} onChange={set("amount")}/></Field>
-      <label style={{display:"flex",alignItems:"center",gap:8,margin:"2px 0 10px",cursor:"pointer",fontSize:13,color:B.text}}>
+      {billPay&&<label style={{display:"flex",alignItems:"center",gap:8,margin:"2px 0 10px",cursor:"pointer",fontSize:13,color:B.text}}>
         <input type="checkbox" checked={!!f.pcmResponsible} onChange={e=>setF(p=>({...p,pcmResponsible:e.target.checked}))} style={{width:16,height:16,accentColor:B.navy}}/>
         <span>{BRAND.short} is responsible for making this payment</span>
-      </label>
+      </label>}
       </>
     :<Grid2>
       <Field label="Gross Amount ($)"><MoneyInput value={f.amount||""} onChange={set("amount")}/></Field>
@@ -3732,6 +3790,11 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
 // ── CASH FLOW VIEW (the tab content) ──────────────────────────────────────────
 function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,toast,readOnly=false}){
   const isMobile=useIsMobile();
+  // Bill pay is a Private-plan feature. The database refuses pcm_responsible on a Core household
+  // and refuses the downgrade of a household that already has such expenses, so on Core no row can
+  // carry the flag and the badges below are inert anyway. This const is belt as well as braces: it
+  // keeps the control out of the form, so nobody ticks a box and gets a raw Postgres error back.
+  const billPay=planAllows(family?.plan,"billPay");
   const[modal,setModal]=useState(null);
   const[reportOpen,setReportOpen]=useState(false);
   const[expandedBreakdowns,setExpandedBreakdowns]=useState({});
@@ -4256,14 +4319,14 @@ function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,
               {e._synthetic&&<Badge scheme={{bg:"#fef3e2",text:"#8a5c00",dot:"#d4900a"}}>Auto</Badge>}
               {e._synthetic&&isNegative&&<Badge scheme={{bg:"#fde8e8",text:"#8b1a1a",dot:"#d43030"}}>Net Outflow</Badge>}
               {e._excluded&&<Badge scheme={{bg:B.bg,text:B.textMute,dot:B.textMute}}>Excluded</Badge>}
-              {isExpense&&e.pcmResponsible&&!e._synthetic&&!isRegisterFreq(e)&&(e.paid
+              {isExpense&&billPay&&e.pcmResponsible&&!e._synthetic&&!isRegisterFreq(e)&&(e.paid
                 ?<Badge scheme={{bg:"#e0f5e9",text:"#0d5c2b",dot:"#18a850"}}>✓ Paid by {BRAND.short}</Badge>
                 :<Badge scheme={{bg:"#e8f0f8",text:B.navy,dot:B.navy}}>{BRAND.short} Pays</Badge>)}
-              {isExpense&&e.pcmResponsible&&!e._synthetic&&isRegisterFreq(e)&&<Badge scheme={{bg:"#e8f0f8",text:B.navy,dot:B.navy}}>{BRAND.short} Pays · {e.frequency}</Badge>}
+              {isExpense&&billPay&&e.pcmResponsible&&!e._synthetic&&isRegisterFreq(e)&&<Badge scheme={{bg:"#e8f0f8",text:B.navy,dot:B.navy}}>{BRAND.short} Pays · {e.frequency}</Badge>}
             </div>
             {e.description&&<div style={{fontSize:13,color:B.textMid,marginBottom:4}}>{e.description}</div>}
             <div style={{fontSize:11,color:B.textSoft}}>{fmt(e.startDate)}{e.endDate?` → ${fmt(e.endDate)}`:""}{!isExpense?` · ${treatLabel}`:""}</div>
-            {isExpense&&e.pcmResponsible&&!e._synthetic&&!isRegisterFreq(e)&&e.paid&&e.paidAt&&<div style={{fontSize:11,color:"#0d5c2b",marginTop:3,fontWeight:600}}>✓ Paid {fmt(e.paidAt)}{e.paidBy?` · by ${e.paidBy}`:""}</div>}
+            {isExpense&&billPay&&e.pcmResponsible&&!e._synthetic&&!isRegisterFreq(e)&&e.paid&&e.paidAt&&<div style={{fontSize:11,color:"#0d5c2b",marginTop:3,fontWeight:600}}>✓ Paid {fmt(e.paidAt)}{e.paidBy?` · by ${e.paidBy}`:""}</div>}
           </div>
           <div style={{textAlign:"right",flexShrink:0}}>
             <div style={{fontSize:12,color:B.textSoft}}>{e.frequency==="once"?"Amount":"Per occurrence"}</div>
@@ -4293,7 +4356,7 @@ function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,
           </div>}
         </div>}
         {/* Monthly/quarterly/annual payment register for PCM-responsible recurring expenses */}
-        {isExpense&&e.pcmResponsible&&!e._synthetic&&isRegisterFreq(e)&&(()=>{
+        {isExpense&&billPay&&e.pcmResponsible&&!e._synthetic&&isRegisterFreq(e)&&(()=>{
           const periods=getRegisterPeriods(e);
           const paidCount=periods.filter(p=>p.paid).length;
           const overdueCount=periods.filter(p=>p.overdue).length;
@@ -4324,7 +4387,7 @@ function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,
             <button onClick={()=>moveEvent(e.id,"down")} disabled={!canMoveDown} title="Move down" style={{background:"none",border:`1px solid ${B.border}`,borderRadius:6,padding:"4px 10px",cursor:canMoveDown?"pointer":"not-allowed",color:canMoveDown?B.navy:B.textMute,fontSize:13,fontFamily:"inherit",opacity:canMoveDown?1:0.4}}>↓</button>
           </div>
           <div style={{display:"flex",gap:6}}>
-            {isExpense&&e.pcmResponsible&&!isRegisterFreq(e)&&<Btn small variant={e.paid?"ghost":"primary"} onClick={()=>togglePaid(e)}>{e.paid?"Mark Unpaid":"Mark Paid"}</Btn>}
+            {isExpense&&billPay&&e.pcmResponsible&&!isRegisterFreq(e)&&<Btn small variant={e.paid?"ghost":"primary"} onClick={()=>togglePaid(e)}>{e.paid?"Mark Unpaid":"Mark Paid"}</Btn>}
             <Btn small variant="ghost" onClick={()=>setModal({type:"edit",event:e})}>Edit</Btn>
             <Btn small variant="danger" onClick={()=>{if(confirm("Delete this event?"))delEvent(e.id);}}>Delete</Btn>
           </div>
@@ -4338,8 +4401,8 @@ function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,
     </div>
 
     {/* Modals */}
-    {modal&&modal.type==="add"&&<Modal title="New Cash Flow Event" onClose={()=>setModal(null)} wide><CashFlowEventForm properties={properties} vendors={vendors} onSave={async f=>{await addEvent(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
-    {modal&&modal.type==="edit"&&<Modal title={modal.event.direction==="expense"?"Edit Expense":"Edit Income Event"} onClose={()=>setModal(null)} wide><CashFlowEventForm initial={modal.event} properties={properties} vendors={vendors} onSave={async f=>{await editEvent(modal.event.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
+    {modal&&modal.type==="add"&&<Modal title="New Cash Flow Event" onClose={()=>setModal(null)} wide><CashFlowEventForm properties={properties} vendors={vendors} billPay={billPay} onSave={async f=>{await addEvent(f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
+    {modal&&modal.type==="edit"&&<Modal title={modal.event.direction==="expense"?"Edit Expense":"Edit Income Event"} onClose={()=>setModal(null)} wide><CashFlowEventForm initial={modal.event} properties={properties} vendors={vendors} billPay={billPay} onSave={async f=>{await editEvent(modal.event.id,f);setModal(null);}} onClose={()=>setModal(null)}/></Modal>}
     {reportOpen&&<CashFlowReport family={family} projectionMonths={settings.projectionMonths} projectionMode={settings.projectionMode} filingStatus={settings.filingStatus} baseIncome={settings.baseIncome} stateRate={settings.stateTaxRate} stateName={STATE_TAX_RATES.find(s=>s.code===settings.stateCode)?.name||settings.stateCode} localRate={settings.localTaxRate} monthlyData={monthlyData} events={enrichedEvents} onClose={()=>setReportOpen(false)}/>}
   </div>;
 }
@@ -4347,8 +4410,12 @@ function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,
 // ── FAMILY FORM ──────────────────────────────────────────────────────────────
 function FamilyForm({initial,onSave,onClose,userProfile,advisors=[]}){
   const isAdmin=userProfile?.role==="admin";
+  // plan starts EMPTY on a new family rather than defaulting to one of the tiers. Whoever
+  // onboards the household has to say which plan was sold; a pre-selected default would be picked
+  // by inaction, and the two tiers are priced differently. On edit, initial.plan is already set.
   const[f,setF]=useState(initial||{
     name:"",
+    plan:"",
     advisorName: isAdmin ? "" : (userProfile?.fullName||""),
     advisorEmail: isAdmin ? "" : (userProfile?.email||""),
     notes:""
@@ -4360,9 +4427,33 @@ function FamilyForm({initial,onSave,onClose,userProfile,advisors=[]}){
     const adv=advisors.find(a=>a.email===email);
     setF(p=>({...p,advisorEmail:email,advisorName:adv?(adv.full_name||""):""}));
   };
-  const save=async()=>{if(!f.name.trim())return;setSaving(true);await onSave(f);onClose();};
+  const canSave=!!f.name.trim()&&PLANS.includes(f.plan);
+  const save=async()=>{if(!canSave)return;setSaving(true);await onSave(f);onClose();};
   return <div>
     <Field label="Family Name"><Inp placeholder="The Smith Family" value={f.name} onChange={set("name")}/></Field>
+    <Field label="Plan">
+      <div style={{display:"grid",gap:8}}>
+        {PLANS.map(p=>{
+          const on=f.plan===p;
+          return <button key={p} type="button" onClick={()=>setF(prev=>({...prev,plan:p}))}
+            style={{textAlign:"left",padding:"10px 12px",borderRadius:8,cursor:"pointer",
+              border:`1px solid ${on?B.gold:B.border}`,background:on?B.bg:B.white,
+              borderLeft:`3px solid ${on?B.gold:"transparent"}`,fontFamily:"'DM Sans',sans-serif"}}>
+            <div style={{fontSize:13,fontWeight:700,color:B.navy}}>{planLabel(p)}</div>
+            <div style={{fontSize:11,color:B.textSoft,marginTop:2,lineHeight:1.45}}>{PLAN_BLURB[p]}</div>
+          </button>;
+        })}
+      </div>
+      {/* Named here rather than discovered as a failed save. Moving a household down a tier while
+          it still holds workflows or bill-pay expenses is refused by the database, because that
+          data would otherwise sit on file with no screen drawing it. */}
+      {initial&&initial.plan==="private"&&f.plan==="core"&&
+        <div style={{marginTop:8,fontSize:11,color:"#8b1a1a",background:"#fde8e8",borderRadius:6,padding:"8px 10px",lineHeight:1.5}}>
+          Moving to Core removes the assigned expert, workflows and bill pay. If this household
+          already has obligations, open workflows or expenses marked as paid by {BRAND.short}, the
+          change will be refused until those are cleared.
+        </div>}
+    </Field>
     {isAdmin
       ? <Field label="Assign Titan Expert">
           <select value={f.advisorEmail||""} onChange={pickAdvisor} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${B.border}`,fontSize:14,fontFamily:"'DM Sans',sans-serif",background:B.white,color:B.navy}}>
@@ -4373,7 +4464,13 @@ function FamilyForm({initial,onSave,onClose,userProfile,advisors=[]}){
       : <Field label="Titan Expert"><Inp value={userProfile?.fullName||userProfile?.email||""} disabled/></Field>
     }
     <Field label="Notes"><Tex value={f.notes||""} onChange={set("notes")}/></Field>
-    <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:10}}><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={saving}>{saving?"Saving…":"Save Family"}</Btn></div>
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end",alignItems:"center",marginTop:10}}>
+      {!canSave&&<span style={{fontSize:11,color:B.textMute,marginRight:"auto"}}>
+        {f.name.trim()?"Choose a plan to continue.":"A name and a plan are required."}
+      </span>}
+      <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+      <Btn onClick={save} disabled={saving||!canSave}>{saving?"Saving…":"Save Family"}</Btn>
+    </div>
   </div>;
 }
 
@@ -4501,8 +4598,13 @@ function FamiliesView({data,reload,toast,userProfile}){
     return Object.values(groups).sort((a,b)=>(b.value-a.value)||(b.families-a.families));
   },[families,data,advisors]);
 
-  const add=async f=>{const{error}=await sb.from("families").insert({name:f.name,advisor_name:f.advisorName||null,advisor_email:f.advisorEmail||null,notes:f.notes||null});if(error)toast(error.message,"error");else{toast("Family added");reload("families");}};
-  const edit=async f=>{const{error}=await sb.from("families").update({name:f.name,advisor_name:f.advisorName||null,advisor_email:f.advisorEmail||null,notes:f.notes||null}).eq("id",modal.id);if(error)toast(error.message,"error");else{toast("Updated");reload("families");}};
+  // advisor_email is written on BOTH plans, including Core. On Core the client is never shown a
+  // Titan Expert and no expert-led feature turns on, but somebody at the firm still has to be able
+  // to open the household: fetchTable scopes an advisor's families by advisor_email, so a null
+  // there would make every Core family invisible to everyone but an admin the moment it was
+  // created. Expert of record for access, not a service level.
+  const add=async f=>{const{error}=await sb.from("families").insert({name:f.name,plan:f.plan,advisor_name:f.advisorName||null,advisor_email:f.advisorEmail||null,notes:f.notes||null});if(error)toast(error.message,"error");else{toast("Family added");reload("families");}};
+  const edit=async f=>{const{error}=await sb.from("families").update({name:f.name,plan:f.plan,advisor_name:f.advisorName||null,advisor_email:f.advisorEmail||null,notes:f.notes||null}).eq("id",modal.id);if(error)toast(error.message,"error");else{toast("Updated");reload("families");}};
   const del=async id=>{const{error}=await sb.from("families").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Deleted");reload("families");if(selected?.id===id)setSelected(null);}};
 
   // If a family is selected, show its dashboard
@@ -4569,8 +4671,22 @@ function FamiliesView({data,reload,toast,userProfile}){
             onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
               <div>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600,marginBottom:2}}>{f.name}</div>
-                <div style={{fontSize:12,color:B.textSoft}}>{f.advisorName||"No Titan Expert assigned"}</div>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600}}>{f.name}</div>
+                  {/* Gold for Private, quiet grey for Core — the badge should read as a tier, not
+                      as a warning. */}
+                  <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",
+                    padding:"3px 7px",borderRadius:4,
+                    background:planAllows(f.plan,"workflows")?B.gold:B.borderLight,
+                    color:planAllows(f.plan,"workflows")?B.navy:B.textSoft}}>{planLabel(f.plan)}</span>
+                </div>
+                {/* On Core there is no assigned expert to name, so the row says who leads instead
+                    of showing the expert-of-record we keep for access. */}
+                <div style={{fontSize:12,color:B.textSoft}}>
+                  {planAllows(f.plan,"assignedExpert")
+                    ? (f.advisorName||"No Titan Expert assigned")
+                    : "Partner-led"}
+                </div>
               </div>
               <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
                 <Btn small variant="ghost" onClick={()=>setModal(f)}>Edit</Btn>
@@ -5381,6 +5497,12 @@ function ReviewQueue({families,toast,userProfile}){
   const load=async()=>{
     // RLS already limits this to the caller's own families, so no client-side
     // filtering is needed — and none should be relied on.
+    //
+    // No plan filter either, and that is not an oversight. Core households cannot hold workflow
+    // instances (the trigger refuses the insert) and a household holding instances cannot be moved
+    // to Core (the downgrade trigger refuses that too), so no step reaching this query can belong
+    // to a Core family. Filtering here would need an extra instance -> family lookup that could
+    // never remove a row. See the note at the foot of src/plans.js.
     const{data}=await sb.from("workflow_instance_steps")
       .select("*")
       // 'approved' belongs here: approving no longer means sent, so an approved
@@ -6582,6 +6704,14 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
   const fam=(data.families||[]).find(x=>x.id===family.id)||family;
   const rawAssistantName=(fam.assistantName||"").trim();
   const assistantName=rawAssistantName||"Titan";
+  // Read from `fam`, not the `family` prop, so a plan change lands without a re-login.
+  //
+  // On Core the household is Partner-led. The expert-of-record on the row exists only so staff
+  // can open the file, so anything on this screen that offers the client "your Titan Expert" would
+  // point them at someone who is not their lead — the one place where the wrong copy sends a real
+  // email to the wrong person.
+  const clientPlan=fam.plan;
+  const clientHasExpert=planAllows(clientPlan,"assignedExpert");
   // Supporting document behind a figure on a property card, and the family's
   // scheduled-personal-property endorsement linked from Valuables.
   const docForSection=(pid,section)=>(data.documents||[]).find(d=>d.propertyId===pid&&d.propertySection===section);
@@ -6662,7 +6792,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?16:22,color:B.navy,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.name}</div>
             <div style={{fontSize:isMobile?10:11,color:B.textSoft,marginTop:2}}>{isMobile?"Client Portal":`Client Portal · ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`}</div>
           </div>
-          <button onClick={()=>setEmailAdvisorOpen(true)} style={{background:"rgba(206,182,132,0.15)",border:`1px solid ${B.gold}`,color:B.navy,borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0,fontWeight:600}}>{isMobile?"✉ Titan Expert":"✉ Email my Titan Expert"}</button>
+          {clientHasExpert&&<button onClick={()=>setEmailAdvisorOpen(true)} style={{background:"rgba(206,182,132,0.15)",border:`1px solid ${B.gold}`,color:B.navy,borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0,fontWeight:600}}>{isMobile?"✉ Titan Expert":"✉ Email my Titan Expert"}</button>}
           <button onClick={logout} style={{background:"transparent",border:`1px solid ${B.border}`,color:B.textSoft,borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Sign Out</button>
         </div>
       </div>
@@ -6737,7 +6867,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
         {/* Alert banners */}
         {overdue.length>0&&<div style={{background:"#fde8e8",border:"1px solid #f5c6c6",borderRadius:10,padding:"12px 18px",marginBottom:12,display:"flex",alignItems:"center",gap:12}}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d43030" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><path d="M10.3 3.8 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-          <div><div style={{fontWeight:700,color:"#8b1a1a",fontSize:14}}>Overdue Tasks</div><div style={{fontSize:13,color:"#8b1a1a"}}>{overdue.length} task{overdue.length>1?"s":""} past due — please contact your Titan Expert.</div></div>
+          <div><div style={{fontWeight:700,color:"#8b1a1a",fontSize:14}}>Overdue Tasks</div><div style={{fontSize:13,color:"#8b1a1a"}}>{overdue.length} task{overdue.length>1?"s":""} past due — please contact {clientHasExpert?"your Titan Expert":"your lead partner"}.</div></div>
         </div>}
         {soon.length>0&&<div style={{background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:10,padding:"12px 18px",marginBottom:12,display:"flex",alignItems:"center",gap:12}}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d4900a" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3 2"/></svg>
@@ -6836,8 +6966,9 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
       {/* CASH FLOW (read-only) */}
       {activeTab==="cashflow"&&<div>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:B.navy,fontWeight:600,marginBottom:8}}>Cash Flow Projection</div>
-        <div style={{fontSize:14,color:B.textSoft,marginBottom:20}}>Projection of expected cash flow events configured by your Titan Expert.</div>
-        <CashFlowView family={family} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} vendors={vendorOptions} reload={()=>{}} toast={toast||(()=>{})} readOnly={true}/>
+        <div style={{fontSize:14,color:B.textSoft,marginBottom:20}}>Projection of expected cash flow events configured by {clientHasExpert?"your Titan Expert":"your lead partner"}.</div>
+        {/* fam, not the `family` prop, so the bill-pay gate reads the current plan. */}
+        <CashFlowView family={fam} events={(data.cash_flow_events||[]).filter(e=>e.familyId===family.id)} paymentLog={(data.cash_flow_payment_log||[]).filter(p=>p.familyId===family.id)} properties={properties} vendors={vendorOptions} reload={()=>{}} toast={toast||(()=>{})} readOnly={true}/>
       </div>}
 
       {/* VALUABLES */}

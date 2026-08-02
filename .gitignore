@@ -26,3 +26,6 @@ npm-debug.log*
 *.swp
 app.probe.mjs
 .probe-tmp/
+
+# Excel/Word lock files created when a user has the document open
+~$*

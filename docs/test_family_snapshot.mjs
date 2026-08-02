@@ -248,5 +248,100 @@ ok("no duplicate warning fires when nothing is derived",
   (off.probableDuplicateSpend || []).length === 0);
 FIRM_DEFAULTS.derivePropertyCosts = true;
 
+// ── The service plan gate, through the real snapshot ─────────────────────────
+//
+// The reason this belongs here and not only in test_plans.mjs: what matters is not that
+// planAllows() returns false, it is that buildFamilySnapshot does not hand the assistant a
+// payment register for a household the firm does not pay bills for. An assistant told
+// "paidByPcm: true" will say the firm paid a bill. Saying that about a Core household is a
+// false statement about client money, in the firm's own voice.
+console.log("\nThe service plan, through the real snapshot");
+
+const PLAN_FID = "aaaa1111-2222-4333-8444-555566667777";
+const planRows = plan => ({
+  families: [{ id: PLAN_FID, name: "Plan Probe", plan }],
+  properties: [], portfolio_accounts: [], valuables: [], tasks: [], documents: [],
+  family_contacts: [], property_contacts: [], obligations: [],
+  cash_flow_events: [
+    // A one-off the firm is responsible for and has marked paid.
+    { id: "p1", familyId: PLAN_FID, direction: "expense", eventType: "Insurance",
+      description: "Chubb annual premium", amount: 14200, frequency: "once",
+      startDate: "2026-03-01", pcmResponsible: true, paid: true,
+      paidAt: "2026-03-04", paidBy: "will@example.com", category: "insurance" },
+    // A recurring one, which is what builds the per-period register.
+    { id: "p2", familyId: PLAN_FID, direction: "expense", eventType: "Household Payroll",
+      description: "Housekeeper", amount: 3200, frequency: "monthly",
+      startDate: "2026-01-01", pcmResponsible: true, category: "household_payroll" },
+  ],
+  cash_flow_payment_log: [
+    { id: "l1", eventId: "p2", familyId: PLAN_FID, period: "2026-02-01", paid: true },
+  ],
+});
+
+const priv = buildFamilySnapshot({ id: PLAN_FID, name: "Plan Probe", plan: "private" },
+  planRows("private"));
+const core = buildFamilySnapshot({ id: PLAN_FID, name: "Plan Probe", plan: "core" },
+  planRows("core"));
+const pEv = id => (x => x.cashFlowEvents.find(e => e.description === id));
+
+ok("Private reports its plan", priv.family.servicePlan === "Private");
+ok("Core reports its plan", core.family.servicePlan === "Core");
+// Stated rather than inferred: an empty register could mean Core, or it could mean nothing
+// has been recorded yet, and the assistant owes a different answer in each case.
+ok("Private says the firm pays bills", priv.family.firmPaysBills === true);
+ok("Core says the firm does not", core.family.firmPaysBills === false);
+ok("Private says workflows run", priv.family.runsWorkflows === true);
+ok("Core says they do not", core.family.runsWorkflows === false);
+
+const privOnce = pEv("Chubb annual premium")(priv);
+const coreOnce = pEv("Chubb annual premium")(core);
+ok("Private carries the responsibility flag", privOnce.pcmResponsibleForPayment === true);
+ok("Private carries the paid flag", privOnce.paidByPcm === true);
+ok("Private carries the paid date", privOnce.paidDate === "2026-03-04");
+ok("Private carries who paid it", privOnce.paidBy === "will@example.com");
+
+// Omitted, not sent as false or null. `false` still invites the assistant to discuss who pays
+// this bill; an absent key gives it nothing to discuss.
+ok("Core omits the responsibility flag", coreOnce.pcmResponsibleForPayment === undefined);
+ok("Core omits the paid flag", coreOnce.paidByPcm === undefined);
+ok("Core omits the paid date", coreOnce.paidDate === undefined);
+ok("Core omits who paid it", coreOnce.paidBy === undefined);
+ok("and the keys are genuinely gone once serialised",
+  !("paidByPcm" in JSON.parse(JSON.stringify(coreOnce))));
+
+const privRec = pEv("Housekeeper")(priv);
+const coreRec = pEv("Housekeeper")(core);
+ok("Private builds the payment register", !!privRec.paymentRegister);
+ok("the register counts the period that was paid", privRec.paymentRegister.paidCount === 1);
+ok("Core builds no register at all", coreRec.paymentRegister === undefined);
+
+// The expense itself must survive on Core. The household still tracks what it spends; the
+// only thing withheld is the claim that the firm is the one paying.
+ok("Core still reports the expense", !!coreRec);
+ok("Core still reports the amount", coreRec.amount === 3200);
+ok("Core still annualises it", coreRec.annualisedAmount === 3200 * 12);
+ok("Core still categorises it", coreRec.category === "household_payroll");
+// The key is expenseByCategory. Written as spendByCategory first, which made the "same total"
+// assertion below compare two empty arrays and pass while proving nothing — the exact vacuous
+// green this file exists to prevent. Both assertions now require a non-empty rollup.
+const catTotal = s => (s.expenseByCategory || [])
+  .find(c => c.category === "household_payroll");
+ok("Core still totals it by category", catTotal(core)?.annualised === 3200 * 12,
+  `got ${JSON.stringify(catTotal(core))}`);
+ok("Private totals it identically", catTotal(priv)?.annualised === 3200 * 12);
+ok("the rollup is not empty on either plan",
+  core.expenseByCategory.length > 0 && priv.expenseByCategory.length > 0);
+ok("Core reports the same category totals as Private",
+  JSON.stringify(core.expenseByCategory.map(c => [c.category, c.annualised]))
+  === JSON.stringify(priv.expenseByCategory.map(c => [c.category, c.annualised])));
+
+// A household with no plan recorded at all — a row read before the migration landed — must
+// behave as Private rather than silently losing bill pay.
+const legacy = buildFamilySnapshot({ id: PLAN_FID, name: "Plan Probe" }, planRows(undefined));
+ok("a household with no plan recorded is treated as Private",
+  legacy.family.servicePlan === "Private" && legacy.family.firmPaysBills === true);
+ok("and keeps its payment register",
+  !!pEv("Housekeeper")(legacy).paymentRegister);
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
