@@ -15,20 +15,20 @@
 // obligation, a workflow instance, a bill-pay flag or a payment-log row against a Core family.
 // These functions decide what to *draw*. The triggers decide what is *allowed*.
 
-export const PLANS = ["core", "private"];
+export const PLANS = ["core", "premier"];
 
-export const PLAN_LABEL = { core: "Core", private: "Private" };
+export const PLAN_LABEL = { core: "Core", premier: "Premier" };
 
 // Deliberately brand-neutral. "Titan Core" would be a white-label leak the moment a second firm
 // runs this codebase — the same bug already shipped three times in the edge functions.
 export const PLAN_BLURB = {
   core: "Full platform. Partner is the lead — no assigned expert, no workflows, no bill pay.",
-  private: "Full platform with an assigned expert, workflows and bill pay.",
+  premier: "Full platform with an assigned expert, workflows and bill pay.",
 };
 
 export const PLAN_FEATURES = {
   core: { assignedExpert: false, workflows: false, billPay: false },
-  private: { assignedExpert: true, workflows: true, billPay: true },
+  premier: { assignedExpert: true, workflows: true, billPay: true },
 };
 
 export const PLAN_FEATURE_LABEL = {
@@ -37,23 +37,32 @@ export const PLAN_FEATURE_LABEL = {
   billPay: "Bill pay and payment register",
 };
 
+// The upper tier was called 'private' before it was renamed to 'premier'. The database still
+// accepts the old value, because a browser tab opened before the rename shipped will write it, and
+// turning that into a hard failure on an admin action would be worse than carrying an alias. Mapped
+// explicitly rather than left to fall through the unknown-value branch below: it lands on the same
+// answer either way, but only one of those says so on purpose.
+const ALIASES = { private: "premier" };
+
 /**
  * Resolve whatever is on the row to a plan we have features for.
  *
- * An unrecognised or missing value resolves to `private`, NOT to the lesser tier, and that is a
+ * An unrecognised or missing value resolves to `premier`, NOT to the lesser tier, and that is a
  * deliberate reversal of the fail-closed rule used for the firm-level feature gates.
  *
- * The reasoning: the column is NOT NULL DEFAULT 'private' with every existing row backfilled, so
+ * The reasoning: the column is NOT NULL DEFAULT 'premier' with every existing row backfilled, so
  * a blank here means a row read by a stale client or a tier added later — not an unpaid family.
  * Resolving those to `core` would hide the payment register from a household that is paying for
  * bill pay, and a family who cannot see that a bill was paid concludes it was not. That is a worse
  * failure than briefly showing a control to someone who did not buy it, because the database
- * refuses that write anyway. A future tier above Private also inherits Private's features, which
+ * refuses that write anyway. A future tier above Premier also inherits Premier's features, which
  * is the right default for a tier that is a superset.
  */
 export function normalisePlan(value) {
   const v = String(value ?? "").trim().toLowerCase();
-  return PLANS.includes(v) ? v : "private";
+  if (PLANS.includes(v)) return v;
+  if (ALIASES[v]) return ALIASES[v];
+  return "premier";
 }
 
 /**

@@ -39,9 +39,9 @@ print("TIERS — recommended per-family pricing")
 print("=" * 74)
 TIERS = [
     # name, monthly, onboarding, properties included, expert hrs/mo, households per expert
-    ("Titan Core",    750,   3_500,  3,  0.5, 60),
-    ("Titan Private", 2_500, 7_500,  6,  4.0, 25),
-    ("Titan Estate",  5_000, 15_000, 12, 9.0, 12),
+    ("Core",    750,   3_500,  3,  0.5, 60),
+    ("Premier", 2_500, 7_500,  6,  4.0, 25),
+    ("Estate",  5_000, 15_000, 12, 9.0, 12),
 ]
 EXPERT_LOADED_COST = 150_000      # fully loaded Titan Expert, salary + benefits + overhead
 EXPERT_HOURS_YR = 1_700           # billable-capable hours after admin, PTO, training
@@ -106,6 +106,6 @@ LICENCE_PER_HH_MO = 150   # what TitanOS charges a white-label firm per househol
 PLATFORM_FLOOR_MO = 1_500 # minimum monthly platform fee per firm
 for n in (10, 25, 50, 100):
     lic = max(PLATFORM_FLOOR_MO, n * LICENCE_PER_HH_MO) * 12
-    firm_rev = n * 2_500 * 12          # firm charges Titan Private
+    firm_rev = n * 2_500 * 12          # firm charges Premier
     print(f"{n:>4} households: firm pays TitanOS ${lic:,}/yr, "
           f"bills clients ${firm_rev:,}/yr, licence is {lic/firm_rev*100:.1f}% of its revenue")

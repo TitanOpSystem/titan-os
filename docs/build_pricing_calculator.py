@@ -65,7 +65,7 @@ put("B15","=B9*(B12+B13)",BOLD,CUR,GOLDF,border=True)
 
 # ── Tier pricing ──────────────────────────────────────────────────────────
 put("A17","TITAN PRICING",HDR,fill=NAVYF)
-for col,lab in zip("BCD",("Core","Private","Estate")):
+for col,lab in zip("BCD",("Core","Premier","Estate")):
     put(f"{col}17",lab,HDR,fill=NAVYF,align="center")
 put("E17","",fill=NAVYF)
 

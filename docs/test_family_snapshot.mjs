@@ -278,27 +278,27 @@ const planRows = plan => ({
   ],
 });
 
-const priv = buildFamilySnapshot({ id: PLAN_FID, name: "Plan Probe", plan: "private" },
-  planRows("private"));
+const priv = buildFamilySnapshot({ id: PLAN_FID, name: "Plan Probe", plan: "premier" },
+  planRows("premier"));
 const core = buildFamilySnapshot({ id: PLAN_FID, name: "Plan Probe", plan: "core" },
   planRows("core"));
 const pEv = id => (x => x.cashFlowEvents.find(e => e.description === id));
 
-ok("Private reports its plan", priv.family.servicePlan === "Private");
+ok("Premier reports its plan", priv.family.servicePlan === "Premier");
 ok("Core reports its plan", core.family.servicePlan === "Core");
 // Stated rather than inferred: an empty register could mean Core, or it could mean nothing
 // has been recorded yet, and the assistant owes a different answer in each case.
-ok("Private says the firm pays bills", priv.family.firmPaysBills === true);
+ok("Premier says the firm pays bills", priv.family.firmPaysBills === true);
 ok("Core says the firm does not", core.family.firmPaysBills === false);
-ok("Private says workflows run", priv.family.runsWorkflows === true);
+ok("Premier says workflows run", priv.family.runsWorkflows === true);
 ok("Core says they do not", core.family.runsWorkflows === false);
 
 const privOnce = pEv("Chubb annual premium")(priv);
 const coreOnce = pEv("Chubb annual premium")(core);
-ok("Private carries the responsibility flag", privOnce.pcmResponsibleForPayment === true);
-ok("Private carries the paid flag", privOnce.paidByPcm === true);
-ok("Private carries the paid date", privOnce.paidDate === "2026-03-04");
-ok("Private carries who paid it", privOnce.paidBy === "will@example.com");
+ok("Premier carries the responsibility flag", privOnce.pcmResponsibleForPayment === true);
+ok("Premier carries the paid flag", privOnce.paidByPcm === true);
+ok("Premier carries the paid date", privOnce.paidDate === "2026-03-04");
+ok("Premier carries who paid it", privOnce.paidBy === "will@example.com");
 
 // Omitted, not sent as false or null. `false` still invites the assistant to discuss who pays
 // this bill; an absent key gives it nothing to discuss.
@@ -311,7 +311,7 @@ ok("and the keys are genuinely gone once serialised",
 
 const privRec = pEv("Housekeeper")(priv);
 const coreRec = pEv("Housekeeper")(core);
-ok("Private builds the payment register", !!privRec.paymentRegister);
+ok("Premier builds the payment register", !!privRec.paymentRegister);
 ok("the register counts the period that was paid", privRec.paymentRegister.paidCount === 1);
 ok("Core builds no register at all", coreRec.paymentRegister === undefined);
 
@@ -328,18 +328,18 @@ const catTotal = s => (s.expenseByCategory || [])
   .find(c => c.category === "household_payroll");
 ok("Core still totals it by category", catTotal(core)?.annualised === 3200 * 12,
   `got ${JSON.stringify(catTotal(core))}`);
-ok("Private totals it identically", catTotal(priv)?.annualised === 3200 * 12);
+ok("Premier totals it identically", catTotal(priv)?.annualised === 3200 * 12);
 ok("the rollup is not empty on either plan",
   core.expenseByCategory.length > 0 && priv.expenseByCategory.length > 0);
-ok("Core reports the same category totals as Private",
+ok("Core reports the same category totals as Premier",
   JSON.stringify(core.expenseByCategory.map(c => [c.category, c.annualised]))
   === JSON.stringify(priv.expenseByCategory.map(c => [c.category, c.annualised])));
 
 // A household with no plan recorded at all — a row read before the migration landed — must
-// behave as Private rather than silently losing bill pay.
+// behave as Premier rather than silently losing bill pay.
 const legacy = buildFamilySnapshot({ id: PLAN_FID, name: "Plan Probe" }, planRows(undefined));
-ok("a household with no plan recorded is treated as Private",
-  legacy.family.servicePlan === "Private" && legacy.family.firmPaysBills === true);
+ok("a household with no plan recorded is treated as Premier",
+  legacy.family.servicePlan === "Premier" && legacy.family.firmPaysBills === true);
 ok("and keeps its payment register",
   !!pEv("Housekeeper")(legacy).paymentRegister);
 

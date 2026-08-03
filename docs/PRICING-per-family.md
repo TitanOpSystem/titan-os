@@ -13,13 +13,13 @@ Three tiers, priced per household per month, with a one-off onboarding fee. No A
 
 | Tier | Monthly | Annual | Onboarding | Properties included | Titan Expert |
 |---|---|---|---|---|---|
-| **Titan Core** | $750 | $9,000 | $3,500 | 3 | Shared queue, no named expert |
-| **Titan Private** | $2,500 | $30,000 | $7,500 | 6 | Named expert, quarterly review |
-| **Titan Estate** | $5,000 | $60,000 | $15,000 | 12 | Named expert, monthly review, concierge |
+| **Core** | $750 | $9,000 | $3,500 | 3 | Shared queue, no named expert |
+| **Premier** | $2,500 | $30,000 | $7,500 | 6 | Named expert, quarterly review |
+| **Estate** | $5,000 | $60,000 | $15,000 | 12 | Named expert, monthly review, concierge |
 
 Beyond the included count: **$200 per property per month.** Additional entities: $150/month each.
 
-**Titan Private at $2,500/month is the number to lead with.** Core exists to make Private look
+**Premier at $2,500/month is the number to lead with.** Core exists to make Premier look
 reasonable and to catch families who aren't ready. Estate exists so the biggest households don't
 cap out — and because it matches what PCM already charges, so no existing client gets repriced.
 
@@ -63,7 +63,7 @@ noise. The entire cost of goods is the Titan Expert's time, at roughly $88/hour 
 | Tier | Expert time | Gross margin | Households per expert | ARR per expert |
 |---|---|---|---|---|
 | Core | 0.5 hr/mo | 93% | ~60 | $540,000 |
-| Private | 4 hr/mo | 85% | ~25 | $750,000 |
+| Premier | 4 hr/mo | 85% | ~25 | $750,000 |
 | Estate | 9 hr/mo | 84% | ~12 | $720,000 |
 
 Every tier clears 4–5x the expert's loaded cost. That is the number that makes this a business
@@ -91,11 +91,11 @@ across the industry is **15–20% of gross rental income**.
 | Tier | Annual price | Breakeven at 8% | at 10% | at 12% | at all-in 15% |
 |---|---|---|---|---|---|
 | Core | $9,000 | $112,500 | $90,000 | $75,000 | $60,000 |
-| Private | $30,000 | $375,000 | $300,000 | $250,000 | $200,000 |
+| Premier | $30,000 | $375,000 | $300,000 | $250,000 | $200,000 |
 | Estate | $60,000 | $750,000 | $600,000 | $500,000 | $400,000 |
 
 The sentence to say out loud: *a family grossing $300,000 in rent is already paying someone
-$30,000 a year at the standard 10%. Titan Private costs the same and replaces the coordination
+$30,000 a year at the standard 10%. Premier costs the same and replaces the coordination
 layer with one that reports to you.*
 
 ### Applied to PCM's actual book — and the honest problem
@@ -106,7 +106,7 @@ layer with one that reports to you.*
 | Lamb | 2 | $551K | $30,000 | $3,000 | $4,500 |
 | Bennett | 2 | $635K | — | — | — |
 
-Kilcoyne clears every tier several times over. On rent alone, Titan Estate at $60,000 sits below
+Kilcoyne clears every tier several times over. On rent alone, Estate at $60,000 sits below
 the $67,762 that a 10% manager would charge, and well below the $101,642 all-in figure.
 
 **But the recorded data says these fees aren't being paid to anyone.** All six Kilcoyne properties
@@ -140,7 +140,7 @@ in a sales conversation.
 
 Distinct from what a family pays. Recommended: **$150/household/month with a $1,500/month floor.**
 
-| Households | Firm pays TitanOS | Firm bills clients at Private | Licence as % of firm revenue |
+| Households | Firm pays TitanOS | Firm bills clients at Premier | Licence as % of firm revenue |
 |---|---|---|---|
 | 10 | $18,000/yr | $300,000/yr | 6.0% |
 | 25 | $45,000/yr | $750,000/yr | 6.0% |
@@ -157,7 +157,7 @@ migration and training — that work is real and shouldn't be free.
 ## Things to get right, and things I'd push back on
 
 **Don't reprice existing clients.** PCM's brand record already defaults to $5,000/month, which is
-exactly Titan Estate. Map the current four households onto tiers at or below what they pay now.
+exactly Estate. Map the current four households onto tiers at or below what they pay now.
 
 **Make the onboarding fee non-negotiable.** Migrating a household — properties, documents,
 statements, vendors, obligations — is the single biggest cost in the relationship and the one most
@@ -168,8 +168,8 @@ and it filters for families who are actually committing.
 
 **The weakest part of this model is Core at $750.** It sits below Asora ($870) and Copia ($895),
 which is defensible for a self-serve tier, but a "private wealth" brand selling a $750 product
-invites the question of what the $2,500 one adds. If Core cannibalises Private in the first ten
-conversations, kill Core rather than discounting Private. A narrow product sold at a firm price is
+invites the question of what the $2,500 one adds. If Core cannibalises Premier in the first ten
+conversations, kill Core rather than discounting Premier. A narrow product sold at a firm price is
 a better position than a ladder that trains buyers to shop down it.
 
 **What I could not verify.** Addepar, Eton, Archway, Aleta and Landytech publish no pricing at all;

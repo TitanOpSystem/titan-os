@@ -3790,7 +3790,7 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
 // ── CASH FLOW VIEW (the tab content) ──────────────────────────────────────────
 function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,toast,readOnly=false}){
   const isMobile=useIsMobile();
-  // Bill pay is a Private-plan feature. The database refuses pcm_responsible on a Core household
+  // Bill pay is a Premier-plan feature. The database refuses pcm_responsible on a Core household
   // and refuses the downgrade of a household that already has such expenses, so on Core no row can
   // carry the flag and the badges below are inert anyway. This const is belt as well as braces: it
   // keeps the control out of the form, so nobody ticks a box and gets a raw Postgres error back.
@@ -4447,7 +4447,7 @@ function FamilyForm({initial,onSave,onClose,userProfile,advisors=[]}){
       {/* Named here rather than discovered as a failed save. Moving a household down a tier while
           it still holds workflows or bill-pay expenses is refused by the database, because that
           data would otherwise sit on file with no screen drawing it. */}
-      {initial&&initial.plan==="private"&&f.plan==="core"&&
+      {initial&&initial.plan==="premier"&&f.plan==="core"&&
         <div style={{marginTop:8,fontSize:11,color:"#8b1a1a",background:"#fde8e8",borderRadius:6,padding:"8px 10px",lineHeight:1.5}}>
           Moving to Core removes the assigned expert, workflows and bill pay. If this household
           already has obligations, open workflows or expenses marked as paid by {BRAND.short}, the
@@ -4673,7 +4673,7 @@ function FamiliesView({data,reload,toast,userProfile}){
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:B.navy,fontWeight:600}}>{f.name}</div>
-                  {/* Gold for Private, quiet grey for Core — the badge should read as a tier, not
+                  {/* Gold for Premier, quiet grey for Core — the badge should read as a tier, not
                       as a warning. */}
                   <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",
                     padding:"3px 7px",borderRadius:4,
@@ -6790,7 +6790,19 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
         <div style={{display:"flex",alignItems:"center",gap:isMobile?8:16,flex:isMobile?"1 1 auto":"none",justifyContent:isMobile?"flex-end":"flex-start"}}>
           <div style={{textAlign:"right",minWidth:0}}>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?16:22,color:B.navy,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{family.name}</div>
-            <div style={{fontSize:isMobile?10:11,color:B.textSoft,marginTop:2}}>{isMobile?"Client Portal":`Client Portal · ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`}</div>
+            {/* The relationship, on the client's own banner. Small, but on every screen they see.
+                Gold fill for Premier, gold outline for Core — both read as a membership mark rather
+                than as a limit, which matters because the client sees this one and the tier below
+                should not look like a demotion. */}
+            <div style={{fontSize:isMobile?10:11,color:B.textSoft,marginTop:3,display:"flex",alignItems:"center",gap:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
+              <span style={{fontSize:isMobile?9:9.5,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
+                padding:"2px 7px",borderRadius:3,whiteSpace:"nowrap",
+                background:clientHasExpert?B.gold:"transparent",
+                border:`1px solid ${B.gold}`,
+                color:B.navy}}>{planLabel(clientPlan)}</span>
+              <span>·</span>
+              <span>{isMobile?"Client Portal":`Client Portal · ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`}</span>
+            </div>
           </div>
           {clientHasExpert&&<button onClick={()=>setEmailAdvisorOpen(true)} style={{background:"rgba(206,182,132,0.15)",border:`1px solid ${B.gold}`,color:B.navy,borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0,fontWeight:600}}>{isMobile?"✉ Titan Expert":"✉ Email my Titan Expert"}</button>}
           <button onClick={logout} style={{background:"transparent",border:`1px solid ${B.border}`,color:B.textSoft,borderRadius:8,padding:isMobile?"6px 10px":"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Sign Out</button>
