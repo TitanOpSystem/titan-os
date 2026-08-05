@@ -194,10 +194,37 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+// THIS BLOCK'S ABSENCE WAS THE "Failed to send a request to the Edge Function" BUG.
+//
+// Every other browser-invoked function in this project had these headers and an OPTIONS
+// short-circuit; this one had neither, and it is the only one the browser calls that lacked them.
+// The failure chain:
+//
+//   1. The browser sends a CORS preflight (OPTIONS) before the POST, because supabase-js sets
+//      authorization / apikey / content-type headers.
+//   2. verify_jwt is false, so the gateway hands the OPTIONS straight to this function.
+//   3. There was no OPTIONS branch, so the WHOLE HANDLER RAN ON THE PREFLIGHT. req.json() threw on
+//      the empty body, fell back to {}, forcePromptId was undefined, and it took the scheduled
+//      branch — querying scheduled_prompts by the current UTC hour and standing ready to run and
+//      email anything due. Preflights were executing the cron path.
+//   4. The response carried no Access-Control-Allow-Origin, so the browser rejected the preflight
+//      and NEVER SENT THE POST. supabase-js surfaces that as a fetch failure, not an HTTP error,
+//      which is why nothing appeared in the function logs but an OPTIONS, and why the prompt row's
+//      last_run_status stayed null: runOne was never entered.
+//
+// So the visible symptom was a network error while the invisible one was an unscheduled cron run on
+// every click. Both are fixed by answering OPTIONS before doing any work.
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
 
@@ -1078,6 +1105,12 @@ async function runOne(row: any): Promise<{ id: string; status: string; error?: s
 }
 
 Deno.serve(async (req) => {
+  // FIRST, before anything else. A preflight must not read the database, must not load the brand,
+  // and above all must not fall through into the scheduled-run path.
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
     if (!ANTHROPIC_API_KEY) return json({ success: false, error: "Missing ANTHROPIC_API_KEY" }, 500);
 
@@ -1092,6 +1125,16 @@ Deno.serve(async (req) => {
       const { data, error } = await sb.from("scheduled_prompts").select("*").eq("id", forcePromptId).limit(1);
       if (error) throw error;
       due = data || [];
+      // A forced run that matches nothing must NOT report success. Returning {success:true,
+      // queued:0} is what let this fail silently: the UI said "Running now — you'll get an email",
+      // no row was touched, and there was nothing anywhere to show what had happened.
+      if (!due.length) {
+        return json({
+          success: false,
+          error: "That prompt no longer exists. Reload the page and try again.",
+          queued: 0,
+        }, 404);
+      }
     } else {
       const now = new Date();
       const hour = now.getUTCHours();
