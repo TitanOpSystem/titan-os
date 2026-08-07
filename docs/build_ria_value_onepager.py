@@ -13,8 +13,8 @@ quote.
 
 BENEFITS, NOT CAPABILITIES
 --------------------------
-Every block below is written as something that happens to the FIRM — revenue, capacity, retention,
-referrals — not as something the software has. "Vault with expiry tracking" is a capability;
+Every block below is written as something that happens to the FIRM — relationship depth, defensibility,
+capacity, referrals — not as something the software has. "Vault with expiry tracking" is a capability;
 "harder to leave than a performance number" is why a principal cares. Where a capability appears it
 is there as evidence for the benefit, never as the point.
 
@@ -62,56 +62,63 @@ WHITE = "#ffffff"
 
 EYEBROW = "FOR REGISTERED INVESTMENT ADVISERS"
 
-HEADLINE = "Most of your client's wealth is somewhere you can't see."
+HEADLINE = "Your clients keep asking for things you can't staff."
 
 STANDFIRST = (
-    "You advise brilliantly on the accounts you custody. The house, the rental, the operating "
-    "company, the trust, the policy, the vendors, the renewals — that lives in a filing cabinet and "
-    "in your client's memory. TitanOS puts it on your record, under your brand, and turns it into a "
-    "service you can charge for."
+    "The insurance renewal. The contractor who will not call back. The K-1 that has not arrived. "
+    "The rental that needs a decision this week. You deflect these politely because you cannot "
+    "staff them — and every time you do, a piece of the relationship goes to somebody else. A "
+    "Titan Expert joins your team and takes them: on your platform, under your brand, reporting "
+    "to you."
 )
 
-# Six. Each one is a consequence for the firm, with the capability named only as evidence.
+# THE HERO IS THE PERSON, NOT THE SOFTWARE.
+#
+# An earlier draft led with capabilities and buried the Titan Expert. It also claimed the household
+# fee was "revenue the market cannot compress" for the RIA — which is simply wrong. That money pays
+# for the platform and the expert; the advisor does not earn a margin on it. Selling a firm on
+# revenue it will not receive is the fastest way to lose the second meeting. The benefit is the
+# relationship and the moat, so that is what these say.
 BENEFITS = [
-    ("Advise on the whole balance sheet",
-     "Properties with their lenders, taxes, insurers and vendors. Accounts with balance history. "
-     "Entities, valuables, obligations. You stop advising on a slice of the client's wealth and "
-     "start advising on the picture."),
-    ("Revenue the market cannot compress",
-     "A flat fee per household, unrelated to assets under management. It grows with the number of "
-     "families you serve rather than with the index, and it does not reprice itself when the "
-     "market falls twenty percent."),
-    ("Turn your centres of influence into a channel",
+    ("A specialist joins your team, without a hire",
+     "A named Titan Expert works your households as an extension of your firm. No recruiting, no "
+     "training, no salary, no management overhead. They introduce themselves as part of your team, "
+     "because for that household they are."),
+    ("Say yes to what you deflect today",
+     "The property tax appeal, the lapsed endorsement, the vendor nobody is chasing, the trust that "
+     "was never funded. Each of those is a chance to be indispensable, and today each one is a "
+     "polite no."),
+    ("You stay the relationship",
+     "The Titan Expert reports to you, not around you. Every call made and document handled sits on "
+     "your record, under your brand. You are never told about your own client second-hand."),
+    ("A moat, not a feature",
+     "Hold the document vault, the renewal calendar and the vendor register, and a competitor is no "
+     "longer pitching against your performance. They are asking a family to rebuild its operating "
+     "life. That is a conversation they lose."),
+    ("Your advisors get their week back",
+     "The platform assembles the report and tracks the renewal; the expert runs what is left. Your "
+     "people go back to advising, which is what you hired them for."),
+    ("Your centres of influence become a channel",
      "The client's CPA and estate attorney get their own portal into the household you share. You "
-     "become the hub of the professional network around that family instead of one spoke in it — "
-     "which is the most natural referral mechanic there is."),
-    ("More households per advisor",
-     "The platform assembles the report, tracks the renewal, chases the vendor and runs the "
-     "premium call. That administrative load is the reason an advisor carries eight genuinely "
-     "complex families instead of twenty-five."),
-    ("Harder to leave than a performance number",
-     "When you hold the document vault, the renewal calendar and the vendor register, moving firms "
-     "means rebuilding a household's operating life. Retention stops depending on what last "
-     "quarter looked like."),
-    ("Evidence of what you actually did",
-     "Every household gets an activity report: what was handled, when, and by whom. It earns its "
-     "keep in the annual review, in the fee conversation, and in front of an examiner."),
-    ("A record that outlives the advisor",
-     "When a household moves to another advisor inside your firm, or a generation takes over, "
-     "nothing important is left living in one person's head. Continuity becomes a property of the "
-     "firm rather than of whoever happened to hold the relationship."),
-    ("Your brand throughout, not ours",
-     "Your palette, logo, sending domain and client-facing reports, on your own database and your "
-     "own deployment. Your clients never encounter the word TitanOS, on screen or in an email."),
+     "become the hub of the professional network around that family rather than one spoke in it."),
+    ("You finally see the whole balance sheet",
+     "Properties with their lenders, taxes, insurers and vendors. Entities, valuables, obligations, "
+     "cash flow. Advice improves when you see everything a family owns, not the part you custody."),
+    ("Continuity that belongs to the firm",
+     "When a household moves to another advisor internally, or the next generation takes over, "
+     "nothing important lives in one person's head. And your brand is on all of it — clients never "
+     "see the word TitanOS."),
 ]
 
-# Concrete inventory, so a reader who wants to know what the thing actually holds gets an answer
-# without the page turning into a feature list. Sits as one quiet line, not as a column of bullets.
-ON_THE_RECORD = (
-    "Properties and their lenders, taxes, insurers and vendors  ·  Accounts and balance history  ·  "
-    "Cash flow and projections  ·  A document vault that tracks expiry  ·  Valuables  ·  Entities  "
-    "·  Obligations and renewals  ·  Tasks and notes  ·  Client portal  ·  Partner portal  ·  An "
-    "assistant that answers only from this household's own record"
+# ANSWERING "SO WHO PAYS FOR THIS?" BEFORE THEY ASK IT.
+#
+# Left unanswered, a principal assumes it comes out of their advisory fee. Said plainly — and
+# without pretending it is a profit centre for them — it is disarming rather than awkward.
+ECONOMICS_TITLE = "Who pays, plainly"
+ECONOMICS = (
+    "Billed to the household, and priced to cover the platform and the expert's time. It is not a "
+    "mark-up for your firm and it does not come out of your advisory fee. What you get is not a "
+    "margin line — it is a household that is very hard to take away from you."
 )
 
 # The concrete hook. These are the only numbers on the page and they are the client's costs, not
@@ -120,8 +127,8 @@ HOOK_TITLE = "Where the conversation usually starts"
 HOOK = (
     "Ask a client with a rental what they pay their property manager. The standard is 8–12% of "
     "gross rent, and 15–20% once tenant placement and maintenance mark-ups are counted. On "
-    "$300,000 of rent that is $30,000 to $60,000 a year — to someone who does not report to them, "
-    "does not talk to you, and is not looking at the rest of their balance sheet."
+    "$300,000 of rent that is $30,000 to $60,000 a year — to somebody who does not report to them "
+    "and has never spoken to you. Your Titan Expert takes that call instead."
 )
 
 CLOSE = (
@@ -220,17 +227,17 @@ def build(path):
             x = MARGIN + j * (col_w + gap)
             s.text(title, x, y, font="Helvetica-Bold", size=10, colour=NAVY)
             bottoms.append(s.para(body, x, y - 14, col_w, size=8.7, lead=11.2))
-        y = min(bottoms) - 12
+        y = min(bottoms) - 10
 
     y -= 4
 
-    # ── What sits on the record ──────────────────────────────────────────────
+    # ── Who pays ─────────────────────────────────────────────────────────────
     c.setStrokeColor(HexColor(BORDER_LIGHT))
     c.setLineWidth(0.8)
     c.line(MARGIN, y, W - MARGIN, y)
     y -= 15
-    s.text("ON ONE RECORD", MARGIN, y, font="Helvetica-Bold", size=7.4, colour=GOLD)
-    y = s.para(ON_THE_RECORD, MARGIN + 92, y, CONTENT - 92, size=8.4, lead=11, colour=TEXT_SOFT)
+    s.text(ECONOMICS_TITLE.upper(), MARGIN, y, font="Helvetica-Bold", size=7.4, colour=GOLD)
+    y = s.para(ECONOMICS, MARGIN + 92, y, CONTENT - 92, size=8.6, lead=11.2, colour=TEXT_SOFT)
     y -= 12
 
     # ── The hook ─────────────────────────────────────────────────────────────
