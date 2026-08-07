@@ -1,31 +1,37 @@
 #!/usr/bin/env python3
-"""TitanOS sales one-pager — the two service tiers and the firm engagement fee.
+"""TitanOS sales one-pager — what it is, then what it costs.
 
-WHAT THIS IS FOR
-----------------
-A single sheet handed to an advisory firm evaluating TitanOS: what a household gets on each tier,
-what each costs per household per month, and what it costs the firm to come onto the platform.
-Audience is the FIRM, not the family — the per-household pricing here is what the firm pays.
+WHAT CHANGED, AND WHY
+---------------------
+The first version of this sheet opened with two price cards. It answered "what does it cost" before
+it had answered "what is it", which only works on a reader who already knows. A firm seeing the name
+for the first time got mechanics and had to infer the product from a feature list. This version puts
+the positioning first and compresses the tiers to what a reader needs once they understand what they
+are buying — the detail belongs in the conversation the sheet is meant to start.
+
+AUDIENCE IS THE FIRM, NOT THE FAMILY
+------------------------------------
+The per-household prices here are what an advisory firm pays. Their clients never see this sheet, and
+never see the name TitanOS at all — which is the point of the white-label and is said on the page.
 
 IT MUST BE ONE PAGE
 -------------------
-The name says one pager, so overflow is a defect, not a formatting preference. build() asserts the
-page count at the end and raises rather than quietly shipping a two-page "one pager". Every block
-also reserves its own height before drawing its heading — the orphaned-heading bug has now appeared
-four times in this codebase and the rule is that a heading and its first content are indivisible.
+Overflow is a defect, not a formatting preference. Three guards at the end of build(): page count,
+content clearing the footer rule, and each tier card reporting where its content actually ended. The
+third one earned its place — at one point Core's last bullet was being drawn onto the card border,
+which looked almost right.
 
-FIGURES COME FROM THE PRICE LIST BELOW, DELIBERATELY, NOT FROM pricing_model.py
-------------------------------------------------------------------------------
-docs/pricing_model.py holds the market ANALYSIS and recommends different numbers ($750 / $2,500).
-The numbers on this sheet are the ones the firm decided to sell at, which is a commercial call and
-not the model's to make. They are kept here in one place so the sheet cannot drift from itself; if
-the price changes, change it here and regenerate.
+FIGURES ARE THE FIRM'S COMMERCIAL CALL, NOT THE MODEL'S
+-------------------------------------------------------
+docs/pricing_model.py recommends different numbers ($750 / $2,500) off the market analysis. The ones
+below are what the firm chose to sell at. Kept here in one place so the sheet cannot drift from
+itself; if a price changes, change it here and regenerate. Do not "correct" these to match the model.
 
 WINANSI ONLY
 ------------
-The standard PDF fonts throw on any character outside WinAnsi. A tick (U+2713) is outside it and
-would fail at draw time; the bullet (U+2022) and the multiplication sign (U+00D7) are inside it, so
-inclusions read as bullets and exclusions as crosses.
+Standard PDF fonts throw on anything outside WinAnsi. A tick (U+2713) is outside it; the bullet
+(U+2022) and multiplication sign (U+00D7) are inside, so inclusions read as bullets and exclusions
+as crosses.
 
 Usage:
   python3 docs/build_sales_onepager.py TitanOS_Sales_OnePager.pdf
@@ -62,47 +68,60 @@ TEXT_SOFT = "#5a6e84"
 TEXT_MUTE = "#8fa0b2"
 WHITE = "#ffffff"
 
+# ── What it is ────────────────────────────────────────────────────────────────
+HEADLINE = "Everything a family owns, and everyone who looks after it, on one record."
+
+STANDFIRST = (
+    "TitanOS is the system a private wealth firm runs its households on. Properties, portfolio, "
+    "cash flow, documents, obligations and the people around them — in one place, under your own "
+    "name. Not a reporting tool bolted onto a practice. The practice itself, running."
+)
+
+# Three, not five. A one-pager that claims five differentiators is claiming none.
+PILLARS = [
+    ("One record, not five tools",
+     "Properties with their lenders, taxes, insurers and vendors. Portfolio with balance history. "
+     "Cash flow with projections. A Vault that knows what expires and when. The assistant answers "
+     "from that record and nothing else — ask what the household spends on landscaping and you get "
+     "a real figure, traced to named vendors, not an estimate."),
+    ("It does the work, not just the reporting",
+     "Obligations and workflows run a premium call or a K-1 chase end to end: draft, review, send, "
+     "record. That is the part reporting platforms hand back to your staff, and it is the "
+     "difference between an expert carrying eight households and carrying twenty-five."),
+    # NOTE ON THE LAST SENTENCE. It first read "Three firms run off this one codebase today", which
+    # is not true: three BRANDS are configured, but only one firm is live in production. A checkable
+    # claim that does not survive checking is worse than no claim, and this sheet goes to buyers who
+    # will ask for references. The wording now says exactly what the architecture does.
+    ("Your name on all of it",
+     "Your palette, logo, templates, sending domain and client-facing PDFs, resolved per firm at "
+     "runtime from a single record — no rebuild, no fork. Your own database and your own "
+     "deployment, not a shared tenancy. Your clients never see the word TitanOS."),
+]
+
 # ── The offer ─────────────────────────────────────────────────────────────────
-# Tier names match the platform exactly. A prospect sold "Premier" logs in and sees "Premier" on
-# the family record and on their own banner; a sheet that said "Premium" would not.
+# Tier names match the platform exactly. A prospect sold "Premier" logs in and sees "Premier" on the
+# family record and on their own banner; a sheet saying "Premium" would not.
 TIERS = [
     {
-        "name": "Core",
-        "lead": "Financial advisor led",
-        "monthly": 1000,
-        "onboarding": 1000,
-        "summary": "The full record, run by the advisor who already owns the relationship.",
+        "name": "Core", "lead": "Financial advisor led",
+        "monthly": 1000, "onboarding": 1000,
         "includes": [
-            "Advisor is the lead on the household",
-            "Client and Partner portal access",
-            "Properties, portfolio and balance history",
-            "Cash flow and projections",
-            "Vault: documents, folders, expiry tracking",
-            "Valuables, tasks, notes and deals",
-            "AI assistant over the household's own record",
+            "The full record, and both portals",
+            "Client and Partner access",
+            "The advisor keeps the relationship",
         ],
-        "excludes": [
-            "Scheduled prompts",
-            "Workflows and obligations",
-            "Property management service",
-            "Bill pay service",
-        ],
+        "excludes": ["Scheduled prompts", "Workflows and obligations",
+                     "Property management", "Bill pay"],
         "accent": False,
     },
     {
-        "name": "Premier",
-        "lead": "Titan Expert led",
-        "monthly": 2000,
-        "onboarding": 2000,
-        "summary": "Everything in Core, with a named Titan Expert running it and the full platform "
-                   "switched on.",
+        "name": "Premier", "lead": "Titan Expert led",
+        "monthly": 2000, "onboarding": 2000,
         "includes": [
             "Everything in Core",
-            "Named Titan Expert leads the household",
-            "Scheduled prompts and concierge research",
-            "Workflows and obligations, run end to end",
-            "Property management oversight",
-            "Bill pay with a per-period payment register",
+            "A named Titan Expert on the household",
+            "Workflows, obligations and scheduled prompts",
+            "Property management oversight and bill pay",
             "Client activity reporting",
         ],
         "excludes": [],
@@ -115,11 +134,10 @@ FIRM = {
     "label": "One-time firm onboarding",
     "items": [
         ("Dedicated server space", "Your own database and deployment. No shared tenancy, no "
-                                  "commingled client data."),
+                                   "commingled client data."),
         ("Quarterly training", "Live sessions for advisors and staff, every quarter, for as long "
-                              "as you are on the platform."),
-        ("Full white-label", "Your name, your palette, your logo and your templates throughout — "
-                             "including client-facing email and PDFs."),
+                               "as you are on the platform."),
+        ("Full white-label", "Configured to your brand before your first household is loaded."),
     ],
 }
 
@@ -129,7 +147,6 @@ money = lambda n: f"${n:,}"
 class Sheet:
     def __init__(self, path):
         self.c = canvas.Canvas(path, pagesize=letter)
-        self.y = H - MARGIN
         self.pages = 1
 
     def wrap(self, text, font, size, width):
@@ -151,11 +168,8 @@ class Sheet:
         self.c.setFillColor(HexColor(colour))
         self.c.drawString(x, y, str(s))
 
-    def centred(self, s, cx, y, font="Helvetica", size=9, colour=NAVY):
-        self.text(s, cx - stringWidth(str(s), font, size) / 2, y, font, size, colour)
-
     def para(self, s, x, y, width, font="Helvetica", size=8.4, lead=11, colour=TEXT_SOFT):
-        """Returns the y after drawing, so a caller can stack blocks without guessing heights."""
+        """Returns the y after drawing, so blocks stack without anyone guessing heights."""
         for line in self.wrap(s, font, size, width):
             self.text(line, x, y, font=font, size=size, colour=colour)
             y -= lead
@@ -165,7 +179,7 @@ class Sheet:
 def masthead(s):
     c = s.c
     c.setFillColor(HexColor(NAVY))
-    c.rect(0, H - 108, W, 108, stroke=0, fill=1)
+    c.rect(0, H - 104, W, 104, stroke=0, fill=1)
 
     logo = os.path.join(os.path.dirname(os.path.abspath(__file__)), "brand",
                         "titanos-logo-knockout.png")
@@ -174,175 +188,146 @@ def masthead(s):
         try:
             img = ImageReader(logo)
             iw, ih = img.getSize()
-            h = 36.0
-            c.drawImage(img, MARGIN, H - 74, width=iw * (h / ih), height=h, mask="auto")
+            h = 34.0
+            c.drawImage(img, MARGIN, H - 70, width=iw * (h / ih), height=h, mask="auto")
             drew = True
         except Exception:
             drew = False
     # The wordmark in type is the fallback, so the sheet is never unbranded.
     if not drew:
-        c.setFont("Times-Bold", 26)
+        c.setFont("Times-Bold", 25)
         c.setFillColor(HexColor(WHITE))
-        c.drawString(MARGIN, H - 70, BRAND["name"])
+        c.drawString(MARGIN, H - 66, BRAND["name"])
 
-    s.text(BRAND["tagline"], MARGIN, H - 90, size=7.6, colour=GOLD)
+    s.text(BRAND["tagline"], MARGIN, H - 86, size=7.6, colour=GOLD)
     right = f'{BRAND["site"]}   ·   {BRAND["contact"]}'
-    s.text(right, W - MARGIN - stringWidth(right, "Helvetica", 7.6), H - 90,
+    s.text(right, W - MARGIN - stringWidth(right, "Helvetica", 7.6), H - 86,
            size=7.6, colour="#8fa8bf")
 
 
 def tier_card(s, t, x, y, w, h):
-    """One tier. Height is passed in and fixed, so both cards align and neither can overflow."""
+    """One tier. Height is fixed and passed in so both cards align; returns its content bottom."""
     c = s.c
     c.setFillColor(HexColor(CREAM if t["accent"] else WHITE))
     c.setStrokeColor(HexColor(GOLD if t["accent"] else BORDER))
-    c.setLineWidth(1 if not t["accent"] else 1.2)
+    c.setLineWidth(1.2 if t["accent"] else 1)
     c.rect(x, y - h, w, h, stroke=1, fill=1)
-    # Top rule: gold on the fuller tier, navy on the entry tier. It carries the hierarchy without
-    # a "recommended" badge, which reads as a sales device rather than a fact.
+    # Gold rule on the fuller tier, navy on the entry tier. Carries the hierarchy without a
+    # "recommended" badge, which reads as a sales device rather than a fact.
     c.setFillColor(HexColor(GOLD if t["accent"] else NAVY_MID))
     c.rect(x, y - 3, w, 3, stroke=0, fill=1)
 
     pad = 14
-    ix = x + pad
-    iw = w - pad * 2
-    cy = y - 22
+    ix, iw = x + pad, w - pad * 2
+    cy = y - 21
 
-    s.text(t["name"].upper(), ix, cy, font="Helvetica-Bold", size=13, colour=NAVY)
-    cy -= 13
-    s.text(t["lead"], ix, cy, font="Helvetica-Bold", size=8, colour=GOLD if t["accent"] else TEXT_SOFT)
+    s.text(t["name"].upper(), ix, cy, font="Helvetica-Bold", size=12.5, colour=NAVY)
+    cy -= 12
+    s.text(t["lead"], ix, cy, font="Helvetica-Bold", size=8,
+           colour=GOLD if t["accent"] else TEXT_SOFT)
     cy -= 16
 
-    # Price. Kept as one line so the eye reads it as a single figure.
-    s.text(money(t["monthly"]), ix, cy - 6, font="Times-Bold", size=26, colour=NAVY)
-    px = ix + stringWidth(money(t["monthly"]), "Times-Bold", 26) + 6
-    s.text("/ month", px, cy + 3, size=8.4, colour=TEXT_SOFT)
-    s.text("per household", px, cy - 6, size=8.4, colour=TEXT_SOFT)
-    cy -= 22
+    s.text(money(t["monthly"]), ix, cy - 6, font="Times-Bold", size=25, colour=NAVY)
+    px = ix + stringWidth(money(t["monthly"]), "Times-Bold", 25) + 6
+    s.text("/ month", px, cy + 2, size=8.2, colour=TEXT_SOFT)
+    s.text("per household", px, cy - 7, size=8.2, colour=TEXT_SOFT)
+    cy -= 21
 
-    s.text(f'+ {money(t["onboarding"])} one-time onboarding, per household',
-           ix, cy, size=8.2, colour=NAVY_MID)
-    cy -= 14
+    s.text(f'+ {money(t["onboarding"])} one-time onboarding', ix, cy, size=8.2, colour=NAVY_MID)
+    cy -= 13
 
     c.setStrokeColor(HexColor(BORDER_LIGHT))
     c.setLineWidth(0.8)
     c.line(ix, cy, ix + iw, cy)
-    cy -= 13
+    cy -= 14
 
-    cy = s.para(t["summary"], ix, cy, iw, size=9, lead=12, colour=TEXT_SOFT) - 6
-
-    s.text("INCLUDED", ix, cy, font="Helvetica-Bold", size=7.2, colour=NAVY_MID)
-    cy -= 12
     for item in t["includes"]:
-        # Bullet and cross are both inside WinAnsi. A tick is not, and would throw at draw time.
-        s.text("•", ix, cy, size=9.2, colour=GOLD)
-        lines = s.wrap(item, "Helvetica", 9, iw - 12)
-        for i, line in enumerate(lines):
-            s.text(line, ix + 12, cy, size=9, colour=NAVY if i == 0 else TEXT_SOFT)
-            cy -= 11.6
-        cy -= 2.4
+        # Bullet and cross are both inside WinAnsi. A tick is not, and throws at draw time.
+        s.text("•", ix, cy, size=9, colour=GOLD)
+        for i, line in enumerate(s.wrap(item, "Helvetica", 8.8, iw - 12)):
+            s.text(line, ix + 12, cy, size=8.8, colour=NAVY if i == 0 else TEXT_SOFT)
+            cy -= 11.2
+        cy -= 2
 
     if t["excludes"]:
-        cy -= 4
-        s.text("NOT INCLUDED", ix, cy, font="Helvetica-Bold", size=7.2, colour=NAVY_MID)
-        cy -= 12
+        cy -= 3
+        s.text("NOT INCLUDED", ix, cy, font="Helvetica-Bold", size=7, colour=NAVY_MID)
+        cy -= 11
         for item in t["excludes"]:
-            s.text("×", ix + 1, cy, size=9.2, colour=TEXT_MUTE)
-            s.text(item, ix + 12, cy, size=9, colour=TEXT_MUTE)
-            cy -= 12.6
+            s.text("×", ix + 1, cy, size=9, colour=TEXT_MUTE)
+            s.text(item, ix + 12, cy, size=8.8, colour=TEXT_MUTE)
+            cy -= 11.6
     return cy
 
 
 def build(path):
     s = Sheet(path)
     c = s.c
-
     masthead(s)
 
-    # ── Headline ─────────────────────────────────────────────────────────────
-    y = H - 132
-    s.text("Two ways to put a household on the platform", MARGIN, y,
-           font="Times-Bold", size=17, colour=NAVY)
-    y -= 15
-    y = s.para(
-        "One codebase, one price per household, no basis points. The fee does not move when the "
-        "portfolio does. Both tiers include the client and partner portals and the whole record; "
-        "what separates them is who runs the household and how much of the platform is switched on.",
-        MARGIN, y, CONTENT, size=8.8, lead=11.4)
+    # ── What it is ───────────────────────────────────────────────────────────
+    y = H - 128
+    for line in s.wrap(HEADLINE, "Times-Bold", 19, CONTENT):
+        s.text(line, MARGIN, y, font="Times-Bold", size=19, colour=NAVY)
+        y -= 23
+    y -= 2
+    y = s.para(STANDFIRST, MARGIN, y, CONTENT, size=9.4, lead=12.4, colour=NAVY_MID)
     y -= 12
 
-    # ── The two tiers ────────────────────────────────────────────────────────
+    c.setFillColor(HexColor(GOLD))
+    c.rect(MARGIN, y, CONTENT, 1.6, stroke=0, fill=1)
+    y -= 18
+
+    # ── Three pillars, in columns ────────────────────────────────────────────
     gap = 18
+    col_w = (CONTENT - gap * 2) / 3
+    bottoms = []
+    for i, (label, blurb) in enumerate(PILLARS):
+        x = MARGIN + i * (col_w + gap)
+        s.text(label, x, y, font="Helvetica-Bold", size=9.2, colour=NAVY)
+        bottoms.append(s.para(blurb, x, y - 13, col_w, size=8.1, lead=10.4))
+    y = min(bottoms) - 12
+
+    # ── The two tiers ────────────────────────────────────────────────────────
     card_w = (CONTENT - gap) / 2
-    card_h = 314
-    # tier_card returns where its content actually ended. Checked rather than eyeballed, because a
-    # card that is a few points too short clips its last bullet and a reader has no way to tell that
-    # is what happened — they just read a shorter feature list than the one being sold.
+    card_h = 214
     ends = [tier_card(s, TIERS[0], MARGIN, y, card_w, card_h),
             tier_card(s, TIERS[1], MARGIN + card_w + gap, y, card_w, card_h)]
     floor = y - card_h
     for t, end in zip(TIERS, ends):
         if end < floor + 4:
-            raise SystemExit(f'{t["name"]} card overflows: content ends at {end:.0f}, '
-                             f'card floor is {floor:.0f}. Raise card_h.')
-    y -= card_h + 18
-
-    # ── Why the Core limits hold ─────────────────────────────────────────────
-    # This band exists because it is the question a firm's operations lead actually asks: what stops
-    # a Core household quietly acquiring a Premier feature and a billing dispute with it. The answer
-    # is a real one — database triggers, not interface state — so it is worth the space.
-    band_h = 58
-    c.setFillColor(HexColor(CREAM))
-    c.setStrokeColor(HexColor(BORDER_LIGHT))
-    c.setLineWidth(0.8)
-    c.rect(MARGIN, y - band_h, CONTENT, band_h, stroke=1, fill=1)
-    c.setFillColor(HexColor(GOLD))
-    c.rect(MARGIN, y - band_h, 3, band_h, stroke=0, fill=1)
-
-    by = y - 18
-    s.text("TIER LIMITS ARE ENFORCED, NOT JUST HIDDEN", MARGIN + 16, by,
-           font="Helvetica-Bold", size=7.6, colour=NAVY)
-    s.para("A Core household cannot have a workflow, an obligation or a bill-pay instruction "
-           "written against it by anyone, through any route — the database refuses the write, not "
-           "just the screen. And a household cannot be moved down a tier while that work is still "
-           "open, so nothing is ever left on file that no one is watching.",
-           MARGIN + 16, by - 13, CONTENT - 32, size=8.2, lead=10.6, colour=TEXT_SOFT)
-    y -= band_h + 16
+            raise SystemExit(f'{t["name"]} card overflows: content ends at {end:.0f}, floor is '
+                             f'{floor:.0f}. Raise card_h.')
+    y -= card_h + 8
+    # The one line about the tiers that is worth the space: the limits are real.
+    y = s.para("Tier limits are enforced in the database, not hidden in the interface — a Core "
+               "household cannot hold a workflow or a bill-pay instruction by any route. Moving up "
+               "to Premier takes effect immediately, with no second onboarding fee.",
+               MARGIN, y, CONTENT, size=8, lead=10.4, colour=TEXT_MUTE)
+    y -= 10
 
     # ── Firm engagement ──────────────────────────────────────────────────────
-    strip_h = 82
+    strip_h = 80
     c.setFillColor(HexColor(NAVY))
     c.rect(MARGIN, y - strip_h, CONTENT, strip_h, stroke=0, fill=1)
     c.setFillColor(HexColor(GOLD))
     c.rect(MARGIN, y - 3, CONTENT, 3, stroke=0, fill=1)
 
-    fy = y - 22
-    s.text(FIRM["label"].upper(), MARGIN + 16, fy, font="Helvetica-Bold", size=7.6, colour=GOLD)
-    s.text(money(FIRM["fee"]), MARGIN + 16, fy - 28, font="Times-Bold", size=26, colour=WHITE)
-    s.text("charged once, per firm", MARGIN + 16, fy - 42, size=7.8, colour="#8fa8bf")
+    fy = y - 21
+    s.text(FIRM["label"].upper(), MARGIN + 16, fy, font="Helvetica-Bold", size=7.4, colour=GOLD)
+    s.text(money(FIRM["fee"]), MARGIN + 16, fy - 27, font="Times-Bold", size=25, colour=WHITE)
+    s.text("charged once, per firm", MARGIN + 16, fy - 40, size=7.6, colour="#8fa8bf")
 
-    col_x = MARGIN + 150
-    col_w = (CONTENT - 166) / 3 - 12
+    col_x = MARGIN + 148
+    fcol_w = (CONTENT - 164) / 3 - 12
     for i, (label, blurb) in enumerate(FIRM["items"]):
-        x = col_x + i * (col_w + 18)
-        s.text(label, x, fy, font="Helvetica-Bold", size=8.6, colour=WHITE)
+        x = col_x + i * (fcol_w + 18)
+        s.text(label, x, fy, font="Helvetica-Bold", size=8.4, colour=WHITE)
         yy = fy - 12
-        for line in s.wrap(blurb, "Helvetica", 7.9, col_w):
-            s.text(line, x, yy, size=7.9, colour="#a9bccf")
-            yy -= 10
-    y -= strip_h + 16
-
-    # ── Closing note ─────────────────────────────────────────────────────────
-    # Deliberately NOT a restatement of the enforcement band above it. The first draft closed by
-    # repeating "nothing is left recorded that no one is watching" almost word for word, two inches
-    # below where it had already been said. A sheet that says the same thing twice reads as though
-    # there was nothing else to say.
-    s.text("Moving between tiers", MARGIN, y, font="Helvetica-Bold", size=8.6, colour=NAVY)
-    y = s.para(
-        "A household can move up to Premier at any time, effective immediately and pro-rated to the "
-        "month, with no second onboarding fee. Pricing is per household and never varies with the "
-        "size of the portfolio.",
-        MARGIN, y - 12, CONTENT, size=8.5, lead=11.2, colour=TEXT_SOFT)
+        for line in s.wrap(blurb, "Helvetica", 7.7, fcol_w):
+            s.text(line, x, yy, size=7.7, colour="#a9bccf")
+            yy -= 9.8
+    y -= strip_h
 
     # ── Footer ───────────────────────────────────────────────────────────────
     c.setStrokeColor(HexColor(BORDER))
@@ -356,10 +341,8 @@ def build(path):
     c.showPage()
     c.save()
 
-    # A "one pager" that runs to two pages is a defect. Fail loudly rather than ship it.
     if s.pages != 1:
         raise SystemExit(f"Refusing to write a {s.pages}-page one-pager. Tighten the content.")
-    # The lowest thing drawn must clear the footer rule, or content is sitting on top of it.
     if y < MARGIN + 6:
         raise SystemExit(f"Content overruns the footer (bottom at y={y:.0f}, floor {MARGIN + 6}).")
     return y
@@ -369,5 +352,4 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("out", nargs="?", default="TitanOS_Sales_OnePager.pdf")
     a = ap.parse_args()
-    bottom = build(a.out)
-    print(f"wrote {a.out} — single page, content bottom at y={bottom:.0f}")
+    print(f"wrote {a.out} — single page, content bottom at y={build(a.out):.0f}")
