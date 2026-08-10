@@ -985,7 +985,7 @@ async function sendEmail(
   }
   const body: Record<string, unknown> = {
     from: BRAND_NAME ? `${BRAND_NAME} <${FROM_EMAIL}>` : FROM_EMAIL,
-    to: [(Deno.env.get("DEMO_EMAIL_OVERRIDE") ?? "") || to],
+    to: [to],
     subject,
     html,
   };
