@@ -49,13 +49,16 @@ const BRAND = {
 
 // ── MOBILE DETECTION ──────────────────────────────────────────────────────────
 const MOBILE_BREAKPOINT = 768;
-function useIsMobile(){
-  const[isMobile,setIsMobile]=useState(typeof window!=="undefined"&&window.innerWidth<MOBILE_BREAKPOINT);
+// MOBILE_LAYOUT_PATCH — breakpoint is a parameter so callers that need a different
+// threshold (Modal switches to a bottom sheet at 640, not 768) can still get a
+// reactive value instead of computing one by hand and missing resize events.
+function useIsMobile(bp=MOBILE_BREAKPOINT){
+  const[isMobile,setIsMobile]=useState(typeof window!=="undefined"&&window.innerWidth<bp);
   useEffect(()=>{
-    const onResize=()=>setIsMobile(window.innerWidth<MOBILE_BREAKPOINT);
+    const onResize=()=>setIsMobile(window.innerWidth<bp);
     window.addEventListener("resize",onResize);
     return()=>window.removeEventListener("resize",onResize);
-  },[]);
+  },[bp]);
   return isMobile;
 }
 
@@ -726,7 +729,7 @@ function Spinner({size=34}){return <div style={{display:"flex",alignItems:"cente
 function Toast({msg,type}){return <div style={{position:"fixed",bottom:24,right:24,zIndex:9000,background:type==="error"?"#fde8e8":B.navy,color:type==="error"?"#8b1a1a":B.white,padding:"12px 20px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:B.shadowMd,border:`1px solid ${type==="error"?"#f5c6c6":"rgba(206,182,132,0.3)"}`}}>{type==="error"?"⚠ ":"✓ "}{msg}</div>;}
 
 function Modal({title,onClose,wide,children}){
-  const mobile=typeof window!=="undefined"&&window.innerWidth<640;
+  const mobile=useIsMobile(640);
   return <div style={{position:"fixed",inset:0,background:"rgba(9,43,73,0.45)",zIndex:1000,display:"flex",alignItems:mobile?"flex-end":"center",justifyContent:"center",backdropFilter:"blur(3px)",padding:mobile?0:20,overflowY:"auto"}} onClick={onClose}>
     <div onClick={e=>e.stopPropagation()} style={{background:B.white,borderRadius:mobile?"16px 16px 0 0":16,padding:mobile?"24px 20px 32px":36,width:"100%",maxWidth:mobile?"100%":wide?780:540,boxShadow:B.shadowMd,border:`1px solid ${B.borderLight}`,margin:mobile?0:"auto",maxHeight:mobile?"90vh":"none",overflowY:"auto"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -796,7 +799,7 @@ function AdvisorScopeBar({userProfile,value,onChange,label="Titan Expert"}){
 const Tex=p=><textarea style={{...inp,minHeight:80,resize:"vertical"}} {...p}/>;
 function Field({label,children}){return <div style={{marginBottom:14}}><label style={{display:"block",fontSize:11,color:B.textSoft,marginBottom:5,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>{label}</label>{children}</div>;}
 function Grid2({children}){
-  return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>{children}</div>;
+  return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(220px,100%),1fr))",gap:12}}>{children}</div>;
 }
 function Btn({children,onClick,variant="primary",small,disabled,style:ex}){
   const v={primary:{background:B.navy,color:B.white,border:"none"},ghost:{background:"transparent",color:B.navyMid,border:`1px solid ${B.border}`},danger:{background:"#fde8e8",color:"#8b1a1a",border:"1px solid #f5c6c6"},gold:{background:B.gold,color:B.navy,border:"none"}};
@@ -1377,7 +1380,7 @@ function FamilyReport({family,data,onClose}){
   };
 
   return <Modal title={`Report — ${family.name}`} onClose={onClose} wide>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:24}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(140px,100%),1fr))",gap:12,marginBottom:24}}>
       {[{l:"Properties",v:properties.length},{l:"Real Estate",v:fmtMoney(totalPortfolio)},{l:"Portfolio",v:fmtMoney(totalAccounts)},{l:"Open Tasks",v:tasks.length}].map(s=><StatBox key={s.l} label={s.l} value={s.v}/>)}
     </div>
     <div style={{display:"flex",gap:12,justifyContent:"flex-end"}}>
@@ -2387,14 +2390,14 @@ function EmailAdvisorModal({family,userProfile,data,onClose}){
   </Modal>;
 }
 
-function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
+function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab}){
   const isMobile=useIsMobile();
   // Partner role: full read access to everything in this dashboard, but no
   // create/edit/delete anywhere except uploading documents (handled separately
   // below). Enforced for real via RLS (write_access policies exclude partner);
   // this just keeps the UI from showing controls that would fail server-side.
   const canEdit=userProfile?.role!=="partner";
-  const[activeTab,setActiveTab]=useState("overview");
+  const[activeTab,setActiveTab]=useState(initialTab||"overview");
   const[reportOpen,setReportOpen]=useState(false);
   const[modal,setModal]=useState(null);
   const[editM,setEditM]=useState(null);
@@ -2749,13 +2752,13 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
 
         {/* OVERVIEW TAB */}
         {activeTab==="overview"&&<div style={{padding:isMobile?"16px 14px":"24px 28px"}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:14,marginBottom:24}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(140px,100%),1fr))",gap:14,marginBottom:24}}>
             <StatBox label="Net Worth Est." value={fmtMoney(netWorth)} accent={B.navy}/>
             <StatBox label="Real Estate" value={fmtMoney(totalRE)} accent={B.gold}/>
             <StatBox label="Portfolio" value={fmtMoney(totalAccounts)} accent={B.navyMid}/>
             <StatBox label="Valuables" value={fmtMoney(totalValuables)} accent="#8b5cf6"/>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:20,marginBottom:20}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(280px,100%),1fr))",gap:20,marginBottom:20}}>
             {/* Members */}
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -2763,18 +2766,24 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                 {canEdit&&<Btn small onClick={()=>{setEditM(null);setModal("member");}}>+ Add</Btn>}
               </div>
               <GoldLine/>
-              {contacts.length===0?<Empty text="No members yet — add the first one"/>:contacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`}}>
-                <div>
+              {contacts.length===0?<Empty text="No members yet — add the first one"/>:contacts.map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`,gap:10,flexWrap:"wrap"}}>
+                {/* MEMBER_ROW_RESPONSIVE: minWidth:0 is what actually lets this column
+                    shrink — a flex item defaults to min-width:auto and will refuse to go
+                    below its content width, which is what pushed the action buttons off
+                    the edge rather than wrapping them. */}
+                <div style={{flex:"1 1 200px",minWidth:0}}>
                   <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{c.name}{c.dob&&(()=>{const d=new Date(c.dob);if(isNaN(d))return null;const t=new Date();let a=t.getFullYear()-d.getFullYear();const m=t.getMonth()-d.getMonth();if(m<0||(m===0&&t.getDate()<d.getDate()))a--;return a>=0?<span style={{fontWeight:400,color:B.textSoft,fontSize:11,marginLeft:6}}>· {a} yrs</span>:null;})()}
                     {c.isPrimary&&<span style={{fontSize:9.5,fontWeight:700,letterSpacing:0.4,color:B.navy,background:"rgba(206,182,132,0.3)",border:`1px solid ${B.gold}`,borderRadius:4,padding:"1px 5px",marginLeft:7,verticalAlign:"middle"}}>PRIMARY</span>}
                   </div>
-                  <div style={{fontSize:11,color:B.textSoft,marginTop:2,display:"flex",gap:10}}>
-                    {c.email&&<span>✉ <EmailLink value={c.email}/></span>}
-                    {c.phone&&<span>📞 <PhoneLink value={c.phone}/></span>}
+                  <div style={{fontSize:11,color:B.textSoft,marginTop:2,display:"flex",gap:10,flexWrap:"wrap",minWidth:0}}>
+                    {c.email&&<span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100%"}}>✉ <EmailLink value={c.email}/></span>}
+                    {/* A phone number broken across two lines is unreadable and
+                        un-tappable, so it is kept whole even when the email truncates. */}
+                    {c.phone&&<span style={{whiteSpace:"nowrap",flexShrink:0}}>📞 <PhoneLink value={c.phone}/></span>}
                   </div>
                   {c.company&&<div style={{fontSize:11,color:B.textSoft}}>{c.company}</div>}
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0,marginLeft:"auto"}}>
                   <Badge scheme={c.type==="Business"?{bg:"#e8f0f8",text:B.navyMid,dot:B.navyMid}:{bg:"#f3edf7",text:"#5c2d91",dot:"#8b5cf6"}}>{c.type}</Badge>
                   {canEdit&&<button onClick={()=>toggleMemberPrimary(c)}
                     title={c.isPrimary?"Primary contact — copied on workflow correspondence. Click to unset.":"Make this the primary contact, copied on workflow correspondence"}
@@ -2880,7 +2889,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                   {canEdit&&<Btn small variant="danger" onClick={()=>delProperty(p.id)}>✕</Btn>}
                 </div>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(140px,100%),1fr))",gap:8}}>
                 {[["Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—","mortgage"],["Loan Type",p.loanType],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],...(Number(p.secondMortgageBalance)>0?[["2nd Mtg Balance",fmtMoney(p.secondMortgageBalance)],["2nd Mtg Payment",p.secondMortgagePayment?`${fmtMoney(p.secondMortgagePayment)}/mo`:"—"]]:[]),["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—","rental"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—","tax"],["Utilities",p.utilities?`${fmtMoney(p.utilities)}/mo`:"—"],["Insurance Co.",p.insuranceCompany||"—","insurance_dec"],["Ins. Premium",p.insurancePremium?`${fmtMoney(p.insurancePremium)}/yr`:"—","insurance_invoice"],["Flood Insurance",p.floodInsurance?`Yes${p.floodInsuranceCompany?` — ${p.floodInsuranceCompany}`:""}`:("No"),"flood_dec"]].map(([l,v,sec])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                   <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}{sec&&(docForSection(p.id,sec)?<DocLink doc={docForSection(p.id,sec)} toast={toast}/>:(canEdit?<AttachLink section={sec} onClick={()=>startAttach(p.id,sec)}/>:null))}</div>
                   <div style={{fontSize:12,color:B.text,fontWeight:600}}>{v}</div>
@@ -2950,7 +2959,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile}){
                   {canEdit&&<Btn small variant="danger" onClick={()=>delAccount(a.id)}>✕</Btn>}
                 </div>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(150px,100%),1fr))",gap:8}}>
                 {[["Starting Balance",fmtMoney(a.startingBalance)],["Current Balance",fmtMoney(a.currentBalance)],["Performance",pct!==null?`${Number(pct)>=0?"+":""}${pct}%`:"—"]].map(([l,v,sec])=><div key={l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                   <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}</div>
                   <div style={{fontSize:13,color:B.text,fontWeight:700}}>{v}</div>
@@ -3687,7 +3696,7 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
     .sub{font-size:12px;color:#5a6e84;margin-top:4px;}
     .date{font-size:11px;color:#8fa0b2;margin-top:2px;}
     h2{font-size:13px;font-weight:800;color:${B.navy};margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid ${B.gold};letter-spacing:.06em;text-transform:uppercase;}
-    .assumptions{background:${B.bg};border-radius:8px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
+    .assumptions{background:${B.bg};border-radius:8px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(110px,100%),1fr));gap:10px;}
     .a-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:3px;}
     .a-v{font-size:13px;font-weight:700;color:${B.navy};white-space:nowrap;overflow:visible;}
     .stats{display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap;}
@@ -3774,7 +3783,7 @@ function CashFlowReport({family,projectionMonths,projectionMode,filingStatus,bas
   };
 
   return <Modal title="Cash Flow Report" onClose={onClose} wide>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:24}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(140px,100%),1fr))",gap:12,marginBottom:24}}>
       <StatBox label="Total Gross" value={fmtMoney(totalGross)} accent={B.gold}/>
       <StatBox label="Total Tax" value={fmtMoney(totalTax)} accent="#d43030"/>
       <StatBox label="Total Expenses" value={fmtMoney(totalExpense)} accent="#d43030"/>
@@ -3954,7 +3963,7 @@ function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,
     .sub{font-size:12px;color:#5a6e84;margin-top:4px;}
     .date{font-size:11px;color:#8fa0b2;margin-top:2px;}
     h2{font-size:13px;font-weight:800;color:${B.navy};margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid ${B.gold};letter-spacing:.06em;text-transform:uppercase;}
-    .assumptions{background:${B.bg};border-radius:8px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
+    .assumptions{background:${B.bg};border-radius:8px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(110px,100%),1fr));gap:10px;}
     .a-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#8fa0b2;margin-bottom:3px;}
     .a-v{font-size:13px;font-weight:700;color:${B.navy};white-space:nowrap;overflow:visible;}
     .cols{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap;}
@@ -4087,7 +4096,7 @@ function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,
     {/* Settings Bar */}
     <div style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,padding:isMobile?14:18,marginBottom:18,boxShadow:B.shadow}}>
       <div style={{fontSize:11,fontWeight:800,color:B.textMute,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Projection Settings{readOnly?" (read-only)":""}</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(160px,100%),1fr))",gap:12}}>
         <Field label="Projection Window">
           <Sel value={settings.projectionMode==="year"?"year":String(settings.projectionMonths)} disabled={readOnly} onChange={e=>{const v=e.target.value;if(v==="year")updateSettings({projectionMode:"year"});else updateSettings({projectionMode:"rolling",projectionMonths:Number(v)});}}>
             <option value="year">Current Year ({new Date().getFullYear()})</option>
@@ -4131,7 +4140,7 @@ function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,
         </label>
         {!readOnly&&<div style={{fontSize:11,color:B.textSoft,marginLeft:"auto"}}>State rate auto-fills from selection. Common local rates: NYC 3.876% · Philadelphia 3.75% · Detroit 2.4%</div>}
       </div>
-      <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${B.borderLight}`,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,alignItems:"end"}}>
+      <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${B.borderLight}`,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(160px,100%),1fr))",gap:12,alignItems:"end"}}>
         <Field label="Compare To (relocation)">
           <Sel value={settings.compareStateCode||""} disabled={readOnly} onChange={e=>{
             const code=e.target.value;const st=STATE_TAX_RATES.find(s=>s.code===code);
@@ -4157,7 +4166,7 @@ function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,
           <Btn small variant="gold" onClick={printComparison}>🖨 Print Comparison</Btn>
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(150px,100%),1fr))",gap:12}}>
         <div style={{background:B.white,borderRadius:10,padding:"14px 16px",border:`1px solid ${B.borderLight}`}}>
           <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:6}}>{STATE_TAX_RATES.find(s=>s.code===settings.stateCode)?.name||settings.stateCode} · Current</div>
           <div style={{fontSize:13,color:B.textSoft}}>Tax <strong style={{color:"#8b1a1a"}}>{fmtMoney(totalTax)}</strong></div>
@@ -4177,7 +4186,7 @@ function CashFlowView({family,events,paymentLog=[],properties,vendors=[],reload,
     </div>}
 
     {/* Stats */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:18}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(140px,100%),1fr))",gap:12,marginBottom:18}}>
       <StatBox label="Projected Gross" value={fmtMoney(totalGross)} accent={B.gold}/>
       <StatBox label="Projected Tax" value={fmtMoney(totalTax)} accent="#d43030"/>
       <StatBox label="Projected Net" value={fmtMoney(totalNet)} accent={B.navy}/>
@@ -4557,7 +4566,7 @@ function printAdvisorReport(adv,data){
   w.document.close();w.focus();setTimeout(()=>w.print(),400);
 }
 
-function FamiliesView({data,reload,toast,userProfile}){
+function FamiliesView({data,reload,toast,userProfile,navIntent,onNavConsumed}){
   const{families}=data;
   const[advisors,setAdvisors]=useState([]);
   useEffect(()=>{
@@ -4566,6 +4575,17 @@ function FamiliesView({data,reload,toast,userProfile}){
     }
   },[userProfile]);
   const[selected,setSelected]=useState(null);
+  // Somewhere else in the app (a bill on the dashboard) can ask for a specific
+  // family to be opened on a specific tab. The request is consumed immediately so
+  // that going back to the list and picking a different family isn't hijacked by
+  // a stale intent still sitting in state.
+  const[intentTab,setIntentTab]=useState(null);
+  useEffect(()=>{
+    if(!navIntent||!navIntent.familyId)return;
+    const target=families.find(f=>f.id===navIntent.familyId);
+    if(target){setSelected(target);setIntentTab(navIntent.subTab||null);}
+    if(onNavConsumed)onNavConsumed();
+  },[navIntent,families]);
   const[modal,setModal]=useState(null);
   const[search,setSearch]=useState("");
   const isAdmin=userProfile?.role==="admin";
@@ -4609,7 +4629,7 @@ function FamiliesView({data,reload,toast,userProfile}){
 
   // If a family is selected, show its dashboard
   if(selected) return <ViewErrorBoundary label="the family dashboard" onBack={()=>setSelected(null)}>
-    <FamilyDashboard family={selected} data={data} reload={reload} toast={toast} onBack={()=>setSelected(null)} userProfile={userProfile}/>
+    <FamilyDashboard family={selected} data={data} reload={reload} toast={toast} onBack={()=>{setSelected(null);setIntentTab(null);}} userProfile={userProfile} initialTab={intentTab}/>
   </ViewErrorBoundary>;
 
   const getStats=f=>({
@@ -4633,7 +4653,7 @@ function FamiliesView({data,reload,toast,userProfile}){
       {viewMode==="advisors"&&<div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Titan Expert Summary</div>}
     </div>
     <div style={{flex:1,overflowY:"auto",padding:"16px 24px"}}>
-      {viewMode==="advisors"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:16}}>
+      {viewMode==="advisors"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(320px,100%),1fr))",gap:16}}>
         {advisorSummary.length===0&&<Empty text="No Titan Experts or families yet."/>}
         {advisorSummary.map(a=>(
           <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("families");}}}
@@ -4645,7 +4665,7 @@ function FamiliesView({data,reload,toast,userProfile}){
               <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Families with no Titan Expert assigned"}</div>
             </div>
             <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(170px,100%),1fr))",gap:8}}>
               {[{l:"AUM (Est.)",v:fmtMoney(a.value)},{l:"Families",v:a.families},{l:"Open Tasks",v:a.openTasks},{l:"Overdue",v:a.overdue}].map(item=>(
                 <div key={item.l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                   <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{item.l}</div>
@@ -4662,7 +4682,7 @@ function FamiliesView({data,reload,toast,userProfile}){
       </div>}
       {viewMode!=="advisors"&&<>
       {filtered.length===0&&<Empty text={advisorFilter?"No families for this Titan Expert.":"No families yet. Add your first one."}/>}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(300px,100%),1fr))",gap:16}}>
         {filtered.map(f=>{
           const s=getStats(f);
           const overdue=(data.tasks||[]).filter(t=>t.familyId===f.id&&!t.done&&t.dueDate&&new Date(t.dueDate)<new Date()).length;
@@ -4694,7 +4714,7 @@ function FamiliesView({data,reload,toast,userProfile}){
               </div>
             </div>
             <div style={{height:1,background:`linear-gradient(90deg,${B.gold},transparent)`,marginBottom:12}}/>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:8,marginBottom:12}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(280px,100%),1fr))",gap:8,marginBottom:12}}>
               {[{l:"Est. Value",v:fmtMoney(s.value)},{l:"Properties",v:s.properties},{l:"Accounts",v:s.accounts},{l:"Open Tasks",v:s.tasks}].map(item=><div key={item.l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                 <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{item.l}</div>
                 <div style={{fontSize:15,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:600}}>{item.v}</div>
@@ -4882,7 +4902,7 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
         <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Notes by Titan Expert</div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(300px,100%),1fr))",gap:16}}>
           {advisorSummary.length===0&&<Empty text="No Titan Experts or notes yet."/>}
           {advisorSummary.map(a=>(
             <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("notes");}}}
@@ -4894,7 +4914,7 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
                 <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Notes not linked to a Titan Expert's contact"}</div>
               </div>
               <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(170px,100%),1fr))",gap:8}}>
                 {[{l:"Notes",v:a.notes},{l:"Contacts",v:a.contacts}].map(item=>(
                   <div key={item.l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                     <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{item.l}</div>
@@ -5059,7 +5079,7 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
         <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Tasks by Titan Expert</div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(300px,100%),1fr))",gap:16}}>
           {advisorSummary.length===0&&<Empty text="No Titan Experts or tasks yet."/>}
           {advisorSummary.map(a=>(
             <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("tasks");}}}
@@ -5071,7 +5091,7 @@ function TasksView({data,reload,toast,userProfile,prospectMode=false}){
                 <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Tasks not linked to a Titan Expert's contact"}</div>
               </div>
               <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(150px,100%),1fr))",gap:8}}>
                 {[{l:"Open",v:a.open},{l:"Overdue",v:a.overdue},{l:"Done",v:a.done}].map(item=>(
                   <div key={item.l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                     <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{item.l}</div>
@@ -5225,7 +5245,7 @@ function ProspectContactsView({data,reload,toast,userProfile}){
         <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Prospecting by Titan Expert</div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(320px,100%),1fr))",gap:16}}>
           {advisorSummary.length===0&&<Empty text="No Titan Experts or prospects yet."/>}
           {advisorSummary.map(a=>(
             <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("contacts");}}}
@@ -5237,7 +5257,7 @@ function ProspectContactsView({data,reload,toast,userProfile}){
                 <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Prospects with no Titan Expert assigned"}</div>
               </div>
               <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(170px,100%),1fr))",gap:8}}>
                 {[{l:"Prospects",v:a.prospects},{l:"Open Deals",v:a.openDeals},{l:"Pipeline $",v:fmtMoney(a.pipeline)},{l:"Won",v:a.won}].map(item=>(
                   <div key={item.l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                     <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{item.l}</div>
@@ -5370,7 +5390,7 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
         <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Pipeline by Titan Expert</div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(320px,100%),1fr))",gap:16}}>
           {advisorSummary.length===0&&<Empty text="No Titan Experts or deals yet."/>}
           {advisorSummary.map(a=>(
             <div key={a.email||"unassigned"} onClick={()=>{if(!a.unassigned){setAdvisorFilter(a.email);setViewMode("pipeline");}}}
@@ -5382,7 +5402,7 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
                 <div style={{fontSize:12,color:B.textSoft}}>{a.email||"Opportunities not linked to a Titan Expert's contact"}</div>
               </div>
               <div style={{height:1,background:`linear-gradient(90deg,${a.unassigned?B.textMute:B.gold},transparent)`,marginBottom:12}}/>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(170px,100%),1fr))",gap:8}}>
                 {[{l:"Open Opps",v:a.openDeals},{l:"Pipeline $",v:fmtMoney(a.pipeline)},{l:"Won",v:a.won},{l:"Lost",v:a.lost}].map(item=>(
                   <div key={item.l} style={{background:B.bg,borderRadius:6,padding:"8px 10px"}}>
                     <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{item.l}</div>
@@ -5517,6 +5537,11 @@ function collectBills({events=[],families=[],paymentLog=[],windowDays=45}){
   return out;
 }
 
+// Where a deadline is actually dealt with. A renewal is edited on the property,
+// not in a list of renewals, so the row opens the tab holding the record rather
+// than a tab named after the deadline. Birthdays have no record to open, so they
+// land on Overview.
+const DEADLINE_TAB={task:"tasks",loan:"properties",insurance:"properties",flood:"properties",deal:"deals",birthday:"overview",anniversary:"overview"};
 const DEADLINE_TAG={task:"Task",loan:"Loan maturity",insurance:"Insurance",flood:"Flood insurance",deal:"Deal close",birthday:"Birthday",anniversary:"Anniversary"};
 function collectDeadlines({tasks=[],properties=[],deals=[],contacts=[],families=[],acks=[],windowDays=60}){
   const today=new Date(); today.setHours(0,0,0,0);
@@ -5651,7 +5676,7 @@ function ReviewQueue({families,toast,userProfile}){
   </div>;
 }
 
-function Dashboard({data,userProfile,reload,toast}){
+function Dashboard({data,userProfile,reload,toast,onOpenFamily}){
   const isMobile=useIsMobile();
   const{families:_families,contacts:_contacts,properties:_properties,deals:_deals,notes:_notes,tasks:_tasks,portfolio_accounts:_accts=[]}=data;
   const isAdmin=userProfile?.role==="admin";
@@ -5721,7 +5746,7 @@ function Dashboard({data,userProfile,reload,toast}){
       </div>
       <AdvisorScopeBar userProfile={userProfile} value={scope} onChange={setScope}/>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:14,marginBottom:24}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(140px,100%),1fr))",gap:14,marginBottom:24}}>
       {[{label:"Families",value:families.length,sub:`${contacts.length} contacts`,accent:B.navy},{label:"Real Estate",value:fmtMoney(totalRE),sub:`${properties.length} properties`,accent:B.gold},{label:"Portfolio",value:fmtMoney(totalPortfolio),sub:`${portfolio_accounts.length} accounts`,accent:B.navyMid},{label:"Open Tasks",value:pending.length,sub:overdue.length>0?`${overdue.length} overdue`:dueSoon.length>0?`${dueSoon.length} due soon`:"All on track",accent:overdue.length>0?"#d43030":dueSoon.length>0?"#d4900a":B.navyMid}].map(s=><div key={s.label} style={{background:B.bgCard,borderRadius:12,padding:"20px 22px",border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,borderTop:`3px solid ${s.accent}`}}>
         <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>{s.label}</div>
         <div style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",color:B.navy,fontWeight:600,lineHeight:1}}>{s.value}</div>
@@ -5729,7 +5754,7 @@ function Dashboard({data,userProfile,reload,toast}){
       </div>)}
     </div>
     <ReviewQueue families={families} toast={toast} userProfile={userProfile}/>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:18,marginBottom:18}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(280px,100%),1fr))",gap:18,marginBottom:18}}>
       {isAdmin&&<div style={{background:B.bgCard,borderRadius:12,padding:24,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Pipeline by Stage</div>
         <GoldLine/>
@@ -5749,7 +5774,14 @@ function Dashboard({data,userProfile,reload,toast}){
         <GoldLine/>
         {bills.slice(0,10).map(b=>{
           const col=b.overdue?"#d43030":b.days<=3?"#d4900a":B.navyMid;
-          return <div key={b.key} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`}}>
+          const go=()=>onOpenFamily&&onOpenFamily(b.familyId,"cashflow");
+          // Rendered as a real button so it is reachable by keyboard and announced
+          // as an action, rather than a div that happens to respond to clicks.
+          return <button key={b.key} onClick={go} disabled={!onOpenFamily}
+            title={onOpenFamily?`Open ${b.familyName||"this family"} — Cash Flow`:undefined}
+            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`,width:"100%",background:"none",border:"none",borderRadius:0,textAlign:"left",font:"inherit",color:"inherit",cursor:onOpenFamily?"pointer":"default"}}
+            onMouseEnter={e=>{if(onOpenFamily)e.currentTarget.style.background=B.bg;}}
+            onMouseLeave={e=>{e.currentTarget.style.background="none";}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:col,flexShrink:0}}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,color:B.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b.label}</div>
@@ -5759,7 +5791,8 @@ function Dashboard({data,userProfile,reload,toast}){
               <div style={{fontSize:13,color:B.navy,fontWeight:700,whiteSpace:"nowrap"}}>{fmtMoney(b.amount)}</div>
               <div style={{fontSize:10,color:col,fontWeight:600,whiteSpace:"nowrap"}}>{b.overdue?`⚠ ${Math.abs(b.days)}d overdue`:b.days===0?"due today":`in ${b.days}d`} · {fmt(b.dateISO)}</div>
             </div>
-          </div>;
+            {onOpenFamily&&<span aria-hidden="true" style={{color:B.textMute,fontSize:14,flexShrink:0}}>›</span>}
+          </button>;
         })}
         {bills.length>10&&<div style={{fontSize:11,color:B.textMute,paddingTop:8}}>+{bills.length-10} more in Cash Flow</div>}
         <div style={{fontSize:11,color:B.textMute,paddingTop:10}}>Mark each bill paid in Cash Flow once settled.</div>
@@ -5768,18 +5801,35 @@ function Dashboard({data,userProfile,reload,toast}){
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Upcoming Deadlines</div>
         <GoldLine/>
         {deadlines.length===0&&<Empty text="No upcoming deadlines."/>}
-        {deadlines.slice(0,10).map((d,i)=>{const soon=d.days<=14;const col=d.done?"#2e9e57":d.overdue?"#d43030":soon?"#d4900a":B.navyMid;return <div key={d.key||i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`,opacity:d.done?0.62:1}}>
-          <button onClick={()=>d.done?undoDeadline(d):completeDeadline(d)} title={d.done?"Undo":"Mark done"} style={{width:18,height:18,borderRadius:"50%",flexShrink:0,cursor:"pointer",border:`2px solid ${d.done?"#2e9e57":col}`,background:d.done?"#2e9e57":"transparent",color:"#fff",fontSize:11,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>{d.done?"✓":""}</button>
+        {deadlines.slice(0,10).map((d,i)=>{const soon=d.days<=14;const col=d.done?"#2e9e57":d.overdue?"#d43030":soon?"#d4900a":B.navyMid;const goD=()=>{if(onOpenFamily&&d.familyId)onOpenFamily(d.familyId,DEADLINE_TAB[d.type]||"overview");};
+        const openable=!!(onOpenFamily&&d.familyId);
+        return <div key={d.key||i}
+          onClick={openable?goD:undefined}
+          role={openable?"button":undefined} tabIndex={openable?0:undefined}
+          onKeyDown={openable?(e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();goD();}}):undefined}
+          title={openable?`Open ${d.familyName||"this family"}`:undefined}
+          onMouseEnter={e=>{if(openable)e.currentTarget.style.background=B.bg;}}
+          onMouseLeave={e=>{e.currentTarget.style.background="none";}}
+          style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`,opacity:d.done?0.62:1,cursor:openable?"pointer":"default"}}>
+          {/* stopPropagation matters: ticking an item off should not also navigate
+              away from the list the user is working down. */}
+          <button onClick={e=>{e.stopPropagation();d.done?undoDeadline(d):completeDeadline(d);}} title={d.done?"Undo":"Mark done"} style={{width:18,height:18,borderRadius:"50%",flexShrink:0,cursor:"pointer",border:`2px solid ${d.done?"#2e9e57":col}`,background:d.done?"#2e9e57":"transparent",color:"#fff",fontSize:11,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>{d.done?"✓":""}</button>
           <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,color:B.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:d.done?"line-through":"none"}}>{d.label}</div><div style={{fontSize:11,color:B.textMute}}>{d.done?`✓ ${DEADLINE_TAG[d.type]||d.type} · done${d.completedBy?` by ${d.completedBy}`:""}`:[DEADLINE_TAG[d.type]||d.type,d.familyName].filter(Boolean).join(" · ")}</div></div>
           <div style={{textAlign:"right",flexShrink:0}}><div style={{fontSize:11,color:col,fontWeight:700,whiteSpace:"nowrap"}}>{!d.done&&d.overdue?"⚠ ":""}{fmt(d.dateISO)}</div><div style={{fontSize:10,color:B.textMute}}>{d.done?"handled":d.overdue?`${Math.abs(d.days)}d ago`:d.days===0?"today":`in ${d.days}d`}</div></div>
         </div>;})}
       </div>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:18}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(280px,100%),1fr))",gap:18}}>
       <div style={{background:B.bgCard,borderRadius:12,padding:24,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Portfolio by Family</div>
         <GoldLine/>
-        {families.map(f=>{const val=properties.filter(p=>p.familyId===f.id).reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0)+portfolio_accounts.filter(a=>a.familyId===f.id).reduce((s,a)=>s+(Number(a.currentBalance)||0),0);const pct=totalRE+totalPortfolio>0?Math.round((val/(totalRE+totalPortfolio))*100):0;return <div key={f.id} style={{marginBottom:12}}>
+        {families.map(f=>{const val=properties.filter(p=>p.familyId===f.id).reduce((s,p)=>s+(Number(p.currentValue)||Number(p.purchasePrice)||0),0)+portfolio_accounts.filter(a=>a.familyId===f.id).reduce((s,a)=>s+(Number(a.currentBalance)||0),0);const pct=totalRE+totalPortfolio>0?Math.round((val/(totalRE+totalPortfolio))*100):0;const goP=()=>{if(onOpenFamily)onOpenFamily(f.id,"portfolio");};
+        return <div key={f.id}
+          onClick={onOpenFamily?goP:undefined}
+          role={onOpenFamily?"button":undefined} tabIndex={onOpenFamily?0:undefined}
+          onKeyDown={onOpenFamily?(e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();goP();}}):undefined}
+          title={onOpenFamily?`Open ${f.name} — Portfolio`:undefined}
+          style={{marginBottom:12,cursor:onOpenFamily?"pointer":"default"}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:13,color:B.textMid,fontWeight:600}}>{f.name}</span><span style={{fontSize:12,color:B.textSoft}}>{fmtMoney(val)}</span></div>
           <div style={{height:6,background:B.borderLight,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:B.navy,borderRadius:3}}/></div>
         </div>;})}
@@ -5788,7 +5838,16 @@ function Dashboard({data,userProfile,reload,toast}){
       <div style={{background:B.bgCard,borderRadius:12,padding:24,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Recent Notes</div>
         <GoldLine/>
-        {[...notes].sort((a,b)=>b.createdAt>a.createdAt?1:-1).slice(0,4).map(n=>{const fam=gf(n.familyId);return <div key={n.id} style={{padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`}}>
+        {[...notes].sort((a,b)=>b.createdAt>a.createdAt?1:-1).slice(0,4).map(n=>{const fam=gf(n.familyId);const goN=()=>{if(onOpenFamily&&n.familyId)onOpenFamily(n.familyId,"notes");};
+        const openN=!!(onOpenFamily&&n.familyId);
+        return <div key={n.id}
+          onClick={openN?goN:undefined}
+          role={openN?"button":undefined} tabIndex={openN?0:undefined}
+          onKeyDown={openN?(e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();goN();}}):undefined}
+          title={openN?`Open ${fam?fam.name:"this family"} — Notes`:undefined}
+          onMouseEnter={e=>{if(openN)e.currentTarget.style.background=B.bg;}}
+          onMouseLeave={e=>{e.currentTarget.style.background="none";}}
+          style={{padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`,cursor:openN?"pointer":"default"}}>
           <div style={{fontSize:13,color:B.textMid,lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{n.body}</div>
           <div style={{display:"flex",gap:8,marginTop:3}}><span style={{fontSize:11,color:B.textMute}}>{fmt(n.createdAt)}</span>{fam&&<span style={{fontSize:11,color:B.gold,fontWeight:700}}>{fam.name}</span>}</div>
         </div>;})}
@@ -6757,7 +6816,7 @@ function DocumentsView({familyId,readOnly=false,canUpload,canDelete,canScan,canE
                     </div>
                     <span style={{fontSize:11,color:B.textMute,flexShrink:0}}>{fmtSize(doc.fileSize)}</span>
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginTop:14}}>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(150px,100%),1fr))",gap:8,marginTop:14}}>
                     {[["Date Uploaded",fmt(doc.createdAt)],["Uploaded By",doc.uploadedBy||"—"],["Last Downloaded",dl?fmt(dl.downloadedAt):"Never"],["Downloaded By",dl?(dl.downloadedBy||"—"):"—"]].map(([l,v])=><div key={l} style={{background:B.bg,borderRadius:8,padding:"8px 10px"}}>
                       <div style={{fontSize:9,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>{l}</div>
                       <div style={{fontSize:12,color:B.text,fontWeight:600}}>{v}</div>
@@ -7004,7 +7063,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
           <div style={{fontSize:isMobile?11:12,color:B.textMute,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:8,position:"relative",zIndex:1}}>Estimated Net Worth</div>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:isMobile?36:52,color:B.navy,fontWeight:600,lineHeight:1,marginBottom:8,position:"relative",zIndex:1}}>{fmtMoney(netWorth)}</div>
           <div style={{height:1,background:B.borderLight,margin:"18px 0",position:"relative",zIndex:1}}/>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginTop:4,position:"relative",zIndex:1}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(150px,100%),1fr))",gap:12,marginTop:4,position:"relative",zIndex:1}}>
             {[{l:"Real Estate",v:fmtMoney(totalRE)},{l:"Total Debt",v:fmtMoney(totalDebt),neg:true},{l:"Portfolio",v:fmtMoney(totalAccounts)},{l:"Valuables",v:fmtMoney(totalValuables)}].map(s=><div key={s.l} style={{background:B.bg,border:`1px solid ${B.borderLight}`,borderRadius:10,padding:"12px 14px"}}>
               <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>{s.l}</div>
               <div style={{fontSize:isMobile?19:23,fontFamily:"'Cormorant Garamond',serif",color:s.neg?"#d43030":B.navy,fontWeight:600,lineHeight:1}}>{s.neg?"−":""}{s.v}</div>
@@ -7024,7 +7083,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
 
         {/* Quick stats grid */}
         <style>{`.pcm-stat-card{transition:transform .15s ease, box-shadow .15s ease;}.pcm-stat-card:hover{transform:translateY(-3px);box-shadow:0 8px 22px rgba(9,43,73,0.13);}.pcm-stat-card:active{transform:translateY(-1px);}`}</style>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(180px,100%),1fr))",gap:14}}>
           {[
             {l:"Properties",v:properties.length,tab:"properties",icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M9.5 20v-6h5v6"/></svg>},
             {l:"Portfolio Accounts",v:accounts.length,tab:"portfolio",icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18 10 12l3.5 3.5L20 9"/><path d="M15.5 9H20v4.5"/></svg>},
@@ -7085,7 +7144,7 @@ function ClientDashboard({family,data,userProfile,logout,toast,reload}){
               <div style={{fontSize:12,color:B.textSoft}}>Current Value</div>
             </div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(140px,100%),1fr))",gap:10}}>
             {[["Property Type",p.propertyType],["Purchase Price",fmtMoney(p.purchasePrice)],["Purchase Date",fmt(p.purchaseDate)],["Lender",p.lender||"—","mortgage"],["Loan Balance",fmtMoney(p.loanBalance),"mortgage"],["Interest Rate",fmtPct(p.interestRate)],["Monthly Payment",fmtMoney(p.loanPayment)],...(Number(p.secondMortgageBalance)>0?[["2nd Mtg Balance",fmtMoney(p.secondMortgageBalance)],["2nd Mtg Payment",p.secondMortgagePayment?`${fmtMoney(p.secondMortgagePayment)}/mo`:"—"]]:[]),["Loan Maturity",fmt(p.loanMaturityDate)],["Rental Income",p.rentalIncome?`${fmtMoney(p.rentalIncome)}/mo`:"—","rental"],["Property Taxes",p.propertyTaxes?`${fmtMoney(p.propertyTaxes)}/yr`:"—","tax"],["Insurance",p.insuranceCompany||"—","insurance_dec"],["Insurance Expires",p.insuranceExpiration?fmt(p.insuranceExpiration):"—"],["Flood Insurance",p.floodInsurance?"Yes":"No","flood_dec"]].map(([l,v,sec])=><div key={l} style={{background:B.bg,borderRadius:8,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:B.textMute,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>{l}<DocLink doc={sec?docForSection(p.id,sec):null} toast={toast}/></div>
               <div style={{fontSize:13,color:B.text,fontWeight:600}}>{v}</div>
@@ -7223,7 +7282,7 @@ function PartnerDashboard({data,userProfile,logout,toast,reload}){
     <div style={{padding:24,maxWidth:960,margin:"0 auto"}}>
       <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:B.navy,fontWeight:600,marginBottom:16}}>Select a Family</div>
       {myFamilies.length===0&&<Empty text={`No families are linked to your account yet. Contact your ${BRAND.short} representative.`}/>}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(280px,100%),1fr))",gap:16}}>
         {myFamilies.map(f=><div key={f.id} onClick={()=>setSelectedId(f.id)} style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,borderTop:`3px solid ${B.gold}`,padding:20,cursor:"pointer",boxShadow:B.shadow,transition:"box-shadow .15s"}}
           onMouseEnter={e=>e.currentTarget.style.boxShadow=B.shadowMd}
           onMouseLeave={e=>e.currentTarget.style.boxShadow=B.shadow}>
@@ -7499,7 +7558,7 @@ function FillClientDocModal({docId,family,contact,userProfile,bankAccount,onClos
     </Grid2>
     {checkboxFields.length>0&&<div style={{marginTop:6,marginBottom:8}}>
       <label style={{display:"block",fontSize:11,color:B.textSoft,marginBottom:8,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>Services Included</label>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(170px,100%),1fr))",gap:8}}>
         {checkboxFields.map(f=><label key={f.key} onClick={toggle(f.key)}
           style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"9px 12px",background:values[f.key]?"#e8f0f8":B.bg,borderRadius:8,border:`1px solid ${values[f.key]?B.navyMid:B.border}`}}>
           <input type="checkbox" checked={!!values[f.key]} onChange={toggle(f.key)} style={{width:15,height:15,accentColor:B.navy,flexShrink:0}}/>
@@ -8030,7 +8089,7 @@ function ResourcesView({data,userProfile,toast}){
       {family
         ? <>
             {docsMsg&&<div style={{fontSize:12,color:"#8a5c00",background:"#fef3e2",border:"1px solid #fcd97d",borderRadius:8,padding:"10px 12px",margin:"10px 0 0",lineHeight:1.55}}>{docsMsg}</div>}
-            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(240px,1fr))",gap:14,marginTop:10}}>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(min(240px,100%),1fr))",gap:14,marginTop:10}}>
             {Object.entries(DOC_CONFIGS).map(([id,d])=>{
               // A document is available only if this firm has supplied the
               // template. There is no shared default to fall back on: serving
@@ -8062,7 +8121,7 @@ function ResourcesView({data,userProfile,toast}){
     </div>
 
     <SectionLabel>Tools & Documents</SectionLabel>
-    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(240px,1fr))",gap:14}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(min(240px,100%),1fr))",gap:14}}>
       {RESOURCE_LINKS.map(r=>{
         const blocked=!docs[r.docKey];
         const why=!docsReady?"Checking for your firm's copy…":"Your firm hasn't uploaded this guide yet.";
@@ -8734,7 +8793,7 @@ function WorkflowTemplatesSection({userProfile,toast}){
     </div>
     <GoldLine/>
 
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14,marginTop:14}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(320px,100%),1fr))",gap:14,marginTop:14}}>
       {rows.map(t=>{
         const steps=Array.isArray(t.steps)?t.steps:[];
         const earliest=steps.reduce((m,s)=>Math.min(m,Number(s.offset_days)||0),0);
@@ -9122,7 +9181,7 @@ function BrandDocumentsSection({brands:brandsProp,toast}){
       </Field>
     </div>
 
-    {loading?<Spinner/>:<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(330px,1fr))",gap:14}}>
+    {loading?<Spinner/>:<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(min(330px,100%),1fr))",gap:14}}>
       {BRAND_DOC_KEYS.map(spec=>{
         const row=find(spec.key);
         // Recomputed from the field names found at upload rather than read back
@@ -9265,7 +9324,7 @@ function BrandingView({toast}){
 
     {rows.length===0&&<Empty text="No brand profiles yet. Create one to get started."/>}
 
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:14}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(320px,100%),1fr))",gap:14}}>
       {rows.map(r=><div key={r.id} style={{background:B.white,border:`1px solid ${r.is_active?B.gold:B.borderLight}`,borderTop:`3px solid ${r.color_primary}`,borderRadius:12,padding:"16px 18px",boxShadow:B.shadow}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:8}}>
           <div style={{minWidth:0}}>
@@ -9331,7 +9390,7 @@ function BrandingView({toast}){
       </div>
 
       <SectionLabel>Colours</SectionLabel>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:"0 14px"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(190px,100%),1fr))",gap:"0 14px"}}>
         {BRAND_COLOR_FIELDS.map(({key,label})=>
           <ColorField key={key} label={label} value={modal.row[key]} onChange={v=>set(key,v)}/>)}
       </div>
@@ -9407,6 +9466,8 @@ export default function App(){
   // and return to their top-level list — clicking "Families" while inside a
   // family's dashboard should always bounce you back out, same for every item.
   const[navNonce,setNavNonce]=useState(0);
+  // A one-shot request to open a particular family, cleared as soon as it lands.
+  const[navIntent,setNavIntent]=useState(null);
   const isMobile=useIsMobile();
   // Reset the view on the way out so nothing from this session is left on screen
   // for whoever signs in next.
@@ -9602,8 +9663,8 @@ export default function App(){
 
       <div style={{flex:1,minHeight:0,overflow:"hidden",background:B.bg,paddingBottom:"0"}}>
         {loading&&tab!=="families"&&tab!=="users"?<Spinner/>:<>
-          {tab==="dashboard"   &&<Dashboard key={navNonce} data={data} userProfile={userProfile} reload={reload} toast={showToast}/>}
-          {tab==="families"    &&<FamiliesView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
+          {tab==="dashboard"   &&<Dashboard key={navNonce} data={data} userProfile={userProfile} reload={reload} toast={showToast} onOpenFamily={(familyId,subTab)=>{setNavIntent({familyId,subTab});setTab("families");}}/>}
+          {tab==="families"    &&<FamiliesView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile} navIntent={navIntent} onNavConsumed={()=>setNavIntent(null)}/>}
           {tab==="portfolio"   &&<PortfolioView key={navNonce} data={data} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="cm-notes"    &&<NotesView key={navNonce} data={{...data,notes:data.notes.filter(n=>n.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
           {tab==="cm-tasks"    &&<TasksView key={navNonce} data={{...data,tasks:data.tasks.filter(t=>t.familyId)}} reload={reload} toast={showToast} userProfile={userProfile}/>}
