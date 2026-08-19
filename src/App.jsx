@@ -5434,6 +5434,89 @@ function ProspectPipelineView({data,reload,toast,userProfile}){
 // Collects every hard date across the platform into one upcoming-deadline feed:
 // task due dates, loan maturities, insurance + flood expirations, deal close
 // dates (one-time), and recurring annual birthdays + anniversaries.
+// ── BILLS ─────────────────────────────────────────────────────────────────────
+// Bills are deliberately NOT folded into collectDeadlines. A household's recurring
+// bills turn over every month, so a combined list would be mostly bills and the
+// one-off deadlines that actually need a decision would be buried in them. They
+// also demand a different action: a deadline is acknowledged, a bill is paid and
+// recorded.
+//
+// nextBillDue mirrors the SQL function of the same name (see the bill_payment_reminders
+// migration) so the dashboard and the reminder emails can never disagree about when
+// something is due. Month-based frequencies re-anchor on the ORIGINAL day of month
+// and clamp to the month's length, because repeatedly adding a month to 31 January
+// walks to the 28th and stays there — which would quietly move every month-end
+// mortgage three days early, forever.
+function nextBillDue(startDate,frequency,endDate,fromDate){
+  if(!startDate)return null;
+  const freq=String(frequency||"once").toLowerCase();
+  const parse=s=>{const d=new Date(s+"T12:00:00");return isNaN(d.getTime())?null:d;};
+  const start=parse(startDate); if(!start)return null;
+  const from=fromDate?new Date(fromDate):new Date(); from.setHours(12,0,0,0);
+  const end=endDate?parse(endDate):null;
+  const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const done=d=>(end&&d>end)?null:iso(d);
+
+  if(["once","one-time","onetime",""].includes(freq)) return start>=from?done(start):null;
+
+  const months={monthly:1,quarterly:3,semiannually:6,"semi-annually":6,annually:12,yearly:12}[freq];
+  if(months){
+    const anchorDay=start.getDate();
+    let n=Math.max(0,Math.floor(((from.getFullYear()-start.getFullYear())*12+(from.getMonth()-start.getMonth()))/months)-1);
+    for(let guard=0;guard<2000;guard++){
+      const m=new Date(start.getFullYear(),start.getMonth()+months*n,1,12,0,0);
+      const dim=new Date(m.getFullYear(),m.getMonth()+1,0).getDate();
+      const cand=new Date(m.getFullYear(),m.getMonth(),Math.min(anchorDay,dim),12,0,0);
+      if(cand>=from) return done(cand);
+      n++;
+    }
+    return null;
+  }
+
+  const weeks={weekly:7,biweekly:14}[freq];
+  // An unrecognised frequency must not quietly behave like a one-off; skip it rather
+  // than announcing a due date nobody is expecting.
+  if(!weeks)return null;
+  let d=new Date(start);
+  if(d<from){
+    const steps=Math.max(0,Math.floor((from-d)/(weeks*86400000))-1);
+    d=new Date(d.getTime()+steps*weeks*86400000);
+    let guard=0;
+    while(d<from&&guard++<5000) d=new Date(d.getTime()+weeks*86400000);
+  }
+  return done(d);
+}
+
+// Bills the firm is responsible for, due inside the window and not yet settled.
+// One-offs carry their own paid flag; recurring bills record each period in
+// cash_flow_payment_log, so the two are checked differently.
+function collectBills({events=[],families=[],paymentLog=[],windowDays=45}){
+  const today=new Date(); today.setHours(12,0,0,0);
+  const famName=id=>{const f=families.find(x=>x.id===id);return f?f.name:null;};
+  const paidPeriods=new Set((paymentLog||[]).filter(l=>l&&l.paid).map(l=>`${l.eventId}|${l.period}`));
+  const out=[];
+  (events||[]).forEach(e=>{
+    if(!e||e.direction!=="expense"||!e.pcmResponsible)return;
+    const due=nextBillDue(e.startDate,e.frequency,e.endDate,today);
+    if(!due)return;
+    const d=new Date(due+"T12:00:00");
+    const days=Math.round((d-today)/86400000);
+    if(days>windowDays)return;
+    const oneOff=["once","one-time","onetime",""].includes(String(e.frequency||"once").toLowerCase());
+    const settled=oneOff?!!e.paid:paidPeriods.has(`${e.id}|${due}`);
+    if(settled)return;
+    out.push({
+      key:`bill:${e.id}:${due}`,id:e.id,dateISO:due,days,
+      label:e.description||e.eventType||"Bill",
+      amount:Number(e.amount)||0,frequency:e.frequency,category:e.category,
+      familyId:e.familyId,familyName:famName(e.familyId),
+      overdue:days<0,
+    });
+  });
+  out.sort((a,b)=>a.days-b.days);
+  return out;
+}
+
 const DEADLINE_TAG={task:"Task",loan:"Loan maturity",insurance:"Insurance",flood:"Flood insurance",deal:"Deal close",birthday:"Birthday",anniversary:"Anniversary"};
 function collectDeadlines({tasks=[],properties=[],deals=[],contacts=[],families=[],acks=[],windowDays=60}){
   const today=new Date(); today.setHours(0,0,0,0);
@@ -5596,6 +5679,8 @@ function Dashboard({data,userProfile,reload,toast}){
   const deadlineContacts=(_contacts||[]).filter(c=>!scope||_famIdSet.has(c.familyId)||(c.advisorEmail||"").toLowerCase()===scope);
   const _acks=data.deadline_acks||[];
   const deadlines=collectDeadlines({tasks,properties,deals,contacts:deadlineContacts,families,acks:_acks,windowDays:60});
+  const bills=collectBills({events:(data.cash_flow_events||[]).filter(e=>!scope||_famIdSet.has(e.familyId)),families,paymentLog:data.cash_flow_payment_log||[],windowDays:45});
+  const billsTotal=bills.reduce((s,b)=>s+b.amount,0);
   const userLabel=(userProfile&&(userProfile.fullName||userProfile.email))||"";
   const completeDeadline=async d=>{
     try{
@@ -5655,6 +5740,29 @@ function Dashboard({data,userProfile,reload,toast}){
           </div>
           <div style={{height:5,background:B.borderLight,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${(count/maxC)*100}%`,background:`linear-gradient(90deg,${STAGE_COLORS[stage].dot}88,${STAGE_COLORS[stage].dot})`,borderRadius:3}}/></div>
         </div>)}
+      </div>}
+      {bills.length>0&&<div style={{background:B.bgCard,borderRadius:12,padding:24,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,marginBottom:18}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4,gap:12,flexWrap:"wrap"}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Bills Due</div>
+          <div style={{fontSize:12,color:B.textSoft}}><span style={{fontWeight:700,color:B.navy}}>{fmtMoney(billsTotal)}</span> across {bills.length} bill{bills.length===1?"":"s"}</div>
+        </div>
+        <GoldLine/>
+        {bills.slice(0,10).map(b=>{
+          const col=b.overdue?"#d43030":b.days<=3?"#d4900a":B.navyMid;
+          return <div key={b.key} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:col,flexShrink:0}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,color:B.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b.label}</div>
+              <div style={{fontSize:11,color:B.textMute}}>{[b.familyName,b.category,b.frequency].filter(Boolean).join(" · ")}</div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              <div style={{fontSize:13,color:B.navy,fontWeight:700,whiteSpace:"nowrap"}}>{fmtMoney(b.amount)}</div>
+              <div style={{fontSize:10,color:col,fontWeight:600,whiteSpace:"nowrap"}}>{b.overdue?`⚠ ${Math.abs(b.days)}d overdue`:b.days===0?"due today":`in ${b.days}d`} · {fmt(b.dateISO)}</div>
+            </div>
+          </div>;
+        })}
+        {bills.length>10&&<div style={{fontSize:11,color:B.textMute,paddingTop:8}}>+{bills.length-10} more in Cash Flow</div>}
+        <div style={{fontSize:11,color:B.textMute,paddingTop:10}}>Mark each bill paid in Cash Flow once settled.</div>
       </div>}
       <div style={{background:B.bgCard,borderRadius:12,padding:24,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Upcoming Deadlines</div>
@@ -5743,6 +5851,24 @@ function UserManagementView({userProfile,data={},toast}){
       if(error)toast(error.message,"error");else loadFamilyPartners();
     }
   };
+  // Lead Advisor designation. This is a LABEL, not a permission: the partner stays
+  // read-only exactly as before. It decides who the AI assistant hands investment
+  // questions to, and who the family record shows as owning the relationship.
+  // The Titan Expert on the family record runs administration and is deliberately
+  // NOT the fallback for investment questions.
+  const partnerLinkFor=(userId,familyId)=>familyPartners.find(fp=>fp.user_id===userId&&fp.family_id===familyId);
+  const setLeadAdvisor=async(u,familyId,makeLead)=>{
+    // One lead per family is enforced by a partial unique index in Postgres, so
+    // clear the incumbent first rather than letting the write collide.
+    if(makeLead){
+      const{error:clearErr}=await sb.from("family_partners").update({is_lead_advisor:false}).eq("family_id",familyId).eq("is_lead_advisor",true);
+      if(clearErr){toast(clearErr.message,"error");return;}
+    }
+    const{error}=await sb.from("family_partners").update({is_lead_advisor:makeLead}).eq("user_id",u.id).eq("family_id",familyId);
+    if(error)toast(error.message,"error");
+    else{toast(makeLead?"Lead Advisor set":"Lead Advisor cleared");loadFamilyPartners();}
+  };
+
   // Per-Partner toggle: whether this Partner is allowed to create/run Scheduled
   // Prompts. Not all Partners should have this — off by default. Titan Experts
   // and Admins always have it implicitly (not stored on their row).
@@ -6009,15 +6135,25 @@ function UserManagementView({userProfile,data={},toast}){
 
       {/* Manage Partner Families Modal — add/remove which families this partner can switch between */}
       {modal&&modal.type==="managePartner"&&<Modal title={`Linked Families — ${modal.user.full_name||modal.user.email}`} onClose={()=>setModal(null)}>
-        <div style={{fontSize:13,color:B.textSoft,marginBottom:14,lineHeight:1.5}}>This partner can sign in once and switch between every family checked below. Access is view-only, except uploading and downloading documents.</div>
+        <div style={{fontSize:13,color:B.textSoft,marginBottom:14,lineHeight:1.5}}>This partner can sign in once and switch between every family checked below. Access is view-only, except uploading and downloading documents. Marking one as Lead Advisor records who owns the investment relationship for that family \u2014 client investment questions are routed to them, and only one partner can lead each family. It grants no extra permissions.</div>
         <div style={{border:`1px solid ${B.border}`,borderRadius:8,maxHeight:280,overflowY:"auto",padding:"6px 4px",marginBottom:16}}>
           {families.length===0&&<div style={{padding:"8px 10px",fontSize:12,color:B.textMute}}>No families yet.</div>}
           {families.map(f=>{
-            const linked=partnerFamilyIdsFor(modal.user.id).includes(f.id);
-            return <label key={f.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",fontSize:13,color:B.text,cursor:"pointer"}}>
-              <input type="checkbox" checked={linked} onChange={()=>togglePartnerFamily(modal.user,f.id,linked)}/>
-              {f.name}
-            </label>;
+            const link=partnerLinkFor(modal.user.id,f.id);
+            const linked=!!link;
+            const isLead=!!link?.is_lead_advisor;
+            return <div key={f.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",fontSize:13,color:B.text}}>
+              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",flex:1,minWidth:0}}>
+                <input type="checkbox" checked={linked} onChange={()=>togglePartnerFamily(modal.user,f.id,linked)}/>
+                <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</span>
+              </label>
+              {linked&&<button
+                onClick={()=>setLeadAdvisor(modal.user,f.id,!isLead)}
+                title={isLead?"Lead Advisor — investment questions from this family route here":"Designate as Lead Advisor for this family"}
+                style={{background:isLead?B.gold:"transparent",color:isLead?B.navy:B.textMute,border:`1px solid ${isLead?B.gold:B.border}`,borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:700,letterSpacing:"0.06em",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+                {isLead?"\u2605 LEAD ADVISOR":"SET AS LEAD"}
+              </button>}
+            </div>;
           })}
         </div>
         <div style={{display:"flex",justifyContent:"flex-end"}}>
