@@ -29,3 +29,5 @@ app.probe.mjs
 
 # Excel/Word lock files created when a user has the document open
 ~$*
+src/App.jsx.bak
+*.pptx
