@@ -31,3 +31,6 @@ app.probe.mjs
 ~$*
 src/App.jsx.bak
 *.pptx
+
+# Python bytecode from the docs/ generators
+__pycache__/
