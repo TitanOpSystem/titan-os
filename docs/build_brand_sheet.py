@@ -25,6 +25,9 @@ Usage:
 
 import argparse
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import letter
@@ -32,41 +35,49 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
+import brand_kit as BK
+
 W, H = letter
 MARGIN = 52.0
 CONTENT = W - MARGIN * 2
 
-# ── The brand, as recorded on the TitanOS brand_profiles row ──────────────────
+# ── The brand, from docs/brand_kit.py, which is the single source ─────────────
 BRAND = {
-    "name": "TitanOS",
-    "tagline": "PRIVATE WEALTH OPERATING SYSTEM",
-    "contact": "hello@titanos.com",
-    "site": "titanosdemo.vercel.app",
+    "name": BK.BRAND["name"],
+    "tagline": BK.BRAND["tagline"],
+    "contact": BK.BRAND["contact"],
+    "site": BK.BRAND["site"],
 }
 
-NAVY = "#092b49"
-NAVY_MID = "#293d5c"
-GOLD = "#ceb684"
-GOLD_LIGHT = "#dfc99a"
-CREAM = "#f9f7f3"
-BORDER = "#d8cdb8"
-BORDER_LIGHT = "#ede8de"
-TEXT_SOFT = "#5a6e84"
-TEXT_MUTE = "#8fa0b2"
+NAVY = BK.NAVY
+NAVY_MID = BK.SLATE
+GOLD = BK.GOLD
+# The kit specifies four colours; a document also needs a lighter accent for panel fills. Derived
+# here rather than invented per-file, and labelled on the sheet as derived so nobody treats it as
+# kit-canonical.
+GOLD_LIGHT = "#dcc38a"
+CREAM = BK.CREAM
+BORDER = BK.BORDER
+BORDER_LIGHT = BK.BORDER_LIGHT
+TEXT_SOFT = BK.SLATE
+TEXT_MUTE = BK.TEXT_MUTE
 
 # `carries_text` decides whether a contrast ratio is printed. A ratio beside a border or a
 # page background reads as a failing grade for a colour that was never meant to hold text,
 # which is worse than showing nothing.
+SLATE_LABEL = BK.SLATE
+MIST_LABEL = BK.MIST
+
 PALETTE = [
-    ("Navy", NAVY, "Primary. Headings, body text, filled buttons.", True),
-    ("Navy mid", NAVY_MID, "Secondary text, subheads, chart series.", True),
-    ("Gold", GOLD, "Accent only. Rules, panels, top borders.", True),
-    ("Gold light", GOLD_LIGHT, "Panel fills behind navy text.", False),
-    ("Cream", CREAM, "Page background.", False),
-    ("Border", BORDER, "Dividers, input outlines.", False),
-    ("Border light", BORDER_LIGHT, "Hairlines inside cards.", False),
-    ("Text soft", TEXT_SOFT, "Supporting copy.", True),
-    ("Text mute", TEXT_MUTE, "Captions and metadata only.", True),
+    ("Navy", NAVY, "Primary. Headings, body text, filled panels.", True),
+    ("Gold", GOLD, "Accent only. Rules, the OS in the wordmark, top borders.", True),
+    ("Slate", SLATE_LABEL, "Tagline on light, and supporting copy.", True),
+    ("Mist", MIST_LABEL, "Tagline on dark only.", True),
+    ("Gold light", GOLD_LIGHT, "Derived, not in the kit. Panel fills behind navy text.", False),
+    ("Cream", CREAM, "Derived. Page and panel background.", False),
+    ("Border", BORDER, "Derived. Dividers, panel outlines.", False),
+    ("Border light", BORDER_LIGHT, "Derived. Hairlines inside panels.", False),
+    ("Text mute", TEXT_MUTE, "Derived. Captions and metadata only.", True),
 ]
 
 

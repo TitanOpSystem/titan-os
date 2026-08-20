@@ -39,34 +39,33 @@ Usage:
 
 import argparse
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
+
+import brand_kit as BK
 
 W, H = letter
 MARGIN = 48.0
 CONTENT = W - MARGIN * 2
 
 # ── The brand, as recorded on the TitanOS brand_profiles row ──────────────────
-BRAND = {
-    "name": "TitanOS",
-    "tagline": "PRIVATE WEALTH OPERATING SYSTEM",
-    "contact": "hello@titanos.com",
-    "site": "titanosdemo.vercel.app",
-}
+BRAND = BK.BRAND
 
-NAVY = "#092b49"
-NAVY_MID = "#293d5c"
-GOLD = "#ceb684"
-CREAM = "#f9f7f3"
-BORDER = "#d8cdb8"
-BORDER_LIGHT = "#ede8de"
-TEXT_SOFT = "#5a6e84"
-TEXT_MUTE = "#8fa0b2"
-WHITE = "#ffffff"
+NAVY = BK.NAVY
+NAVY_MID = BK.SLATE          # the kit has no mid-navy; Slate is its supporting-copy colour
+GOLD = BK.GOLD
+CREAM = BK.CREAM
+BORDER = BK.BORDER
+BORDER_LIGHT = BK.BORDER_LIGHT
+TEXT_SOFT = BK.SLATE         # 7.74:1 on white, up from 5a6e84
+TEXT_MUTE = BK.TEXT_MUTE
+WHITE = BK.WHITE
 
 # ── What it is ────────────────────────────────────────────────────────────────
 HEADLINE = "Everything a family owns, and everyone who looks after it, on one record."
@@ -177,32 +176,23 @@ class Sheet:
 
 
 def masthead(s):
+    """Navy band with the reversed lockup, drawn as vector from the kit rather than placed as a PNG.
+
+    The old version loaded titanos-logo-knockout.png and fell back to type if the file was missing.
+    Drawing it removes the file dependency and the fallback branch entirely, and it stays crisp at
+    any size. Note the lockup is Times-Bold here: Georgia is the specified face but is not available
+    to a server-side renderer — see the docstring in brand_kit.py.
+    """
     c = s.c
     c.setFillColor(HexColor(NAVY))
     c.rect(0, H - 104, W, 104, stroke=0, fill=1)
 
-    logo = os.path.join(os.path.dirname(os.path.abspath(__file__)), "brand",
-                        "titanos-logo-knockout.png")
-    drew = False
-    if os.path.exists(logo):
-        try:
-            img = ImageReader(logo)
-            iw, ih = img.getSize()
-            h = 34.0
-            c.drawImage(img, MARGIN, H - 70, width=iw * (h / ih), height=h, mask="auto")
-            drew = True
-        except Exception:
-            drew = False
-    # The wordmark in type is the fallback, so the sheet is never unbranded.
-    if not drew:
-        c.setFont("Times-Bold", 25)
-        c.setFillColor(HexColor(WHITE))
-        c.drawString(MARGIN, H - 66, BRAND["name"])
+    lock_w = 208.0
+    BK.draw_lockup(c, MARGIN + lock_w / 2, H - 24, lock_w, reversed_=True)
 
-    s.text(BRAND["tagline"], MARGIN, H - 86, size=7.6, colour=GOLD)
-    right = f'{BRAND["site"]}   ·   {BRAND["contact"]}'
-    s.text(right, W - MARGIN - stringWidth(right, "Helvetica", 7.6), H - 86,
-           size=7.6, colour="#8fa8bf")
+    right = f'{BRAND["site"]}   \u00b7   {BRAND["contact"]}'
+    s.text(right, W - MARGIN - stringWidth(right, "Helvetica", 7.6), H - 62,
+           size=7.6, colour=BK.MIST)
 
 
 def tier_card(s, t, x, y, w, h):
