@@ -1854,6 +1854,36 @@ function buildFamilySnapshot(family,data){
   });
 
   // contacts — the household's own members, not providers.
+  // NOTES_IN_SNAPSHOT
+  // The running record of what was discussed and agreed. Newest first, because a
+  // household's recent history is what questions are usually about, and because
+  // truncating from the oldest end loses least.
+  //
+  // Budgeted the same way document text is: a long meeting write-up should not
+  // crowd out the rest of the snapshot, and the edge function rejects an oversized
+  // payload outright rather than degrading.
+  const NOTE_BUDGET=32000, PER_NOTE=1600;
+  let noteTextUsed=0, notesOmitted=0;
+  const notes=[...(data.notes||[]).filter(n=>n.familyId===fid)]
+    .sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")))
+    .map(n=>{
+      const who=n.contactId?(data.contacts||[]).find(c=>c.id===n.contactId):null;
+      const out={ date:(n.createdAt||"").slice(0,10) };
+      if(who&&who.name)out.about=who.name;
+      // An edited note is flagged so the assistant can say the record was revised
+      // rather than presenting it as contemporaneous.
+      if(n.updatedAt)out.editedOn=String(n.updatedAt).slice(0,10);
+      if(noteTextUsed>=NOTE_BUDGET){ notesOmitted++; return null; }
+      let txt=String(n.body||"").trim().slice(0,PER_NOTE);
+      if(String(n.body||"").trim().length>PER_NOTE)txt+="…[truncated]";
+      noteTextUsed+=txt.length;
+      out.body=txt;
+      return out;
+    }).filter(Boolean);
+  // Saying how many were dropped is the difference between an incomplete answer
+  // and a wrong one — the assistant can flag that older notes exist.
+  if(notesOmitted>0)notes.push({note:`[${notesOmitted} older note(s) omitted — note-text budget reached. Ask about a specific date or topic.]`});
+
   const familyMembers=(data.contacts||[]).filter(c=>c.familyId===fid).map(c=>({
     name:trimOrNull(c.name), email:trimOrNull(c.email), phone:trimOrNull(c.phone),
     isPrimaryContact:!!c.isPrimary,
@@ -2002,9 +2032,12 @@ function buildFamilySnapshot(family,data){
              firmPaysBills:billPay, runsWorkflows:planAllows(plan,"workflows") },
     totals:{ netWorth, realEstate:totalRE, totalDebt, portfolio:totalPortfolio, valuables:totalValuables },
     counts:{ properties:properties.length, portfolioAccounts:portfolioAccounts.length, valuables:valuables.length, openTasks:tasks.length, documents:documents.length,
-             familyMembers:familyMembers.length, serviceProviders:serviceProviders.length },
+             familyMembers:familyMembers.length, serviceProviders:serviceProviders.length,
+             notes:(data.notes||[]).filter(n=>n.familyId===fid).length },
     properties, portfolioAccounts, valuables, tasks, cashFlowEvents, documents,
     familyMembers, serviceProviders,
+    // The Notes tab: what was discussed, decided and agreed, newest first.
+    notes,
     // Pre-totalled spend by category. Use these figures directly; do not re-derive
     // them from cashFlowEvents.
     expenseByCategory,
