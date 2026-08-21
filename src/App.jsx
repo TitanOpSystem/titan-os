@@ -5054,6 +5054,12 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
   // household". This is an explicit scope, kept separate from search so the two
   // compose: pick a family, then search within it.
   const[noteFamilyFilter,setNoteFamilyFilter]=useState("");
+  // NOTES_CONSOLIDATED
+  // Which notes are open. A Set rather than a single id, because reading a hub
+  // usually means opening two or three and comparing them - closing one to see
+  // another would make that impossible.
+  const[openNotes,setOpenNotes]=useState(()=>new Set());
+  const toggleNote=id=>setOpenNotes(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;});
   const advisorSummary=useMemo(()=>{
     const groups={};
     notes.forEach(n=>{
@@ -5198,7 +5204,9 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
     </div>
     <div style={{flex:1,overflowY:"auto",padding:isMobile?"14px 14px":"20px 28px"}}>
       <div style={{maxWidth:800,margin:"0 auto"}}>
-        <div style={{marginBottom:14,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+        {/* Sticky: on a long list the search and family filter scrolled away exactly
+            when they became useful. */}
+        <div style={{marginBottom:12,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",position:"sticky",top:0,zIndex:5,background:B.bg,paddingTop:4,paddingBottom:8}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search notes…" style={{...inp,padding:"9px 14px",boxShadow:B.shadow,flex:"1 1 220px",minWidth:0}}/>
           <select value={noteFamilyFilter} onChange={e=>setNoteFamilyFilter(e.target.value)}
             aria-label="Filter notes by family" title="Show notes for one family"
@@ -5225,52 +5233,78 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
         {filtered.map(n=>{
           const contact=gc(n.contactId);const fam=gf(n.familyId);
           const atts=noteAttachments.filter(a=>a.noteId===n.id);
-          return <div key={n.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:12,marginBottom:12,boxShadow:B.shadow,overflow:"hidden"}}>
-            <div style={{height:3,background:`linear-gradient(90deg,${B.gold},${B.goldLight})`}}/>
-            <div style={{padding:"16px 20px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:8}}>
-                {editId===n.id
-                  ? <div style={{flex:1}}>
-                      <textarea value={editBody} onChange={e=>setEditBody(e.target.value)} autoFocus style={{width:"100%",minHeight:80,background:B.bg,border:`1px solid ${B.border}`,borderRadius:8,padding:"10px 12px",color:B.text,fontSize:14,outline:"none",resize:"vertical",fontFamily:"inherit",lineHeight:1.65,boxSizing:"border-box"}}/>
-                      <div style={{display:"flex",gap:8,marginTop:8}}>
-                        <Btn small onClick={()=>saveEdit(n.id)} disabled={!editBody.trim()}>Save</Btn>
-                        <Btn small variant="ghost" onClick={()=>{setEditId(null);setEditBody("");}}>Cancel</Btn>
-                      </div>
+          const expanded=openNotes.has(n.id);
+          const bodyText=String(n.body||"");
+          const isLong=bodyText.length>220||bodyText.split("\n").length>3;
+          return <div key={n.id} style={{background:B.white,border:`1px solid ${B.borderLight}`,borderRadius:9,marginBottom:7,overflow:"hidden"}}>
+            <div style={{padding:"10px 13px"}}>
+              {editId===n.id
+                ? <div>
+                    <textarea value={editBody} onChange={e=>setEditBody(e.target.value)}
+                      onKeyDown={e=>{if(e.key==="Escape"){setEditId(null);setEditBody("");}if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){e.preventDefault();saveEdit(n.id);}}}
+                      autoFocus rows={Math.min(14,Math.max(4,bodyText.split("\n").length+1))}
+                      style={{width:"100%",boxSizing:"border-box",background:B.white,border:`1px solid ${B.gold}`,borderRadius:7,padding:"9px 11px",color:B.text,fontSize:13.5,lineHeight:1.6,fontFamily:"inherit",resize:"vertical",outline:"none"}}/>
+                    <div style={{display:"flex",gap:8,marginTop:7,alignItems:"center",flexWrap:"wrap"}}>
+                      <Btn small onClick={()=>saveEdit(n.id)} disabled={!editBody.trim()}>Save</Btn>
+                      <Btn small variant="ghost" onClick={()=>{setEditId(null);setEditBody("");}}>Cancel</Btn>
+                      <span style={{fontSize:10.5,color:B.textMute,marginLeft:"auto"}}>Cmd/Ctrl + Enter to save</span>
                     </div>
-                  : <p style={{margin:0,color:B.text,fontSize:14,lineHeight:1.7,flex:1,whiteSpace:"pre-wrap"}}>{n.body}</p>}
-                {editId!==n.id&&<div style={{display:"flex",gap:6,flexShrink:0}}>
-                  <button onClick={()=>{setEditId(n.id);setEditBody(n.body);}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14}} title="Edit note">✎</button>
-                  <button onClick={()=>del(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14}} title="Delete note">✕</button>
-                </div>}
-              </div>
-              {atts.length>0&&<div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${B.borderLight}`}}>
-                {atts.map(a=><div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",flexWrap:"wrap"}}>
-                  <span style={{fontSize:13,color:B.navy,fontWeight:600,flex:"1 1 200px",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>📎 {a.name}</span>
-                  <span style={{background:"#e8f0f8",color:B.navyMid,borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:700}}>{a.category}</span>
-                  {a.fileSize&&<span style={{fontSize:10,color:B.textSoft}}>{(a.fileSize/1024).toFixed(1)}KB</span>}
-                  <button onClick={()=>download(a)} style={{background:"none",border:`1px solid ${B.border}`,color:B.navy,cursor:"pointer",fontSize:11,padding:"3px 10px",borderRadius:6,fontFamily:"inherit"}}>↓ Download</button>
-                  <button onClick={()=>{if(confirm("Remove this attachment?"))delAtt(a);}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
-                </div>)}
-              </div>}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,flexWrap:"wrap",gap:8}}>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  <span style={{fontSize:11,color:B.textMute}}>🕐 {fmt(n.createdAt)}</span>
-                  {fam&&<span style={{background:"#e8f0f8",color:B.navyMid,borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:700}}>🏠 {fam.name}</span>}
-                  {contact&&<span style={{background:"#fef3e2",color:"#8a5c00",borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:700}}>👤 {contact.name}</span>}
-                </div>
-                <label style={{display:"inline-flex",alignItems:"center",gap:5,padding:"4px 10px",background:"transparent",border:`1px dashed ${B.border}`,borderRadius:6,cursor:"pointer",fontSize:11,color:B.textSoft}}>
-                  📎 Add file
-                  <input type="file" onChange={e=>{
-                    const file=e.target.files&&e.target.files[0];
-                    if(!file)return;
-                    const category=prompt("Category for this file?\n\nOptions: "+DOC_CATEGORIES.join(", "),"General");
-                    if(!category){e.target.value="";return;}
-                    const cat=DOC_CATEGORIES.includes(category)?category:"General";
-                    attachToExisting(n.id,file,cat,n.familyId);
-                    e.target.value="";
-                  }} style={{display:"none"}}/>
-                </label>
-              </div>
+                  </div>
+                : <>
+                    {/* Clamped, not truncated: a meeting write-up should not turn ten
+                        notes into a page of scrolling, but nothing is lost and one
+                        click opens it in place. */}
+                    <div onClick={()=>isLong&&toggleNote(n.id)}
+                      style={{fontSize:13.5,color:B.text,lineHeight:1.55,whiteSpace:"pre-wrap",wordBreak:"break-word",cursor:isLong?"pointer":"default",
+                        ...(isLong&&!expanded?{display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}:{})}}>{bodyText}</div>
+
+                    {/* One meta line carrying what previously occupied three. */}
+                    <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginTop:5,fontSize:11,color:B.textMute}}>
+                      {isLong&&<button onClick={()=>toggleNote(n.id)}
+                        style={{background:"none",border:"none",padding:0,color:"#8a7333",cursor:"pointer",fontSize:11,fontWeight:600}}>
+                        {expanded?"Less":"More"}</button>}
+                      <span>{fmt(n.createdAt)}</span>
+                      {n.updatedAt&&<span title={`Edited ${fmt(n.updatedAt)}`}>edited</span>}
+                      {fam&&<span style={{background:"#e8f0f8",color:B.navyMid,borderRadius:4,padding:"1px 7px",fontSize:10.5,fontWeight:700}}>{fam.name}</span>}
+                      {contact&&<span style={{background:"#fef3e2",color:"#8a5c00",borderRadius:4,padding:"1px 7px",fontSize:10.5,fontWeight:700}}>{contact.name}</span>}
+                      {/* Attachments collapse to a count. Listing every file inline was
+                          the biggest consumer of vertical space on notes that had them,
+                          and the count is usually all you need. */}
+                      {atts.length>0&&<button onClick={()=>toggleNote(n.id)}
+                        style={{background:"none",border:`1px solid ${B.borderLight}`,borderRadius:4,padding:"1px 7px",fontSize:10.5,fontWeight:700,color:B.navy,cursor:"pointer"}}>
+                        {atts.length} file{atts.length===1?"":"s"}</button>}
+                      <span style={{marginLeft:"auto",display:"flex",gap:8,flexShrink:0}}>
+                        <button onClick={()=>{setEditId(n.id);setEditBody(n.body);}} title="Edit note"
+                          style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:11,padding:0}}>Edit</button>
+                        <button onClick={()=>del(n.id)} title="Delete note"
+                          style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:11,padding:0}}>Delete</button>
+                      </span>
+                    </div>
+
+                    {/* Attachments and the upload control appear only once opened, so a
+                        note with neither costs nothing to scroll past. */}
+                    {expanded&&<div style={{marginTop:9,paddingTop:9,borderTop:`1px solid ${B.borderLight}`}}>
+                      {atts.map(a=><div key={a.id} style={{display:"flex",alignItems:"center",gap:7,padding:"3px 0",flexWrap:"wrap"}}>
+                        <span style={{fontSize:12,color:B.navy,fontWeight:600,flex:"1 1 180px",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</span>
+                        <span style={{background:"#e8f0f8",color:B.navyMid,borderRadius:4,padding:"1px 7px",fontSize:10.5,fontWeight:700}}>{a.category}</span>
+                        {a.fileSize&&<span style={{fontSize:10,color:B.textSoft}}>{(a.fileSize/1024).toFixed(1)}KB</span>}
+                        <button onClick={()=>download(a)} style={{background:"none",border:`1px solid ${B.border}`,color:B.navy,cursor:"pointer",fontSize:10.5,borderRadius:4,padding:"1px 8px"}}>Download</button>
+                        <button onClick={()=>{if(confirm("Remove this attachment?"))delAtt(a);}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:12}}>&times;</button>
+                      </div>)}
+                      <label style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 9px",marginTop:atts.length?6:0,background:"transparent",border:`1px dashed ${B.border}`,borderRadius:5,cursor:"pointer",fontSize:11,color:B.textSoft}}>
+                        Add file
+                        <input type="file" onChange={e=>{
+                          const file=e.target.files&&e.target.files[0];
+                          if(!file)return;
+                          const category=prompt("Category for this file?","General");
+                          if(!category){e.target.value="";return;}
+                          const cat=DOC_CATEGORIES.includes(category)?category:"General";
+                          attachToExisting(n.id,file,cat,n.familyId);
+                          e.target.value="";
+                        }} style={{display:"none"}}/>
+                      </label>
+                    </div>}
+                  </>}
             </div>
           </div>;
         })}
