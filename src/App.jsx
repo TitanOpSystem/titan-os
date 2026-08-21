@@ -810,11 +810,47 @@ function IRow({label,value}){return <div style={{display:"flex",gap:10,fontSize:
 // and prompts a calling app on desktop. Falls back to plain text if the value doesn't
 // contain any digits. stopPropagation keeps taps from also triggering a parent row's
 // onClick (e.g. an editable list item) when the link itself is tapped.
+// PHONE_FORMAT_PATCH
+// Formats as you type, and leaves alone anything it does not recognise.
+//
+// Only US 10-digit and 1+10 are reshaped. An extension, an international number or
+// a half-typed entry is returned untouched — a formatter that rewrites input it
+// does not understand is worse than none, because the user cannot correct it
+// except by fighting the field.
+//
+// Digits are counted, not characters, so backspacing through "(239) " deletes a
+// digit rather than stalling on punctuation the formatter immediately re-adds.
+function formatPhoneInput(raw){
+  const s=String(raw||"");
+  // Let anything with a letter, extension or explicit country code pass through:
+  // "+44 20 7946 0958", "555-0142 x203".
+  if(/[a-zA-Z]/.test(s))return s;
+  if(s.trim().startsWith("+")&&!/^\+1\b/.test(s.trim()))return s;
+
+  const d=s.replace(/\D/g,"");
+  const us=d.length===11&&d.startsWith("1")?d.slice(1):d;
+  if(us.length>10)return s;                       // not a US number; leave it
+
+  if(us.length<=3)return us;
+  if(us.length<=6)return `(${us.slice(0,3)}) ${us.slice(3)}`;
+  return `(${us.slice(0,3)}) ${us.slice(3,6)}-${us.slice(6,10)}`;
+}
+
+// Display form for numbers already stored in another shape. Same rules, so a list
+// mixing "(239) 555-0142", "813-244-3798" and "8132500577" reads uniformly without
+// anything being rewritten in the database.
+function formatPhoneDisplay(raw){
+  const out=formatPhoneInput(raw);
+  return out||String(raw||"");
+}
+
 function PhoneLink({value,style}){
   if(!value)return null;
   const href=String(value).replace(/[^\d+]/g,"");
   if(!href)return <span style={style}>{value}</span>;
-  return <a href={`tel:${href}`} onClick={e=>e.stopPropagation()} style={{color:"inherit",textDecoration:"none",cursor:"pointer",...style}} onMouseEnter={e=>e.currentTarget.style.textDecoration="underline"} onMouseLeave={e=>e.currentTarget.style.textDecoration="none"}>{value}</a>;
+  // The tel: href keeps the raw digits; only the visible text is normalised.
+  const shown=formatPhoneDisplay(value);
+  return <a href={`tel:${href}`} onClick={e=>e.stopPropagation()} style={{color:"inherit",textDecoration:"none",cursor:"pointer",...style}} onMouseEnter={e=>e.currentTarget.style.textDecoration="underline"} onMouseLeave={e=>e.currentTarget.style.textDecoration="none"}>{shown}</a>;
 }
 // Opens a stored file in a new tab through a short-lived signed URL. Used by the
 // inline "supporting document" links that sit next to figures on the property and
@@ -3423,7 +3459,7 @@ function PropertyContactForm({initial,onSave,onClose}){
       <Field label="Company"><Inp placeholder="Company name" value={f.company||""} onChange={set("company")}/></Field>
     </Grid2>
     <Grid2>
-      <Field label="Phone"><Inp placeholder="+1 555 000" value={f.phone||""} onChange={set("phone")}/></Field>
+      <Field label="Phone"><Inp placeholder="(555) 000-0000" value={f.phone||""} onChange={e=>set("phone")({target:{value:formatPhoneInput(e.target.value)}})}/></Field>
       <Field label="Email"><Inp type="email" placeholder="contact@company.com" value={f.email||""} onChange={set("email")}/></Field>
     </Grid2>
     <Field label="Notes"><Inp placeholder="Optional — schedule, gate code, account #…" value={f.notes||""} onChange={set("notes")}/></Field>
@@ -3447,7 +3483,7 @@ function FamilyContactForm({initial,onSave,onClose,hideAdvisor=false,rolePlaceho
     </Grid2>
     <Grid2>
       <Field label="Email"><Inp type="email" placeholder="john@firm.com" value={f.email||""} onChange={set("email")}/></Field>
-      <Field label="Phone"><Inp placeholder="+1 555 000" value={f.phone||""} onChange={set("phone")}/></Field>
+      <Field label="Phone"><Inp placeholder="(555) 000-0000" value={f.phone||""} onChange={e=>set("phone")({target:{value:formatPhoneInput(e.target.value)}})}/></Field>
     </Grid2>
     <Field label="Notes"><Inp placeholder="Optional" value={f.notes||""} onChange={set("notes")}/></Field>
     {!hideAdvisor&&<label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"10px 14px",background:f.isAdvisor?"rgba(206,182,132,0.15)":B.bg,borderRadius:8,border:`1px solid ${f.isAdvisor?B.gold:B.border}`,marginBottom:4}}>
@@ -3471,7 +3507,7 @@ function MemberForm({initial,onSave,onClose}){
     <Field label="Full Name"><Inp placeholder="Jane Smith" value={f.name} onChange={set("name")}/></Field>
     <Grid2>
       <Field label="Email"><Inp type="email" placeholder="jane@email.com" value={f.email||""} onChange={set("email")}/></Field>
-      <Field label="Phone"><Inp placeholder="+1 555 000" value={f.phone||""} onChange={set("phone")}/></Field>
+      <Field label="Phone"><Inp placeholder="(555) 000-0000" value={f.phone||""} onChange={e=>set("phone")({target:{value:formatPhoneInput(e.target.value)}})}/></Field>
     </Grid2>
     <Grid2>
       <Field label="Company / LLC"><Inp placeholder="Smith Holdings LLC" value={f.company||""} onChange={set("company")}/></Field>
@@ -5461,7 +5497,7 @@ function ProspectContactForm({initial,onSave,onClose,userProfile,advisors=[]}){
   const save=async()=>{if(!f.name.trim())return;setSaving(true);await onSave(f);onClose();};
   return <div>
     <Grid2><Field label="Full Name"><Inp placeholder="Jane Smith" value={f.name} onChange={set("name")}/></Field><Field label="Company"><Inp value={f.company||""} onChange={set("company")}/></Field></Grid2>
-    <Grid2><Field label="Email"><Inp type="email" value={f.email||""} onChange={set("email")}/></Field><Field label="Phone"><Inp value={f.phone||""} onChange={set("phone")}/></Field></Grid2>
+    <Grid2><Field label="Email"><Inp type="email" value={f.email||""} onChange={set("email")}/></Field><Field label="Phone"><Inp placeholder="(555) 000-0000" value={f.phone||""} onChange={e=>set("phone")({target:{value:formatPhoneInput(e.target.value)}})}/></Field></Grid2>
     <Grid2><Field label="Type"><Sel value={f.type} onChange={set("type")}><option>Individual</option><option>Business</option></Sel></Field><Field label="Lead Source"><Inp placeholder="Referral, LinkedIn…" value={f.source||""} onChange={set("source")}/></Field></Grid2>
     {isAdmin
       ? <Field label="Assign Titan Expert">
