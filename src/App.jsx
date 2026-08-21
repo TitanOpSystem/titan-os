@@ -2402,7 +2402,47 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
   const[modal,setModal]=useState(null);
   const[editM,setEditM]=useState(null);
 
-  const contacts=data.contacts.filter(c=>c.familyId===family.id);
+  const _rawContacts=data.contacts.filter(c=>c.familyId===family.id);
+
+  // MEMBER_SORT_PATCH
+  // Both lists previously rendered in whatever order the database returned, which
+  // is stable but arbitrary — on a household with a dozen members you end up
+  // scanning rather than looking.
+  //
+  // The default is not plain alphabetical: the primary contact leads, because that
+  // is who workflow drafts copy and who the Expert deals with most. Alphabetical
+  // within that.
+  const [memberSort,setMemberSort]=useState("primary");
+  const [contactSort,setContactSort]=useState("name");
+
+  // localeCompare, not <, so accented and non-ASCII names order correctly rather
+  // than being pushed to the end by their code points.
+  const _byName=(a,b)=>String(a.name||"").localeCompare(String(b.name||""),undefined,{sensitivity:"base"});
+  const _ageOf=c=>{
+    if(!c.dob)return null;
+    const d=new Date(c.dob); if(isNaN(d.getTime()))return null;
+    const t=new Date(); let a=t.getFullYear()-d.getFullYear();
+    const m=t.getMonth()-d.getMonth();
+    if(m<0||(m===0&&t.getDate()<d.getDate()))a--;
+    return a;
+  };
+  const contacts=[..._rawContacts].sort((a,b)=>{
+    if(memberSort==="primary"){
+      if(!!a.isPrimary!==!!b.isPrimary)return a.isPrimary?-1:1;
+      return _byName(a,b);
+    }
+    if(memberSort==="age"||memberSort==="ageAsc"){
+      const aa=_ageOf(a), ba=_ageOf(b);
+      // Members with no date of birth sort last either way — an unknown age is not
+      // a young age, and floating them to the top would be misleading.
+      if(aa===null&&ba===null)return _byName(a,b);
+      if(aa===null)return 1;
+      if(ba===null)return -1;
+      if(aa!==ba)return memberSort==="age"?ba-aa:aa-ba;
+      return _byName(a,b);
+    }
+    return _byName(a,b);
+  });
   const properties=data.properties.filter(p=>p.familyId===family.id);
   // Providers this family can be billed by, for the vendor picker on an expense line.
   const vendorOptions=buildVendorOptions(data,family.id);
@@ -2578,7 +2618,24 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
     reload("contacts");
   };
   const[editFC,setEditFC]=useState(null);
-  const famContacts=(data.family_contacts||[]).filter(fc=>fc.familyId===family.id);
+  const _rawFamContacts=(data.family_contacts||[]).filter(fc=>fc.familyId===family.id);
+  const famContacts=[..._rawFamContacts].sort((a,b)=>{
+    if(contactSort==="role"){
+      const r=String(a.role||"").localeCompare(String(b.role||""),undefined,{sensitivity:"base"});
+      // Blank roles last rather than first, so the sort surfaces the categorised
+      // contacts instead of burying them under the uncategorised ones.
+      if(!a.role!==!b.role)return a.role?-1:1;
+      if(r)return r;
+      return _byName(a,b);
+    }
+    if(contactSort==="company"){
+      if(!a.company!==!b.company)return a.company?-1:1;
+      const r=String(a.company||"").localeCompare(String(b.company||""),undefined,{sensitivity:"base"});
+      if(r)return r;
+      return _byName(a,b);
+    }
+    return _byName(a,b);
+  });
   const addFamilyContact=async(f)=>{const{error}=await sb.from("family_contacts").insert({family_id:family.id,name:f.name,role:f.role||null,company:f.company||null,email:f.email||null,phone:f.phone||null,is_advisor:!!f.isAdvisor,notes:f.notes||null});if(error)toast(error.message,"error");else{toast("Contact added");reload("family_contacts");}};
   const editFamilyContact=async(f)=>{const{error}=await sb.from("family_contacts").update({name:f.name,role:f.role||null,company:f.company||null,email:f.email||null,phone:f.phone||null,is_advisor:!!f.isAdvisor,notes:f.notes||null}).eq("id",editFC.id);if(error)toast(error.message,"error");else{toast("Contact updated");reload("family_contacts");}};
   const delFamilyContact=async(id)=>{const{error}=await sb.from("family_contacts").delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Contact removed");reload("family_contacts");}};
@@ -2763,6 +2820,16 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Members</div>
+                <div style={{marginLeft:"auto",marginRight:8}}>
+                  <select value={memberSort} onChange={e=>setMemberSort(e.target.value)}
+                    aria-label="Sort members" title="Sort members"
+                    style={{font:"inherit",fontSize:11,color:B.textSoft,background:"transparent",border:`1px solid ${B.borderLight}`,borderRadius:6,padding:"2px 6px",cursor:"pointer",maxWidth:130}}>
+                    <option value="primary">Primary first</option>
+                    <option value="name">Name A–Z</option>
+                    <option value="age">Age, oldest</option>
+                    <option value="ageAsc">Age, youngest</option>
+                  </select>
+                </div>
                 {canEdit&&<Btn small onClick={()=>{setEditM(null);setModal("member");}}>+ Add</Btn>}
               </div>
               <GoldLine/>
@@ -2801,7 +2868,16 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
             {/* Team Member & Contacts (professional contacts linked to this family) */}
             <div style={{background:B.white,borderRadius:12,padding:20,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Team Member & Contacts</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600}}>Team Member &amp; Contacts</div>
+                <div style={{marginLeft:"auto",marginRight:8}}>
+                  <select value={contactSort} onChange={e=>setContactSort(e.target.value)}
+                    aria-label="Sort contacts" title="Sort contacts"
+                    style={{font:"inherit",fontSize:11,color:B.textSoft,background:"transparent",border:`1px solid ${B.borderLight}`,borderRadius:6,padding:"2px 6px",cursor:"pointer",maxWidth:130}}>
+                    <option value="name">Name A–Z</option>
+                    <option value="role">Role</option>
+                    <option value="company">Firm</option>
+                  </select>
+                </div>
                 {canEdit&&<Btn small onClick={()=>{setEditFC(null);setModal("familyContact");}}>+ Add</Btn>}
               </div>
               <GoldLine/>
