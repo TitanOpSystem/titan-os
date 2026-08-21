@@ -5048,6 +5048,12 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
   useEffect(()=>{if(adminProspect){sb.from("user_profiles").select("id,email,full_name,role").in("role",["advisor","admin"]).then(({data:rows,error})=>{if(!error&&rows)setAdvisors(rows);});}},[adminProspect]);
   const advisorOfNote=n=>{const c=contacts.find(x=>x.id===n.contactId);return c&&c.advisorEmail?{email:c.advisorEmail,name:c.advisorName||c.advisorEmail}:null;};
   const[cmAdvScope,setCmAdvScope]=useState("");
+  // NOTES_FAMILY_FILTER
+  // Free-text search already matches the family name, but it also matches any note
+  // whose body happens to mention them, so it cannot answer "show me only this
+  // household". This is an explicit scope, kept separate from search so the two
+  // compose: pick a family, then search within it.
+  const[noteFamilyFilter,setNoteFamilyFilter]=useState("");
   const advisorSummary=useMemo(()=>{
     const groups={};
     notes.forEach(n=>{
@@ -5101,6 +5107,10 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
     catch(e){toast(e.message,"error");}
   };
   const filtered=notes.filter(n=>{
+    // "__none__" is a real answer, not an absence: notes logged against no family
+    // are otherwise invisible the moment any family is chosen.
+    if(noteFamilyFilter==="__none__"){ if(n.familyId)return false; }
+    else if(noteFamilyFilter&&n.familyId!==noteFamilyFilter)return false;
     if(advisorFilter&&(advisorOfNote(n)?.email||"")!==advisorFilter)return false;
     if(prospectMode&&userProfile?.role!=="admin"&&(advisorOfNote(n)?.email||"").toLowerCase()!==(userProfile?.email||"").toLowerCase())return false;
     if(!prospectMode&&cmAdvScope&&(gf(n.familyId)?.advisorEmail||"").toLowerCase()!==cmAdvScope)return false;
@@ -5188,9 +5198,29 @@ function NotesView({data,reload,toast,userProfile,prospectMode=false}){
     </div>
     <div style={{flex:1,overflowY:"auto",padding:isMobile?"14px 14px":"20px 28px"}}>
       <div style={{maxWidth:800,margin:"0 auto"}}>
-        <div style={{marginBottom:14,position:"relative"}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search notes…" style={{...inp,padding:"9px 14px",boxShadow:B.shadow}}/>
+        <div style={{marginBottom:14,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search notes…" style={{...inp,padding:"9px 14px",boxShadow:B.shadow,flex:"1 1 220px",minWidth:0}}/>
+          <select value={noteFamilyFilter} onChange={e=>setNoteFamilyFilter(e.target.value)}
+            aria-label="Filter notes by family" title="Show notes for one family"
+            style={{...inp,padding:"9px 12px",boxShadow:B.shadow,flex:"0 1 200px",minWidth:150,cursor:"pointer"}}>
+            <option value="">All families</option>
+            {[...(families||[])].sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),undefined,{sensitivity:"base"}))
+              .map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+            <option value="__none__">— No family —</option>
+          </select>
+          {(noteFamilyFilter||search)&&<button
+            onClick={()=>{setNoteFamilyFilter("");setSearch("");}}
+            title="Clear filters"
+            style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:12,textDecoration:"underline",flexShrink:0}}>Clear</button>}
         </div>
+        {/* Without this, a filter that hides everything looks identical to a family
+            with no notes, and the reflex is to re-type the note rather than clear
+            the filter. */}
+        {(noteFamilyFilter||search)&&<div style={{fontSize:11.5,color:B.textMute,marginTop:-8,marginBottom:12}}>
+          Showing {filtered.length} of {notes.length} note{notes.length===1?"":"s"}
+          {noteFamilyFilter&&noteFamilyFilter!=="__none__"&&` · ${gf(noteFamilyFilter)?.name||"selected family"}`}
+          {noteFamilyFilter==="__none__"&&" · not linked to a family"}
+        </div>}
         {filtered.length===0&&<div style={{padding:"60px 0",textAlign:"center",color:B.textMute}}><div style={{fontSize:32,marginBottom:12}}>📝</div>No notes yet.</div>}
         {filtered.map(n=>{
           const contact=gc(n.contactId);const fam=gf(n.familyId);
