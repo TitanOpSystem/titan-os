@@ -2412,7 +2412,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
   // The default is not plain alphabetical: the primary contact leads, because that
   // is who workflow drafts copy and who the Expert deals with most. Alphabetical
   // within that.
-  const [memberSort,setMemberSort]=useState("primary");
+  const [memberSort,setMemberSort]=useState("name");
   const [contactSort,setContactSort]=useState("name");
 
   // localeCompare, not <, so accented and non-ASCII names order correctly rather
@@ -2426,15 +2426,20 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
     if(m<0||(m===0&&t.getDate()<d.getDate()))a--;
     return a;
   };
+  // PRINCIPALS_PINNED
+  // The rank is applied before the chosen sort in every mode, so the couple always
+  // heads the household and the sort only ever reorders the dependants beneath
+  // them. Who heads a household is a fact about the relationship rather than an
+  // ordering preference, and having the spouse drop into the middle of the list
+  // when someone switched to Age was the thing that made the list hard to read.
+  const _rank=c=>c.isPrimary?0:c.isSecondary?1:2;
   const contacts=[..._rawContacts].sort((a,b)=>{
-    if(memberSort==="primary"){
-      // Rank rather than two comparisons: the couple heads the list in a fixed
-      // order, and everyone else falls through to alphabetical beneath them.
-      const rank=c=>c.isPrimary?0:c.isSecondary?1:2;
-      const ra=rank(a), rb=rank(b);
-      if(ra!==rb)return ra-rb;
-      return _byName(a,b);
-    }
+    const ra=_rank(a), rb=_rank(b);
+    if(ra!==rb)return ra-rb;
+    // Two rows can only share rank 0 or 1 if the database constraints were
+    // bypassed; treat them as equal rather than reordering the pair.
+    if(ra<2)return 0;
+
     if(memberSort==="age"||memberSort==="ageAsc"){
       const aa=_ageOf(a), ba=_ageOf(b);
       // Members with no date of birth sort last either way — an unknown age is not
@@ -2855,7 +2860,6 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
                   <select value={memberSort} onChange={e=>setMemberSort(e.target.value)}
                     aria-label="Sort members" title="Sort members"
                     style={{font:"inherit",fontSize:11,color:B.textSoft,background:"transparent",border:`1px solid ${B.borderLight}`,borderRadius:6,padding:"2px 6px",cursor:"pointer",maxWidth:130}}>
-                    <option value="primary">Principals first</option>
                     <option value="name">Name A–Z</option>
                     <option value="age">Age, oldest</option>
                     <option value="ageAsc">Age, youngest</option>
