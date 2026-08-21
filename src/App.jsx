@@ -705,7 +705,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",account_period:"accountPeriod",as_of:"asOf",balance_as_of:"balanceAsOf",source_document_id:"sourceDocumentId",balance_source_document_id:"balanceSourceDocumentId",entered_by:"enteredBy",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",is_primary:"isPrimary",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",vendor_family_contact_id:"vendorFamilyContactId",vendor_property_contact_id:"vendorPropertyContactId",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError",data_source:"dataSource",can_run_scheduled_prompts:"canRunScheduledPrompts",property_section:"propertySection",expiry_date:"expiryDate",doc_type:"docType",mime_type:"mimeType"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",account_period:"accountPeriod",as_of:"asOf",balance_as_of:"balanceAsOf",source_document_id:"sourceDocumentId",balance_source_document_id:"balanceSourceDocumentId",entered_by:"enteredBy",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",is_primary:"isPrimary",is_secondary:"isSecondary",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",vendor_family_contact_id:"vendorFamilyContactId",vendor_property_contact_id:"vendorPropertyContactId",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError",data_source:"dataSource",can_run_scheduled_prompts:"canRunScheduledPrompts",property_section:"propertySection",expiry_date:"expiryDate",doc_type:"docType",mime_type:"mimeType"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -2428,7 +2428,11 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
   };
   const contacts=[..._rawContacts].sort((a,b)=>{
     if(memberSort==="primary"){
-      if(!!a.isPrimary!==!!b.isPrimary)return a.isPrimary?-1:1;
+      // Rank rather than two comparisons: the couple heads the list in a fixed
+      // order, and everyone else falls through to alphabetical beneath them.
+      const rank=c=>c.isPrimary?0:c.isSecondary?1:2;
+      const ra=rank(a), rb=rank(b);
+      if(ra!==rb)return ra-rb;
       return _byName(a,b);
     }
     if(memberSort==="age"||memberSort==="ageAsc"){
@@ -2615,6 +2619,33 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
     toast(clearing
       ?"No primary contact set — workflow drafts will go out without a copy"
       :`${c.name} will be copied on workflow correspondence`);
+    reload("contacts");
+  };
+  // The second household principal — typically a spouse. Deliberately does NOT
+  // affect workflow copies: that routing belongs to the primary alone, and giving
+  // two people the copy would change who receives client correspondence rather
+  // than just who appears at the top of a list.
+  //
+  // A partial unique index allows one per family, so the incumbent is cleared
+  // first rather than letting the second write be rejected. A database check also
+  // forbids holding both designations, so primary is stood down explicitly here
+  // instead of surfacing a constraint violation to the user.
+  const toggleMemberSecondary=async(c)=>{
+    const clearing=!!c.isSecondary;
+    const{error:clearErr}=await sb.from("contacts")
+      .update({is_secondary:false}).eq("family_id",family.id).eq("is_secondary",true);
+    if(clearErr){toast(clearErr.message,"error");return;}
+    if(!clearing){
+      const patch={is_secondary:true};
+      if(c.isPrimary)patch.is_primary=false;
+      const{error}=await sb.from("contacts").update(patch).eq("id",c.id);
+      if(error){toast(error.message,"error");reload("contacts");return;}
+    }
+    toast(clearing
+      ?`${c.name} is no longer a household principal`
+      :(c.isPrimary
+          ? `${c.name} moved from primary to secondary — set a primary contact so workflow drafts still get copied`
+          : `${c.name} set as secondary principal`));
     reload("contacts");
   };
   const[editFC,setEditFC]=useState(null);
@@ -2824,7 +2855,7 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
                   <select value={memberSort} onChange={e=>setMemberSort(e.target.value)}
                     aria-label="Sort members" title="Sort members"
                     style={{font:"inherit",fontSize:11,color:B.textSoft,background:"transparent",border:`1px solid ${B.borderLight}`,borderRadius:6,padding:"2px 6px",cursor:"pointer",maxWidth:130}}>
-                    <option value="primary">Primary first</option>
+                    <option value="primary">Principals first</option>
                     <option value="name">Name A–Z</option>
                     <option value="age">Age, oldest</option>
                     <option value="ageAsc">Age, youngest</option>
@@ -2841,6 +2872,10 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
                 <div style={{flex:"1 1 200px",minWidth:0}}>
                   <div style={{fontWeight:600,color:B.navy,fontSize:13}}>{c.name}{c.dob&&(()=>{const d=new Date(c.dob);if(isNaN(d))return null;const t=new Date();let a=t.getFullYear()-d.getFullYear();const m=t.getMonth()-d.getMonth();if(m<0||(m===0&&t.getDate()<d.getDate()))a--;return a>=0?<span style={{fontWeight:400,color:B.textSoft,fontSize:11,marginLeft:6}}>· {a} yrs</span>:null;})()}
                     {c.isPrimary&&<span style={{fontSize:9.5,fontWeight:700,letterSpacing:0.4,color:B.navy,background:"rgba(206,182,132,0.3)",border:`1px solid ${B.gold}`,borderRadius:4,padding:"1px 5px",marginLeft:7,verticalAlign:"middle"}}>PRIMARY</span>}
+                    {/* Deliberately quieter than PRIMARY — an outline rather than a
+                        fill. The two are not equivalent: only the primary is copied
+                        on correspondence, and identical styling would imply they are. */}
+                    {c.isSecondary&&<span style={{fontSize:9.5,fontWeight:700,letterSpacing:0.4,color:B.navyMid,background:"transparent",border:`1px solid ${B.border}`,borderRadius:4,padding:"1px 5px",marginLeft:7,verticalAlign:"middle"}}>SECONDARY</span>}
                   </div>
                   <div style={{fontSize:11,color:B.textSoft,marginTop:2,display:"flex",gap:10,flexWrap:"wrap",minWidth:0}}>
                     {c.email&&<span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100%"}}>✉ <EmailLink value={c.email}/></span>}
@@ -2855,6 +2890,9 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
                   {canEdit&&<button onClick={()=>toggleMemberPrimary(c)}
                     title={c.isPrimary?"Primary contact — copied on workflow correspondence. Click to unset.":"Make this the primary contact, copied on workflow correspondence"}
                     style={{background:"none",border:"none",color:c.isPrimary?B.gold:B.textMute,cursor:"pointer",fontSize:13,opacity:c.isPrimary?1:0.55}}>★</button>}
+                  {canEdit&&<button onClick={()=>toggleMemberSecondary(c)}
+                    title={c.isSecondary?"Secondary principal — sorts beneath the primary. Click to unset.":"Mark as the second household principal, typically a spouse"}
+                    style={{background:"none",border:"none",color:c.isSecondary?B.navyMid:B.textMute,cursor:"pointer",fontSize:12,fontWeight:700,opacity:c.isSecondary?1:0.55,letterSpacing:0.3}}>2°</button>}
                   {canEdit&&<button onClick={()=>{setEditM(c);setModal("member");}} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}} title="Edit member">✎</button>}
                   {canEdit&&<button onClick={()=>delMember(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>}
                 </div>
