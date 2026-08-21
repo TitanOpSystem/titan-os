@@ -705,7 +705,7 @@ const pctChange=(s,c)=>{const sv=Number(s)||0;const cv=Number(c)||0;if(!sv)retur
 
 const toClient=obj=>{
   if(!obj)return obj;
-  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",account_period:"accountPeriod",as_of:"asOf",balance_as_of:"balanceAsOf",source_document_id:"sourceDocumentId",balance_source_document_id:"balanceSourceDocumentId",entered_by:"enteredBy",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",is_primary:"isPrimary",is_secondary:"isSecondary",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",vendor_family_contact_id:"vendorFamilyContactId",vendor_property_contact_id:"vendorPropertyContactId",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError",data_source:"dataSource",can_run_scheduled_prompts:"canRunScheduledPrompts",property_section:"propertySection",expiry_date:"expiryDate",doc_type:"docType",mime_type:"mimeType"};
+  const m={family_id:"familyId",contact_id:"contactId",account_id:"accountId",account_period:"accountPeriod",as_of:"asOf",balance_as_of:"balanceAsOf",source_document_id:"sourceDocumentId",balance_source_document_id:"balanceSourceDocumentId",entered_by:"enteredBy",close_date:"closeDate",due_date:"dueDate",created_at:"createdAt",uploaded_at:"uploadedAt",advisor_name:"advisorName",advisor_email:"advisorEmail",owner_name:"ownerName",property_type:"propertyType",property_id:"propertyId",purchase_price:"purchasePrice",purchase_date:"purchaseDate",current_value:"currentValue",loan_balance:"loanBalance",interest_rate:"interestRate",loan_payment:"loanPayment",loan_maturity_date:"loanMaturityDate",loan_type:"loanType",rental_income:"rentalIncome",property_taxes:"propertyTaxes",flood_insurance:"floodInsurance",insurance_company:"insuranceCompany",insurance_premium:"insurancePremium",flood_insurance_company:"floodInsuranceCompany",flood_insurance_premium:"floodInsurancePremium",insurance_expiration:"insuranceExpiration",flood_insurance_expiration:"floodInsuranceExpiration",account_type:"accountType",starting_balance:"startingBalance",current_balance:"currentBalance",banker_name:"bankerName",make_model:"makeModel",estimated_value:"estimatedValue",file_type:"fileType",extracted_text:"extractedText",reminder_days:"reminderDays",reminder_sent:"reminderSent",full_name:"fullName",file_path:"filePath",file_size:"fileSize",uploaded_by:"uploadedBy",event_type:"eventType",start_date:"startDate",end_date:"endDate",tax_treatment:"taxTreatment",filing_status:"filingStatus",state_tax_rate:"stateTaxRate",base_income:"baseIncome",cash_flow_settings:"cashFlowSettings",hoa_fee:"hoaFee",property_management_fee_pct:"propertyManagementFeePct",include_mortgage_in_cashflow:"includeMortgageInCashflow",sort_order:"sortOrder",note_id:"noteId",recurrence_interval:"recurrenceInterval",recurrence_unit:"recurrenceUnit",completed_at:"completedAt",completed_by:"completedBy",item_key:"itemKey",item_label:"itemLabel",item_type:"itemType",occurrence_date:"occurrenceDate",second_mortgage_balance:"secondMortgageBalance",second_mortgage_payment:"secondMortgagePayment",assistant_name:"assistantName",is_advisor:"isAdvisor",is_primary:"isPrimary",updated_at:"updatedAt",is_secondary:"isSecondary",pcm_responsible:"pcmResponsible",paid_at:"paidAt",paid_by:"paidBy",vendor_family_contact_id:"vendorFamilyContactId",vendor_property_contact_id:"vendorPropertyContactId",event_id:"eventId",document_id:"documentId",downloaded_by:"downloadedBy",downloaded_at:"downloadedAt",owner_user_id:"ownerUserId",owner_email:"ownerEmail",owner_role:"ownerRole",prompt_type:"promptType",template_key:"templateKey",custom_prompt:"customPrompt",schedule_preset:"schedulePreset",schedule_dow:"scheduleDow",schedule_hour_utc:"scheduleHourUtc",last_run_at:"lastRunAt",last_run_status:"lastRunStatus",last_run_error:"lastRunError",data_source:"dataSource",can_run_scheduled_prompts:"canRunScheduledPrompts",property_section:"propertySection",expiry_date:"expiryDate",doc_type:"docType",mime_type:"mimeType"};
   return Object.fromEntries(Object.entries(obj).map(([k,v])=>[m[k]||k,v]));
 };
 
@@ -2527,6 +2527,26 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
     const{error:dbError}=await sb.from("note_attachments").insert({note_id:noteId,name:file.name,category:category||"General",file_path:path,file_size:file.size,file_type:file.type||ext});
     if(dbError)throw new Error(dbError.message);
   };
+  // NOTE_EDIT_PATCH
+  // Notes are a record of what was said and agreed, so they were write-once. But
+  // that meant the only way to fix a typo was to delete and retype, which discards
+  // the original timestamp and any attachments — so in practice errors stayed.
+  // Editing keeps the record and stamps when it changed.
+  const[editingNote,setEditingNote]=useState(null);   // note id
+  const[editNoteBody,setEditNoteBody]=useState("");
+  const beginEditNote=(n)=>{setEditingNote(n.id);setEditNoteBody(n.body||"");};
+  const cancelEditNote=()=>{setEditingNote(null);setEditNoteBody("");};
+  const saveEditNote=async(n)=>{
+    const body=editNoteBody.trim();
+    if(!body){toast("A note cannot be empty. Delete it instead.","error");return;}
+    if(body===(n.body||"")){cancelEditNote();return;}   // nothing changed, do not stamp an edit
+    const{error}=await sb.from("notes")
+      .update({body,updated_at:new Date().toISOString()}).eq("id",n.id);
+    if(error){toast(error.message,"error");return;}
+    toast("Note updated");
+    cancelEditNote();
+    reload("notes");
+  };
   const addNote=async()=>{
     if(!noteBody.trim())return;
     const{data,error}=await sb.from("notes").insert({body:noteBody,family_id:family.id,contact_id:null}).select().single();
@@ -2966,11 +2986,34 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:B.navy,fontWeight:600,marginBottom:4}}>Recent Notes</div>
             <GoldLine/>
             {canEdit&&<div style={{display:"flex",gap:10,marginBottom:14}}>
-              <input value={noteBody} onChange={e=>setNoteBody(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&addNote()} placeholder="Quick note… (Enter to save)" style={{...inp,flex:1}}/>
+              <textarea value={noteBody} onChange={e=>setNoteBody(e.target.value)}
+                onKeyDown={e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){e.preventDefault();addNote();}}}
+                rows={noteBody.includes("\n")||noteBody.length>90?4:2}
+                placeholder="Quick note… (⌘/Ctrl + Enter to save)"
+                style={{...inp,flex:1,minHeight:38,resize:"vertical",fontFamily:"inherit",lineHeight:1.55,paddingTop:9,paddingBottom:9}}/>
               <Btn onClick={addNote} disabled={!noteBody.trim()}>Add</Btn>
             </div>}
             {famNotes.length===0?<Empty text="No notes yet"/>:[...famNotes].sort((a,b)=>b.createdAt>a.createdAt?1:-1).slice(0,4).map(n=><div key={n.id} style={{padding:"10px 0",borderBottom:`1px solid ${B.borderLight}`,display:"flex",justifyContent:"space-between",gap:10}}>
-              <div><div style={{fontSize:13,color:B.textMid,lineHeight:1.55}}>{n.body}</div><div style={{fontSize:11,color:B.textMute,marginTop:3}}>{fmt(n.createdAt)}</div></div>
+              <div style={{flex:1,minWidth:0}}>
+                {editingNote===n.id
+                  ? <div>
+                      <textarea value={editNoteBody} onChange={e=>setEditNoteBody(e.target.value)}
+                        onKeyDown={e=>{if(e.key==="Escape")cancelEditNote();if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){e.preventDefault();saveEditNote(n);}}}
+                        autoFocus rows={4}
+                        style={{width:"100%",boxSizing:"border-box",background:B.white,border:`1px solid ${B.gold}`,borderRadius:8,padding:"9px 11px",color:B.text,fontSize:13,lineHeight:1.6,fontFamily:"inherit",resize:"vertical",outline:"none"}}/>
+                      <div style={{display:"flex",gap:8,marginTop:6,alignItems:"center"}}>
+                        <Btn onClick={()=>saveEditNote(n)}>Save</Btn>
+                        <button onClick={cancelEditNote} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:12}}>Cancel</button>
+                        <span style={{fontSize:10.5,color:B.textMute,marginLeft:"auto"}}>⌘/Ctrl + Enter to save · Esc to cancel</span>
+                      </div>
+                    </div>
+                  : <NoteBody body={n.body} color={B.textMid}/>}
+                <div style={{fontSize:11,color:B.textMute,marginTop:3}}>
+                  {fmt(n.createdAt)}{n.updatedAt&&<span title={`Edited ${fmt(n.updatedAt)}`}> · edited</span>}
+                  {canEdit&&editingNote!==n.id&&<button onClick={()=>beginEditNote(n)}
+                    style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:11,marginLeft:8,textDecoration:"underline"}}>edit</button>}
+                </div>
+              </div>
               {canEdit&&<button onClick={()=>delNote(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button>}
             </div>)}
           </div>
@@ -3216,7 +3259,26 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
                 <div style={{height:3,background:`linear-gradient(90deg,${B.gold},${B.goldLight})`}}/>
                 <div style={{padding:"16px 20px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:8}}>
-                    <p style={{margin:0,color:B.text,fontSize:14,lineHeight:1.7,flex:1,whiteSpace:"pre-wrap"}}>{n.body}</p>
+                    {editingNote===n.id
+                      ? <div style={{flex:1}}>
+                          <textarea value={editNoteBody} onChange={e=>setEditNoteBody(e.target.value)}
+                            onKeyDown={e=>{if(e.key==="Escape")cancelEditNote();if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){e.preventDefault();saveEditNote(n);}}}
+                            autoFocus rows={Math.min(16,Math.max(4,String(n.body||"").split("\n").length+1))}
+                            style={{width:"100%",boxSizing:"border-box",background:B.white,border:`1px solid ${B.gold}`,borderRadius:8,padding:"11px 13px",color:B.text,fontSize:14,lineHeight:1.7,fontFamily:"inherit",resize:"vertical",outline:"none"}}/>
+                          <div style={{display:"flex",gap:8,marginTop:8,alignItems:"center",flexWrap:"wrap"}}>
+                            <Btn onClick={()=>saveEditNote(n)}>Save</Btn>
+                            <button onClick={cancelEditNote} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:12.5}}>Cancel</button>
+                            <span style={{fontSize:11,color:B.textMute,marginLeft:"auto"}}>⌘/Ctrl + Enter to save · Esc to cancel</span>
+                          </div>
+                        </div>
+                      : <div style={{flex:1,minWidth:0}}>
+                          <NoteBody body={n.body} size={14} clampChars={520} color={B.text}/>
+                          <div style={{fontSize:11,color:B.textMute,marginTop:6}}>
+                            {fmt(n.createdAt)}{n.updatedAt&&<span title={`Edited ${fmt(n.updatedAt)}`}> · edited</span>}
+                            {canEdit&&<button onClick={()=>beginEditNote(n)}
+                              style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:11,marginLeft:8,textDecoration:"underline"}}>edit</button>}
+                          </div>
+                        </div>}
                     {canEdit&&<button onClick={()=>delNote(n.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button>}
                   </div>
                   {/* Attachments list */}
@@ -5660,6 +5722,27 @@ function collectBills({events=[],families=[],paymentLog=[],windowDays=45}){
 // than a tab named after the deadline. Birthdays have no record to open, so they
 // land on Overview.
 const DEADLINE_TAB={task:"tasks",loan:"properties",insurance:"properties",flood:"properties",deal:"deals",birthday:"overview",anniversary:"overview"};
+// Renders a note body with its paragraphs intact and collapses the long ones.
+//
+// pre-wrap rather than splitting on newlines and emitting <p> elements: the text is
+// whatever someone typed, so honouring it exactly is more predictable than
+// inferring structure from blank lines. Long notes are clamped rather than
+// truncated, so nothing is lost — a meeting write-up should not turn a list of six
+// notes into a page of scrolling, but neither should reading it require a click.
+function NoteBody({body,size=13,clampChars=280,color}){
+  const text=String(body||"");
+  const [open,setOpen]=useState(false);
+  const long=text.length>clampChars||text.split("\n").length>6;
+  return <div>
+    <div style={{fontSize:size,color,lineHeight:size>13?1.7:1.55,whiteSpace:"pre-wrap",wordBreak:"break-word",
+      ...(long&&!open?{display:"-webkit-box",WebkitLineClamp:6,WebkitBoxOrient:"vertical",overflow:"hidden"}:{})}}>{text}</div>
+    {long&&<button onClick={e=>{e.stopPropagation();setOpen(!open);}}
+      style={{background:"none",border:"none",padding:0,marginTop:4,color:"#8a7333",cursor:"pointer",fontSize:11,fontWeight:600}}>
+      {open?"Show less":"Show more"}
+    </button>}
+  </div>;
+}
+
 const DEADLINE_TAG={task:"Task",loan:"Loan maturity",insurance:"Insurance",flood:"Flood insurance",deal:"Deal close",birthday:"Birthday",anniversary:"Anniversary"};
 function collectDeadlines({tasks=[],properties=[],deals=[],contacts=[],families=[],acks=[],windowDays=60}){
   const today=new Date(); today.setHours(0,0,0,0);
@@ -5966,7 +6049,7 @@ function Dashboard({data,userProfile,reload,toast,onOpenFamily}){
           onMouseEnter={e=>{if(openN)e.currentTarget.style.background=B.bg;}}
           onMouseLeave={e=>{e.currentTarget.style.background="none";}}
           style={{padding:"8px 0",borderBottom:`1px solid ${B.borderLight}`,cursor:openN?"pointer":"default"}}>
-          <div style={{fontSize:13,color:B.textMid,lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{n.body}</div>
+          <div style={{fontSize:13,color:B.textMid,lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{n.body}</div>
           <div style={{display:"flex",gap:8,marginTop:3}}><span style={{fontSize:11,color:B.textMute}}>{fmt(n.createdAt)}</span>{fam&&<span style={{fontSize:11,color:B.gold,fontWeight:700}}>{fam.name}</span>}</div>
         </div>;})}
         {notes.length===0&&<Empty text="No notes yet."/>}
