@@ -2466,6 +2466,11 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
   // below). Enforced for real via RLS (write_access policies exclude partner);
   // this just keeps the UI from showing controls that would fail server-side.
   const canEdit=userProfile?.role!=="partner";
+  // PROVIDERS_COLLAPSE
+  // Keyed by property and defaulting closed. A Set rather than a single id because
+  // comparing two properties' vendors means having both open at once.
+  const[openProviders,setOpenProviders]=useState(()=>new Set());
+  const toggleProviders=id=>setOpenProviders(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;});
   const[activeTab,setActiveTab]=useState(initialTab||"overview");
   const[reportOpen,setReportOpen]=useState(false);
   const[modal,setModal]=useState(null);
@@ -3127,10 +3132,29 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
               </div>
               {p.notes&&<div style={{marginTop:12,fontSize:13,color:B.textSoft,fontStyle:"italic"}}>{p.notes}</div>}
               <div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${B.borderLight}`}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <div style={{fontSize:11,color:B.textMute,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase"}}>Service Providers</div>
-                  {canEdit&&<button onClick={()=>setModal({type:"propertyContact",propertyId:p.id})} style={{background:"none",border:`1px solid ${B.border}`,color:B.navy,borderRadius:6,padding:"3px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>+ Add</button>}
-                </div>
+                {(()=>{
+                  const _pc=propContactsFor(p.id);
+                  const _open=openProviders.has(p.id);
+                  // Roles are what distinguishes one vendor from another at a glance,
+                  // so the closed summary names them rather than only counting. Capped
+                  // at three: past that the summary is longer than the list it stands in
+                  // for, which defeats the point.
+                  const _roles=[...new Set(_pc.map(c=>String(c.role||"").trim()).filter(Boolean))];
+                  const _summary=_roles.length?`${_roles.slice(0,3).join(", ")}${_roles.length>3?` +${_roles.length-3} more`:""}`:"";
+                  return <>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:_open?8:0}}>
+                      <button onClick={()=>toggleProviders(p.id)}
+                        style={{background:"none",border:"none",color:B.navyMid,fontSize:12,fontWeight:600,cursor:"pointer",padding:0,fontFamily:"inherit",textAlign:"left"}}>
+                        {_open?"\u25BC Hide":"\u25B6 Show"} service providers ({_pc.length})
+                      </button>
+                      {/* Add is only offered once the list is open. Offering it while
+                          collapsed invites adding a vendor that is already there. */}
+                      {canEdit&&_open&&<button onClick={()=>setModal({type:"propertyContact",propertyId:p.id})} style={{background:"none",border:`1px solid ${B.border}`,color:B.navy,borderRadius:6,padding:"3px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:600,flexShrink:0}}>+ Add</button>}
+                    </div>
+                    {!_open&&<div style={{fontSize:10,color:B.textMute,marginTop:2}}>
+                      {_pc.length===0?"None yet \u2014 add a landscaper, pool service, property manager\u2026":_summary||"No roles recorded"}
+                    </div>}
+                    {_open&&<>
                 {propContactsFor(p.id).length===0
                   ? <div style={{fontSize:12,color:B.textMute}}>None yet — add a landscaper, pool service, property manager…</div>
                   : <div style={{display:"flex",flexDirection:"column",gap:6}}>{propContactsFor(p.id).map(c=><div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,background:B.bg,borderRadius:6,padding:"6px 10px"}}>
@@ -3143,6 +3167,9 @@ function FamilyDashboard({family,data,reload,toast,onBack,userProfile,initialTab
                         <button onClick={()=>delPropertyContact(c.id)} style={{background:"none",border:"none",color:B.textMute,cursor:"pointer",fontSize:13}}>✕</button>
                       </div>}
                     </div>)}</div>}
+                    </>}
+                  </>;
+                })()}
               </div>
             </div>;
             return groups.map(g=><div key={g.type} style={{marginBottom:22}}>
