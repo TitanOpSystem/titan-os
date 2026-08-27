@@ -6247,7 +6247,18 @@ function UserManagementView({userProfile,data={},toast}){
     const{data:rows}=await sb.from("family_partners").select("*");
     if(rows)setFamilyPartners(rows);
   };
-  useEffect(()=>{loadUsers();loadFamilyPartners();},[]);
+  // ADMIN_CAPACITY_PATCH
+  const[platformCfg,setPlatformCfg]=useState(null);
+  const loadPlatformCfg=async()=>{
+    // Tolerate the column or table being absent: an instance provisioned before the
+    // licensing migration should still render this screen rather than white-screen
+    // on one missing number.
+    try{
+      const{data:row}=await sb.from("platform_config").select("*").maybeSingle();
+      setPlatformCfg(row||null);
+    }catch(_e){setPlatformCfg(null);}
+  };
+  useEffect(()=>{loadUsers();loadFamilyPartners();loadPlatformCfg();},[]);
 
   const toggleActive=async u=>{
     const{error}=await sb.from("user_profiles").update({active:!u.active}).eq("id",u.id);
@@ -6292,6 +6303,39 @@ function UserManagementView({userProfile,data={},toast}){
   // Per-Partner toggle: whether this Partner is allowed to create/run Scheduled
   // Prompts. Not all Partners should have this — off by default. Titan Experts
   // and Admins always have it implicitly (not stored on their row).
+  // Blank clears the cap; zero is a real and different instruction - "may hold no
+  // families" - so the two are never conflated.
+  const setFamilyCap=async(u,raw)=>{
+    const t=String(raw).trim();
+    const val=t===""?null:parseInt(t,10);
+    if(t!==""&&(!Number.isFinite(val)||val<0)){toast("Cap must be a whole number, or blank for no limit.","error");return;}
+    const{error}=await sb.from("user_profiles").update({family_cap:val}).eq("id",u.id);
+    if(error){toast(error.message,"error");loadUsers();return;}
+    toast(val===null?`${u.full_name||u.email}: no cap`:`${u.full_name||u.email} capped at ${val}`);
+    loadUsers();
+  };
+
+  const setPartnerKind=async(u,kind)=>{
+    const{error}=await sb.from("user_profiles").update({partner_kind:kind||null}).eq("id",u.id);
+    // The database refuses clearing this on someone who currently leads a family, so
+    // surface the message instead of letting the select snap back unexplained.
+    if(error){toast(error.message,"error");loadUsers();return;}
+    toast(kind==="adviser"?"Marked as firm adviser - can lead relationships"
+         :kind==="professional"?"Marked as outside professional - visibility only"
+         :"Partner type cleared");
+    loadUsers();
+  };
+
+  const setLicensedFamilies=async(raw)=>{
+    const t=String(raw).trim();
+    const val=t===""?null:parseInt(t,10);
+    if(t!==""&&(!Number.isFinite(val)||val<0)){toast("Contracted families must be a whole number, or blank.","error");return;}
+    const{error}=await sb.from("platform_config").update({licensed_families:val}).eq("id",true);
+    if(error){toast(error.message,"error");return;}
+    toast(val===null?"Contracted family count cleared":`Contracted for ${val} families`);
+    loadPlatformCfg();
+  };
+
   const togglePromptAccess=async u=>{
     const{error}=await sb.from("user_profiles").update({can_run_scheduled_prompts:!u.can_run_scheduled_prompts}).eq("id",u.id);
     if(error)toast(error.message,"error");else{toast(u.can_run_scheduled_prompts?"Scheduled Prompts access removed":"Scheduled Prompts access granted");loadUsers();}
@@ -6415,6 +6459,31 @@ function UserManagementView({userProfile,data={},toast}){
               </span>
             </div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {/* Load against cap, editable in place. Only for roles that hold
+                  families - a client or partner has no capacity to speak of. */}
+              {(u.role==="advisor"||u.role==="admin")&&(()=>{
+                const load=families.filter(f=>String(f.advisorEmail||"").toLowerCase()===String(u.email||"").toLowerCase()).length;
+                const cap=u.family_cap;
+                const atCap=cap!=null&&load>=cap;
+                return <span title="Families held, and the cap. Blank means no limit."
+                  style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:11,color:atCap?"#8b1a1a":B.textMute,whiteSpace:"nowrap"}}>
+                  <span style={{fontWeight:atCap?700:600}}>{load}</span>
+                  <span>/</span>
+                  <input defaultValue={cap==null?"":String(cap)} placeholder="--"
+                    onBlur={e=>{const v=e.target.value.trim();const cur=cap==null?"":String(cap);if(v!==cur)setFamilyCap(u,v);}}
+                    onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}}
+                    style={{width:36,padding:"2px 3px",fontSize:11,textAlign:"center",borderRadius:4,border:`1px solid ${atCap?"#e0a0a0":B.border}`,background:B.bg,color:"inherit",fontFamily:"inherit"}}/>
+                </span>;
+              })()}
+              {/* Only an adviser may hold Lead Advisor; the database enforces it, so
+                  this is where the distinction gets recorded. */}
+              {u.role==="partner"&&<select value={u.partner_kind||""} onChange={e=>setPartnerKind(u,e.target.value)}
+                title="An adviser can lead a family's investment relationship. A professional (CPA, attorney) has visibility only."
+                style={{background:B.bg,border:`1px solid ${B.border}`,borderRadius:6,padding:"3px 6px",fontSize:11,color:B.text,fontFamily:"inherit",cursor:"pointer"}}>
+                <option value="">Type not set</option>
+                <option value="adviser">Firm adviser</option>
+                <option value="professional">CPA / Attorney</option>
+              </select>}
               {u.role==="partner"&&<Btn small variant={u.can_run_scheduled_prompts?"gold":"ghost"} onClick={()=>togglePromptAccess(u)}>{u.can_run_scheduled_prompts?"✓ Prompts On":"Prompts Off"}</Btn>}
               {u.id!==userProfile?.id&&<>
                 <Btn small variant={u.active?"danger":"ghost"} onClick={()=>toggleActive(u)}>{u.active?"Deactivate":"Activate"}</Btn>
@@ -6441,6 +6510,27 @@ function UserManagementView({userProfile,data={},toast}){
           </div>
         );
         if(users.length===0)return <div style={{background:B.white,borderRadius:12,border:`1px solid ${B.borderLight}`,boxShadow:B.shadow,padding:"40px",textAlign:"center",color:B.textMute,fontSize:14,marginBottom:24}}>No users yet. Add your first user above.</div>;
+        // Contracted versus actual. Reports rather than blocks: exceeding what a firm
+        // paid for is an invoice, and refusing an onboarding over it would present a
+        // billing question as a system fault.
+        const LICENCE_PANEL=(()=>{
+          if(!platformCfg)return null;
+          const total=families.length;
+          const lic=platformCfg.licensed_families;
+          const over=lic!=null&&total>lic;
+          return <div style={{background:over?"#fde8e8":B.white,border:`1px solid ${over?"#e0a0a0":B.borderLight}`,borderRadius:9,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <span style={{fontSize:11,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase",color:over?"#8b1a1a":B.textMute}}>Families</span>
+            <span style={{fontSize:15,fontWeight:700,color:over?"#8b1a1a":B.navy}}>{total}</span>
+            <span style={{fontSize:12,color:B.textMute}}>of</span>
+            <input defaultValue={lic==null?"":String(lic)} placeholder="not set"
+              onBlur={e=>{const v=e.target.value.trim();const cur=lic==null?"":String(lic);if(v!==cur)setLicensedFamilies(v);}}
+              onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}}
+              title="How many families this firm has contracted for. Reporting only - it never blocks an onboarding."
+              style={{width:66,padding:"3px 6px",fontSize:13,textAlign:"center",borderRadius:5,border:`1px solid ${B.border}`,background:B.bg,color:B.navy,fontFamily:"inherit",fontWeight:600}}/>
+            <span style={{fontSize:12,color:B.textMute}}>contracted</span>
+            {over&&<span style={{fontSize:11.5,fontWeight:700,color:"#8b1a1a",marginLeft:"auto"}}>Over by {total-lic} - invoice needs updating</span>}
+          </div>;
+        })();
         const GROUPS=[
           {key:"admin",label:"Admins",accent:B.navy,desc:"Full access to all families, users, and settings"},
           {key:"advisor",label:"Titan Experts",accent:B.gold,desc:"Scoped to their assigned families and prospects"},
@@ -6465,6 +6555,7 @@ function UserManagementView({userProfile,data={},toast}){
         };
         const others=users.filter(u=>!known.includes(roleOf(u)));
         return <div style={{marginBottom:24}}>
+          {LICENCE_PANEL}
           {GROUPS.map(g=>renderSection(g.label,g.accent,g.desc,users.filter(u=>roleOf(u)===g.key&&linkedToFamily(u)),g.key))}
           {others.length>0&&!familyFilter&&renderSection("Unassigned",B.textMute,"Users with no recognized role — set one below",others,"__unassigned")}
         </div>;
