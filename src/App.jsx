@@ -45,6 +45,7 @@ const BRAND = {
   emailDomain: import.meta.env.VITE_BRAND_EMAIL_DOMAIN || "titanos.com",
   logo: import.meta.env.VITE_BRAND_LOGO_URL || "/titanos-logo-full.png",
   mark: import.meta.env.VITE_BRAND_MARK_URL || "/titanos-mark.png",
+  favicon: import.meta.env.VITE_BRAND_FAVICON_URL || "",
 };
 
 // ── MOBILE DETECTION ──────────────────────────────────────────────────────────
@@ -181,6 +182,10 @@ function applyBrandProfile(row){
   set(BRAND,"emailDomain",row.email_domain);
   set(BRAND,"logo",bust(row.logo_url));
   set(BRAND,"mark",bust(row.mark_url));
+  // BRAND_FAVICON_PATCH
+  // Separate asset because the two surfaces need opposite artwork; see the
+  // brand_favicon_separate_from_mark migration.
+  set(BRAND,"favicon",bust(row.favicon_url));
   set(B,"navy",row.color_primary);
   set(B,"text",row.color_primary);
   set(B,"navyMid",row.color_primary_mid);
@@ -206,9 +211,12 @@ function applyBrandProfile(row){
     // Swap the tab icon to the tenant's mark as well. Note this only affects a
     // live browser session — link-preview crawlers and the initial favicon come
     // from the build-time <head> (see vite.config.js).
-    if(BRAND.mark){
+    // Prefer the dedicated favicon; fall back to the mark so a brand that has not
+    // supplied one behaves exactly as before.
+    const _tabIcon=BRAND.favicon||BRAND.mark;
+    if(_tabIcon){
       document.querySelectorAll('link[rel="icon"],link[rel="apple-touch-icon"]')
-        .forEach(l=>l.setAttribute("href",BRAND.mark));
+        .forEach(l=>l.setAttribute("href",_tabIcon));
     }
   }
 }
